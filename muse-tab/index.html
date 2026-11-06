@@ -41176,7 +41176,8 @@ var NWP = (function(){
     const recommend = ai && melody? 'SJ' : 'orig';
     if(recommend==='SJ') basis.push(['scene', '推荐：教学对照谱', (swAI || !sw? 'AI 转谱多为单旋律＋歌词，' : '单旋律，')+'课堂最常用五线＋简谱对照']);
     /* 拍号被改写已在上一条说明：跳过计数里不再重复算这一处 */
-    const sk0=Object.assign({}, r.skip||{}); if(r.meterFrom && !/\/(2|4|8)$/.test(r.meterFrom) && sk0.other>0) sk0.other--;
+    const sk0=Object.assign({}, r.skip||{}); if(r.meterFrom && !/\/(2|4|8)$/.test(r.meterFrom) && sk0.other>0){ sk0.other--;
+      if(sk0.otherBy && sk0.otherBy['拍号']>0){ sk0.otherBy=Object.assign({}, sk0.otherBy); sk0.otherBy['拍号']--; } }   /* v70.3 B1 按名计数同步减 */
     const sk=(skipText(sk0)||'').replace(/^[；，、\s]+/, '');
     if(sk) basis.push(['warn', sk, '读不进来的部分']);
     if(r.warn) basis.push(['warn', r.warn, '按文件']);
@@ -44058,9 +44059,36 @@ function skipText(sk){
   if(sk.notes) it.push('音符 '+sk.notes+' 个');
   if(sk.lyrics) it.push('第 '+(MAX_LYR+1)+' 行起歌词 '+sk.lyrics+' 处');   /* v69.4 A6 导入段数上限 3 → MAX_LYR */
   if(sk.slurs) it.push('圆滑线 '+sk.slurs+' 条');
-  if(sk.other) it.push('其他记号 '+sk.other+' 处');
+  /* v70.3 B1 其他记号按名点出前 5 类（skip.otherBy：台账外的元素按 MusicXML 名，读不了的取值按中文名；GP 导入没有 otherBy，照旧只报总数） */
+  if(sk.other){ const by=Object.entries(sk.otherBy||{}).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]);
+    it.push('其他记号 '+sk.other+' 处'+(by.length? '（'+by.slice(0,5).map(([k,v])=>(SKIP_LBL[k]||k)+' '+v+(k==='震音'? ' 对' : '')).join('、')+(by.length>5? ' 等' : '')+'）' : '')); }
   return it.length? '；跳过：'+it.join('、') : '';
 }
+/* v70.3 B1 导入台账（基石方案 §3.1 B1）：importMusicXML 认得的元素白名单——note / notations / direction-type / ornaments / technical / articulations / barline 之下，
+   旋律行（简谱 / 五线谱）与六线谱行各一套。白名单外的元素按 MusicXML 名计入 skip.other（skip.otherBy[名]）；成对元素（type="stop" / "continue"）只计起点那一半；
+   articulations / ornaments / technical 这三个容器整个不认时按里面的元素名计。白名单内、但这个取值读不了的（B2：双音震音、第 3 房 /「1, 2」房、琶音、
+   同一音上第二个演奏法 / 装饰音、括号符头…）在 ledVox / ledTab / ledDir / ledBar 里逐项点名。「保留 / 进报告 / 静默丢」逐类核对：tests/tv_mxlsrc.js */
+const MXL_LED = {
+  vox: {
+    note: ['pitch','rest','duration','voice','type','dot','accidental','time-modification','stem','notehead','staff','beam','notations','lyric','chord','grace','tie'],
+    notations: ['tied','slur','tuplet','fermata','articulations','ornaments','technical','arpeggiate','non-arpeggiate','slide','glissando'],
+    articulations: ['staccato','staccatissimo','tenuto','accent','strong-accent','breath-mark'],
+    ornaments: ['trill-mark','mordent','inverted-mordent','turn','accidental-mark','tremolo'],
+    technical: ['fingering'],
+    'direction-type': ['words','dynamics','wedge','dashes','octave-shift','pedal','metronome','rehearsal','segno','coda'],
+  },
+  tab: {
+    note: ['pitch','rest','duration','voice','type','dot','accidental','time-modification','stem','notehead','staff','beam','notations','chord','grace','tie'],
+    notations: ['tied','tuplet','fermata','technical','slide'],
+    technical: ['string','fret','fingering','pluck','down-bow','up-bow','hammer-on','pull-off','tap','bend','harmonic','other-technical'],
+    'direction-type': ['words','metronome','rehearsal','segno','coda'],
+  },
+  barline: ['bar-style','repeat','ending'],
+};
+/* 导入报告里的显示名（没有的照 MusicXML 名显示） */
+const SKIP_LBL = {accent:'重音', staccato:'跳音', staccatissimo:'断音', tenuto:'保持音', 'strong-accent':'顿强', 'detached-legato':'半断奏', notehead:'符头样式', accidental:'提醒变音',
+  'trill-mark':'颤音', mordent:'波音', 'inverted-mordent':'波音', turn:'回音', 'accidental-mark':'装饰音变音', 'wavy-line':'颤音线', dashes:'延续虚线', fingering:'指法',
+  fermata:'延长号', slur:'圆滑线', slide:'滑音', glissando:'滑音', pedal:'踏板', 'other-dynamics':'空力度', 'octave-shift':'八度记号', 'bar-style':'小节线', words:'文字', dynamics:'力度', wedge:'渐强渐弱', metronome:'速度'};
 function downloadMusicXML(){
   const xml = exportMusicXML(song);
   if(!xml){ toast('曲谱为空，无可导出的声部'); return; }
@@ -44647,7 +44675,7 @@ function parseGP345(u8, plan){
           const vcols=[];
           for(let bi2=0;bi2<nB;bi2++){ const c=readBeat(nS); if(c) vcols.push(c); }
           if(v===0) cols=vcols;
-          else if(vcols.some(c=>c.notes&&c.notes.length)) skipBase.other++;
+          else { const nn=vcols.reduce((a,c)=>a+((c.notes||[]).length), 0); if(nn){ skipBase.vox=skipBase.vox||{}; skipBase.vox[ti]=(skipBase.vox[ti]||0)+nn; } }   /* v70.3 B3 第二声部按轨按音计（选中的轨才进 skip.voices；此前计 other、未选的轨也算） */
         }
         /* v66.7 换行标记：部分转谱站导出的 GP5 在最后一小节末尾不写这 1 字节（PyGuitarPro 同样按可缺省读，readByte(default=0)）；
            只在已到文件末尾时跳过，中途缺字节照旧报「文件截断」 */
@@ -44663,7 +44691,7 @@ function parseGP345(u8, plan){
   }
 }
 function buildSongFromGP345(gp, selIdx){
-  const skip={notes:gp.skipBase.notes, other:gp.skipBase.other};
+  const skip={notes:gp.skipBase.notes, other:gp.skipBase.other, voices:selIdx.reduce((a,i)=>a+((gp.skipBase.vox||{})[i]||0), 0)};   /* v70.3 B3 */
   const F2K={0:'C',1:'G',2:'D',3:'A',4:'E',5:'B',6:'F#',7:'C#','-1':'F','-2':'Bb','-3':'Eb','-4':'Ab','-5':'Db','-6':'Gb','-7':'B'};
   const sel=selIdx.map(i=>gp.tracks[i]).filter(t=>t&&!t.drum);
   if(!sel.length) return {error:'请至少选择一条非鼓音轨'};
@@ -44790,7 +44818,7 @@ function gpPostLink(colsByMea){
   colsByMea.forEach(cols=>cols.forEach(col=>{ delete col._hopo; delete col._sl; }));
 }
 function buildSongFromGP(gp, selIdx){
-  const skip={notes:0, other:0};
+  const skip={notes:0, other:0, voices:0};   /* v70.3 B3 第二声部单列 voices（此前计 other） */
   const {T, prop}=gp;
   const F2K={0:'C',1:'G',2:'D',3:'A',4:'E',5:'B',6:'F#',7:'C#','-1':'F','-2':'Bb','-3':'Eb','-4':'Ab','-5':'Db','-6':'Gb','-7':'B'};
   const NV_MAP={Whole:1,Half:2,Quarter:4,Eighth:8,'16th':16,'32nd':32,'64th':64};
@@ -44825,7 +44853,10 @@ function buildSongFromGP(gp, selIdx){
       const barId=meaInfo[mi].barIds[tk.idx];
       const bar=gp.bars[barId]; if(!bar) return cols;
       const vIds=(T(bar,':scope > Voices')||'').split(/\s+/);
-      vIds.slice(1).forEach(v=>{ if(v!=='-1' && gp.voices[v] && (T(gp.voices[v],':scope > Beats')||'').trim()) skip.other++; });   // 多声部：仅取声部1
+      /* 多声部：仅取声部1。v70.3 B3 其余声部的音按个数计 skip.voices（同 MusicXML「同谱表第二声部音符 N 个」口径；此前每个非空声部计 1 处「其他」） */
+      vIds.slice(1).forEach(v=>{ if(v==='-1' || !gp.voices[v]) return;
+        (T(gp.voices[v],':scope > Beats')||'').split(/\s+/).filter(Boolean).forEach(bid=>{ const bt=gp.beats[bid]; if(!bt) return;
+          skip.voices += (T(bt,':scope > Notes')||'').split(/\s+/).filter(Boolean).length; }); });
       const voice=gp.voices[vIds[0]]; if(!voice) return cols;
       let pendGrace=[], pendGraceDur=8;
       (T(voice,':scope > Beats')||'').split(/\s+/).forEach(bid=>{
@@ -44973,9 +45004,10 @@ function showGPTrackModal(gp){
     addDoc(r.song, ()=>{
       setRibbon(defaultLayer());
       pyqImportDone('gp');
-      const sk=r.skip.notes+r.skip.other;
+      const sk=r.skip.notes+r.skip.other;   /* v70.3 B3 第二声部单独点名（skip.voices） */
       toastSay('已导入《'+(r.song.title||'曲谱')+'》'+r.song.measures.length+' 小节 · '+selIdx.length+' 条音轨'
-        +(sk? '；简化/跳过 '+sk+' 处（多声部/打击乐/暂不支持记号）':'')
+        +(r.skip.voices? '；跳过第二声部音符 '+r.skip.voices+' 个' : '')
+        +(sk? '；简化/跳过 '+sk+' 处（打击乐/暂不支持记号）':'')
         +keyChoiceToast(r.song, kc, det), {t:'已导入 '+r.song.measures.length+' 小节', k:'res', act:'close', prev:d0});
     });
   };
@@ -45009,9 +45041,100 @@ function importMusicXML(xmlStr){
   const root = doc.querySelector('score-partwise');
   if(!root) return {error:'仅支持 score-partwise 格式（score-timewise 请先在 MuseScore 中转存）'};
   /* v65.1 B3a ⑥（P2-15）跳过计数分项：parts（超出上限的 part，partNames 点名）/ voices（同谱表非首 voice 的音）/ notes / lyrics（第 4 行起）/ slurs（落不到音上的圆滑线）/ other；文案见 skipText */
-  const skip = {parts:0, voices:0, notes:0, lyrics:0, slurs:0, other:0, partNames:[]};
+  const skip = {parts:0, voices:0, notes:0, lyrics:0, slurs:0, other:0, partNames:[], otherBy:{}};
   const q=(el,sel)=>el.querySelector(':scope > '+sel);
   const txt=(el,sel)=>{ const n=el&&q(el,sel); return n? n.textContent.trim() : null; };
+  /* v70.3 B1 导入台账（MXL_LED）：skO(名)＝计入 skip.other 并按名记数；以下 led* 在元素被收下时逐个过白名单与取值域（被整音跳过的 voices / notes 不再细分） */
+  const skO = (nm, n)=>{ n = n==null? 1 : n; if(!(n>0)) return; skip.other += n; skip.otherBy[nm] = (skip.otherBy[nm]||0) + n; };
+  const ledHalf = c=>{ const t=c.getAttribute('type'); return t==='stop' || t==='continue'; };
+  const LED_BOX = ['articulations','ornaments','technical'];
+  const ledKids = (el, list)=>[...el.children].forEach(c=>{ if(list.indexOf(c.tagName)>=0 || ledHalf(c)) return;
+    if(LED_BOX.indexOf(c.tagName)>=0) [...c.children].forEach(g=>{ if(!ledHalf(g)) skO(g.tagName); }); else skO(c.tagName); });
+  const ledHead = (el, tab)=>{ const nh=q(el,'notehead'); if(!nh) return; const v=nh.textContent.trim();
+    if(!(tab? (v==='normal' || /x/i.test(v)) : v==='normal') || nh.getAttribute('parentheses')==='yes' || nh.getAttribute('filled')==='no') skO('notehead'); };
+  const ledAcc = el=>{ const a=q(el,'accidental'); if(a && ['cautionary','editorial','parentheses','bracket'].some(k=>a.getAttribute(k)==='yes')) skO('accidental'); };
+  /* 和音附加音上的记号：本列主音 <note> 上已有同名记号＝重复写法（MusicXML 常见），不算丢 */
+  const ledDup = (mainEl, path)=>!!(mainEl && mainEl.querySelector(':scope > notations > '+path));
+  let ledArpCol=null;   // 琶音按列计（主音或任一附加音带 <arpeggiate> / <non-arpeggiate>，一列计 1）
+  const ARTIC_PRI=['staccatissimo','staccato','tenuto','accent','strong-accent'], ORN_PRI=['trill-mark','inverted-mordent','mordent','turn'];
+  /* 旋律行的音：kind＝'main'（有音高的主音）/ 'rest' / 'chord'（和音附加音，mainEl＝本列主音）/ 'grace'；col＝落到的列（琶音按列计） */
+  const ledVox = (el, kind, mainEl, col)=>{
+    ledKids(el, MXL_LED.vox.note); ledHead(el, false); ledAcc(el);
+    const nt=q(el,'notations'); if(!nt) return;
+    if(nt.querySelector(':scope > arpeggiate, :scope > non-arpeggiate') && col && ledArpCol!==col){ ledArpCol=col; skO('琶音'); }
+    [...nt.children].forEach(c=>{ const tg=c.tagName;
+      if(tg==='arpeggiate' || tg==='non-arpeggiate' || tg==='tuplet' || ledHalf(c)) return;
+      if(MXL_LED.vox.notations.indexOf(tg)<0){ if(LED_BOX.indexOf(tg)>=0) [...c.children].forEach(g=>{ if(!ledHalf(g)) skO(g.tagName); }); else skO(tg); return; }
+      if(kind==='grace'){   /* 倚音：连线由引擎画；其余记号倚音上不收 */
+        if(tg==='slur' || tg==='tied') return;
+        if(LED_BOX.indexOf(tg)>=0) [...c.children].forEach(g=>{ if(!ledHalf(g)) skO(g.tagName); }); else skO(tg); return; }
+      if(kind==='chord'){   /* 附加音：连音线、1–5 指法逐音收；别的记号主音上有同名的算重复写法 */
+        if(tg==='tied') return;
+        if(tg==='technical'){ let fg=0; [...c.children].forEach(g=>{ if(g.tagName==='fingering' && !fg && /^[1-5]$/.test(g.textContent.trim())){ fg=1; return; } if(!ledHalf(g)) skO(g.tagName); }); return; }
+        if(LED_BOX.indexOf(tg)>=0){ [...c.children].forEach(g=>{ if(ledHalf(g)) return; if(!ledDup(mainEl, tg+' > '+g.tagName)) skO(g.tagName==='tremolo'? '震音' : g.tagName); }); return; }
+        if(!ledDup(mainEl, tg)) skO(tg); return; }
+      const rest = kind==='rest';
+      if(tg==='slur'){ if(rest) skO('slur'); return; }   /* 休止上起的圆滑线不收（跨休止的收口另计 skip.slurs） */
+      if(tg==='slide' || tg==='glissando'){ if(rest) skO(tg); return; }
+      if(tg==='articulations'){ const pick = rest? null : ARTIC_PRI.find(t=>nt.querySelector('articulations > '+t));
+        [...c.children].forEach(g=>{ const t=g.tagName; if(t==='breath-mark' || ledHalf(g)) return;
+          if(MXL_LED.vox.articulations.indexOf(t)<0 || t!==pick) skO(t); }); return; }   /* 一列只记一个演奏法（col.artic）：第二个起计数 */
+      if(tg==='ornaments'){ const pick = (rest || c!==q(nt,'ornaments'))? null : ORN_PRI.find(t=>c.querySelector(':scope > '+t));   /* 导入只读第一个 <ornaments> */
+        [...c.children].forEach(g=>{ const t=g.tagName; if(ledHalf(g)) return;
+          if(t==='tremolo'){ const ty=g.getAttribute('type')||'single', n=+g.textContent.trim(); if(rest || ty!=='single' || !(n>=1 && n<=3)) skO('震音'); return; }   /* B2 双音震音 start/stop 一对计 1 */
+          if(t==='accidental-mark'){ if(!pick || !['sharp','natural','flat','double-sharp','sharp-sharp','flat-flat','double-flat'].includes((g.textContent||'').trim())) skO(t); return; }
+          if(MXL_LED.vox.ornaments.indexOf(t)<0 || t!==pick) skO(t); }); return; }
+      if(tg==='technical'){ let fg=0; [...c.children].forEach(g=>{ if(ledHalf(g)) return;
+          if(g.tagName==='fingering' && !fg && !rest){ fg=1; if(/^[1-5]$/.test(g.textContent.trim())) return; } skO(g.tagName); }); return; }
+    });
+  };
+  /* 六线谱行的音（kind 同上，'grace'＝收下的倚音） */
+  const TAB_TECH_OT=['P.M.','vibrato','let ring','slide-in up','slide-in down','slide-out up','slide-out down','bend-target'];
+  const ledTab = (el, kind, mainEl)=>{
+    ledKids(el, MXL_LED.tab.note); ledHead(el, true); ledAcc(el);
+    const nt=q(el,'notations'); if(!nt) return;
+    const techs=[]; let slideSt=false;
+    [...nt.children].forEach(c=>{ const tg=c.tagName;
+      if(tg==='tuplet' || ledHalf(c)) return;
+      if(MXL_LED.tab.notations.indexOf(tg)<0){ if(LED_BOX.indexOf(tg)>=0) [...c.children].forEach(g=>{ if(!ledHalf(g)) skO(g.tagName); }); else skO(tg); return; }
+      if(tg==='tied') return;
+      if(tg==='slide'){ if(kind==='grace' || kind==='rest') skO('slide'); else slideSt=true; return; }
+      if(tg==='fermata'){ if(kind==='grace' || (kind==='chord' && !ledDup(mainEl, 'fermata'))) skO('fermata'); return; }
+      if(tg==='technical') [...c.children].forEach(g=>{ const t=g.tagName; if(ledHalf(g)) return;
+        if(kind==='grace'){ if(t!=='string' && t!=='fret') skO(t); return; }
+        if(MXL_LED.tab.technical.indexOf(t)<0){ skO(t); return; }
+        const v=(g.textContent||'').trim();
+        if(t==='fingering'){ if(!/^[0-4T]$/.test(v.toUpperCase())) skO(t); return; }
+        if(t==='pluck'){ if(!/^[pima]$/.test(v)) skO(t); return; }
+        if(t==='down-bow' || t==='up-bow'){ if(kind==='chord' && !ledDup(mainEl, 'technical > '+t)) skO(t); return; }
+        if(t==='other-technical'){ if(/^w\.bar /.test(v) || /^[APT]\.H\.?$/.test(v) || v==='bend-target') return; if(TAB_TECH_OT.indexOf(v)<0){ skO(t); return; } techs.push('ot'); return; }
+        if((t==='hammer-on' || t==='pull-off') && g.getAttribute('type')!=='start'){ skO(t); return; }
+        if(t==='hammer-on' || t==='pull-off' || t==='tap' || t==='bend' || t==='harmonic') techs.push(t); });
+    });
+    /* 每音只记一个技法（tech）：优先级同导入（击弦 > 勾弦 > 点弦 > 推弦 > 泛音 > 滑音 > 其余 other-technical），第二个起计数 */
+    if(kind==='grace' || kind==='rest') return;
+    const have=[]; ['hammer-on','pull-off','tap','bend','harmonic','slide','ot'].forEach(t=>{ const n = t==='slide'? (slideSt? 1 : 0) : techs.filter(x=>x===t).length; for(let i=0;i<n;i++) have.push(t); });
+    have.slice(1).forEach(t=>skO(t==='ot'? 'other-technical' : t));
+  };
+  /* 方向记号（direction-type 之下）：tab＝六线谱行（只认导航文字、谱首速度、排练号；力度 / 渐强渐弱 / 别的文字等计数）；
+     o.nav＝本 direction 被主声部认成导航记号（D.C. / Fine…）；o.dash＝本 direction 的延续虚线已挂上（cresc. / dim. → dynTo） */
+  const ledDir = (el, tab, o)=>{ o=o||{};
+    [...el.querySelectorAll(':scope > direction-type')].forEach(dt=>[...dt.children].forEach(c=>{ const tg=c.tagName;
+      if(ledHalf(c)) return;
+      const L = tab? MXL_LED.tab['direction-type'] : MXL_LED.vox['direction-type'];
+      if(L.indexOf(tg)<0){ skO(tg); return; }
+      if(tab){ if(tg==='words' && !o.nav) skO('words');
+        else if(tg==='metronome' && !(tBest && el===tBest.el) && !voxParts.length) skO('metronome'); return; }
+      if(tg==='dashes'){ if(!o.dash) skO('dashes'); return; }   /* 虚线只跟 cresc. / dim. 文字收（dynTo）；跟别的文字的、没有文字的计数 */
+      if(tg==='pedal'){ const t=c.getAttribute('type'); if(t!=='start' && t!=='change') skO('pedal'); return; }
+      if(tg==='octave-shift'){ const s=c.getAttribute('size')||'8'; if(s!=='8' && s!=='15') skO('octave-shift'); return; }
+    }));
+  };
+  /* 小节线（主声部的；其余声部的小节线按惯例是重复写法）：B2 房子编号只认单个 1 / 2，第 3 房、「1, 2」房计数 */
+  const ledBar = bl=>{ [...bl.children].forEach(c=>{ const tg=c.tagName; if(ledHalf(c) || c.getAttribute('type')==='discontinue') return;
+    if(MXL_LED.barline.indexOf(tg)<0){ skO(tg); return; }
+    if(tg==='ending'){ if(!/^\s*[12]\s*$/.test(c.getAttribute('number')||'1')) skO('房子编号'); return; }
+    if(tg==='bar-style'){ if(['regular','light-light','light-heavy','heavy-light'].indexOf(c.textContent.trim())<0) skO('bar-style'); } }); };
   /* 调号：fifths → key 名 */
   const F2K={0:'C',1:'G',2:'D',3:'A',4:'E',5:'B',6:'F#',7:'C#','-1':'F','-2':'Bb','-3':'Eb','-4':'Ab','-5':'Db','-6':'Gb','-7':'Cb'};   /* v69.4 A9 -7＝降 C（KEYSIG 已加 Cb:-7；此前记成 B 大调 5 个升号） */
   const firstAttr = doc.querySelector('part > measure > attributes');
@@ -45019,7 +45142,7 @@ function importMusicXML(xmlStr){
   let keyDefaulted = !firstAttr || txt(firstAttr,'key > fifths')==null;
   let beats = +(txt(firstAttr,'time > beats')||4) || 4;
   let unit  = +(txt(firstAttr,'time > beat-type')||4) || 4;
-  if(unit!==2 && unit!==4 && unit!==8){ skip.other++; unit=4; }   /* v65.4 B3a ⑦（P2-13）2/2 等 x/2 拍号放行 */
+  if(unit!==2 && unit!==4 && unit!==8){ skO('拍号'); unit=4; }   /* v65.4 B3a ⑦（P2-13）2/2 等 x/2 拍号放行；v70.3 B1 按名计 */
   beats = Math.max(1, Math.min(12, beats));
   /* v67.5 依据用的只读文件事实（不进 song）：文件没写拍号（按 4/4）/ 写的拍号读不了被改写（如 3/16 → 3/4） */
   const meterRaw = [txt(firstAttr,'time > beats'), txt(firstAttr,'time > beat-type')];
@@ -45065,7 +45188,7 @@ function importMusicXML(xmlStr){
     'major-13th':'maj13','minor-13th':'m13',power:'5','major-minor':'mmaj7',none:'',other:''};
   const harmonySuffix = (kd, hEl)=>{
     if(kd.getAttribute('text')!=null) return kd.getAttribute('text');
-    const kn=kd.textContent.trim(); let base=KIND_MAP[kn]; if(base==null){ skip.other++; base=''; }
+    const kn=kd.textContent.trim(); let base=KIND_MAP[kn]; if(base==null){ skO('和弦类型'); base=''; }
     const toks=[...hEl.querySelectorAll(':scope > degree')].map(d=>{ const v=+(txt(d,'degree-value')||0), a=+(txt(d,'degree-alter')||0), t=txt(d,'degree-type')||'add';
       if(!v || t==='subtract' || (t==='alter' && !a)) return ''; return (a<0?'b':a>0?'#':'add')+v; }).filter(Boolean);
     if(base==='sus4' && toks.includes('b7')) return '7sus4'+toks.filter(t=>t!=='b7').join('');
@@ -45322,6 +45445,7 @@ function importMusicXML(xmlStr){
        A4 wedgeHold：力度与渐强渐弱同列时力度留本列、渐强渐弱从下一列起——记下让位的那一列（没有下一列时按旧口径回退）
        A5 pendGraceDur：同组第一个倚音的 <type> → grace.dur */
     let pendDash=false, openDash=null, openDashN='1', wedgeHold=null, pendGraceDur=0, pendGraceNoSl=false;   // pendDash＝待挂的虚线编号（dashes number，缺省 '1'）
+    let ledMainEl=null;   /* v70.3 B1 本列主音的 <note>（台账：和音附加音上的重复记号不算丢） */
     const csh = concertSh[pi];   // v69.4 A11 本 part 换实音的平移（null＝记谱音照收）
     const addAnno = t=>{ pendAnno = pendAnno? (pendAnno+' '+t).slice(0,40) : t; };
     const clef0 = part.querySelector('measure attributes clef')||null, clefSign = txt(clef0,'sign');
@@ -45342,7 +45466,7 @@ function importMusicXML(xmlStr){
       const cols=[], cStart=[]; let firstVoice=null, pendChord='';
       /* v69.4 A9 小节内时间游标（divisions）：接收的音 / 跳过的第二声部音 +duration，backup −，forward +；方向记号的位置＝游标 + <offset>。
          cStart＝各列起点，lastEnd＝最后一列的终点——落在已收列之内的方向记号（backup 之后、负 offset）就地挂到对应列，不再顺延到下一个音 / 下一小节 */
-      let tcur=0, lastEnd=0;
+      let tcur=0, lastEnd=0, tFill=0;   /* v70.3 B1 tFill＝第一声部已写到的时间（查 forward 留下的空拍：至少一个 64 分音符才算，连音 duration 取整的几个 tick 不算；只用于计数，不影响落列） */
       const noteIn=(col2, t0)=>{                       // 音符列入列 + wedge/pedal 起止登记
         cols.push(col2); cStart.push(t0||0); lastPos={mi:mi2, ci:cols.length-1}; prevColRef=lastColRef; lastColRef=col2;
         if(pendWedge && pendDyn){ col2.dyn=pendDyn; pendDyn=null; if(pendDash){ openDash=col2; openDashN=pendDash; pendDash=false; } wedgeHold=col2; }   /* v69.4 A4 力度留本列，渐强渐弱等下一列 */
@@ -45366,7 +45490,7 @@ function importMusicXML(xmlStr){
           const f5r=txt(el,'key > fifths'), f5 = (f5r!=null && keySrcSh)? String(concertFifths(f5r, keySrcSh)) : f5r;
           if(f5!=null && part===keySrcPart && mi2>0){
             if(F2K[f5] && F2K[f5]!==curKeyEff){ keyToMap[mi2]=F2K[f5]; curKeyEff=F2K[f5]; }
-            else if(!F2K[f5]) skip.other++;
+            else if(!F2K[f5]) skO('调号');
           }
           /* v43.5 变拍子：measure>0 的 <time> 变更 → mea.beats/mea.unit */
           if(part===primaryPart && mi2>0){
@@ -45443,10 +45567,11 @@ function importMusicXML(xmlStr){
           /* v44.8 独立力度 → 挂到下一音符列 col.dyn。v69.4 A4：① MusicXML 4.0 标准力度全收（fz / ffff / rfz…，DYN_STD）；② other-dynamics 转文字标注（只有括号 / 空白的丢弃计数）；
              ③ 同一位置已有真力度、又来文字力度（f＋dim.、pp＋cresc.、p＋dolce）→ 文字转标注，不再覆盖力度（城市 m35 / m38、侏儒 m58 此前丢了 f / pp）；
              先到文字力度、后到真力度 → 同样把文字挪进标注，力度占位 */
+          let dashTk=false;   /* v70.3 B1 本 direction 的延续虚线挂上了（台账 ledDir 用） */
           const putDyn=(v, isTxt, dash)=>{
-            if(tg){ if(!tg.dyn){ tg.dyn=v; if(dash){ openDash=tg; openDashN=dash; } return; }
+            if(tg){ if(!tg.dyn){ tg.dyn=v; if(dash){ openDash=tg; openDashN=dash; dashTk=true; } return; }
               if(isTxt && DYN_STD.test(tg.dyn)){ tg.anno = tg.anno? (tg.anno+' '+v).slice(0,40) : v; lossy.tdyn++; return; } }
-            if(isTxt){ if(pendDyn && DYN_STD.test(pendDyn)){ addAnno(v); lossy.tdyn++; return; } pendDyn=v; pendDash=dash||false; return; }
+            if(isTxt){ if(pendDyn && DYN_STD.test(pendDyn)){ addAnno(v); lossy.tdyn++; return; } pendDyn=v; pendDash=dash||false; if(dash) dashTk=true; return; }
             if(pendDyn && !DYN_STD.test(pendDyn)){ addAnno(pendDyn); lossy.tdyn++; }
             pendDyn=v; pendDash=false; };
           const dy=el.querySelector('direction-type > dynamics > *');
@@ -45456,7 +45581,7 @@ function importMusicXML(xmlStr){
                去掉括号后是标准力度 → 文字力度（col.dyn 原样带括号、画在力度位）；其余文字（骊歌「solo」）→ 标注 anno；只有括号 / 空白的丢弃计数 */
             const SMD={'\ue520':'p','\ue521':'m','\ue522':'f','\ue523':'r','\ue524':'s','\ue525':'z','\ue526':'n'};
             const ot=dy.textContent.replace(/[\ue520-\ue526]/g, c=>SMD[c]).replace(/\s+/g,' ').trim().slice(0,40), core=ot.replace(/[\s()\[\]]/g,'');
-            if(!core) skip.other++;
+            if(!core) skO('other-dynamics');
             else if(DYN_STD.test(core)){ putDyn(ot.replace(/\s+/g,'').slice(0,12), true, false); lossy.odyn++; }
             else { if(tg && !tg.anno) tg.anno=ot; else addAnno(ot); lossy.odyn++; } }
           /* v44.8 意大利速度术语：首小节 words（主 part）→ song.tempoTerm */
@@ -45475,12 +45600,15 @@ function importMusicXML(xmlStr){
                首小节别的不带字体的 words 是标注（此前没有速度术语的谱，第 1 小节的标注往返变成速度术语） */
             else if(wt2 && part===primaryPart && mi2===0 && !out.tempoTerm && (!ownSw || el.querySelector('direction-type > metronome') || (()=>{ const pv=el.previousElementSibling; return !!(pv && pv.tagName==='direction' && pv.querySelector('direction-type > metronome')); })())) out.tempoTerm=wt2.slice(0,40);
             else if(wt2){ if(tg && !tg.anno) tg.anno=wt2.slice(0,40); else addAnno(wt2.slice(0,40)); } }
+          ledDir(el, false, {dash:dashTk});   /* v70.3 B1 台账 */
           return;   // 其余 direction（metronome/rehearsal 等）另行处理
         }
         if(tag==='harmony'){ const hn=harmonyName(el, csh); if(hn) pendChord=hn; return; }   // v65.1 kind+degree → 后缀（harmonySuffix）；v69.4 A11 换实音的 part 和弦名同移
         if(tag==='sound'){ if(el.hasAttribute('tempo')) tpAdd(mi2, Math.max(0, tcur + ((+(txt(el,'offset')||0))||0))/div, el); return; }   /* v69.8 裸 <sound tempo>（只进播放的速度点） */
         /* v69.4 A9 backup / forward 推动时间游标；拆谱表时留下 / 补出的（data-pyq-cur）不计入跳过（与此前拆谱表时删掉它们同口径） */
-        if(tag==='backup' || tag==='forward'){ const dd=(+(txt(el,'duration')||0))||0; tcur = tag==='backup'? Math.max(0, tcur-dd) : tcur+dd; if(!el.hasAttribute('data-pyq-cur')) skip.other++; return; }
+        /* v70.3 B1 有意迁移：backup / forward 本身不再计入「其他记号」——时间游标已处理（只给方向记号定位的「backup→方向→forward」什么也没丢）；
+           真丢了的另计：后面的第二声部音计 skip.voices，第一声部里 forward 留下的空拍（下一列起点晚于上一列终点、或小节末没写满）计「空拍」 */
+        if(tag==='backup' || tag==='forward'){ const dd=(+(txt(el,'duration')||0))||0; tcur = tag==='backup'? Math.max(0, tcur-dd) : tcur+dd; return; }
         if(tag!=='note') return;
         /* v69.4 A9 时间游标：非和音、非倚音的音（含被跳过的第二声部音、休止）都推进 */
         const tStart = tcur; if(!q(el,'grace') && !q(el,'chord')) tcur += (+(txt(el,'duration')||0))||0;
@@ -45488,7 +45616,8 @@ function importMusicXML(xmlStr){
           const pe0=q(el,'pitch');
           /* v67.0 调外倚音带 acc；v69.4 A1 按 <step> 拼（同主音）；A5 同组第一个倚音的 <type> 记作组时值 */
           if(pe0 && !q(el,'chord') && pendGrace.length<3){ if(!pendGrace.length){ pendGraceDur=TYPE_INV[txt(el,'type')||'']||0; pendGraceNoSl=q(el,'grace').getAttribute('slash')!=='yes'; }   /* v69.8 A 同组第一个倚音无 slash 属性或 slash="no"＝长倚音 */
-            const g0=spellOf(pe0, keyEffAt(mi2), csh? csh.d : 0, csh? csh.c : 0); pendGrace.push(Object.assign({deg:g0.deg, oct:g0.oct}, g0.acc? {acc:g0.acc} : {})); }
+            const g0=spellOf(pe0, keyEffAt(mi2), csh? csh.d : 0, csh? csh.c : 0); pendGrace.push(Object.assign({deg:g0.deg, oct:g0.oct}, g0.acc? {acc:g0.acc} : {})); ledVox(el, 'grace'); }
+          else skip.notes++;   /* v70.3 B2 同组第 4 个起的倚音、和弦倚音（<grace> 带 <chord>）、没有音高的倚音：此前静默丢，计入跳过音符 */
           return;
         }
         const vc=txt(el,'voice');
@@ -45560,14 +45689,15 @@ function importMusicXML(xmlStr){
           if(slurDepth>0){ slurDepth=0; skip.slurs++; if(lastColRef && !tieX.has(lastColRef)) lastColRef.tie=false; }   // v65.1 圆滑线跨休止：应用内无法表达，收口并计数
           { const rc=readSigns({dur, dotted, deg:0, acc:'', oct:0, lyrics:[], tie:false, ...(tup?{tup}:{}), ...(tupM2?{tupM:tupM2}:{})});
             if(pendChord){ rc.chord=pendChord; pendChord=''; }   /* v65.7 休止列（纯和弦谱）也接和弦 */
-            noteIn(rc, tStart);
+            if(tStart-tFill>=div/16-1e-6) skO('空拍'); tFill=tcur;   /* v70.3 B1 */
+            noteIn(rc, tStart); ledVox(el, 'rest', null, rc); ledMainEl=el;   /* v70.3 B1 台账 */
             if(restSplit){ const qOf=x=>(4/x.dur)*(x.dotted?1.5:1)*div; let tq=tStart+qOf(restSplit[0]);   /* 拆开的休止列按时间游标依次落位 */
               restSplit.slice(1).forEach(x=>{ noteIn({dur:x.dur, dotted:x.dotted, deg:0, acc:'', oct:0, lyrics:[], tie:false}, tq); tq+=qOf(x); }); }
             lastEnd = tcur; }
           return;
         }
         const pe=q(el,'pitch');
-        if(!pe){ skip.notes++; return; }
+        if(!pe){ skip.notes++; tFill=tcur; return; }
         /* v43.4 双变音导入拼写保真 → v69.4 A1 所有音按 <step>/<alter> 拼（spellOf；换实音的 part 字母 / 音高同移） */
         const noteObj = spellOf(pe, keyEffAt(mi2), csh? csh.d : 0, csh? csh.c : 0);
         /* v41.3 和音指法：chord 音各自的 fingering → adds[i].fing */
@@ -45591,7 +45721,7 @@ function importMusicXML(xmlStr){
             if(mainReal) noteObj.tie=true; else delete noteObj.tie;
           }
           last.adds=last.adds||[];
-          if(last.adds.length<3) last.adds.push(noteObj); else skip.notes++;
+          if(last.adds.length<3){ last.adds.push(noteObj); ledVox(el, 'chord', ledMainEl, last); } else skip.notes++;   /* v70.3 B1 台账 */
           return;
         }
         /* v67.0 连音线：<tie>（发声）与 <notations><tied>（记谱）任一带 start 即算——只写 <tied> 的文件此前整条丢 */
@@ -45631,8 +45761,10 @@ function importMusicXML(xmlStr){
             if(prevSlur) delete pa.tie;   /* 上一列原是圆滑线（非真连音）：列级 tie 仍在，换上来的主音即连音起点 */
             lastColRef.tie=true; tieX.add(lastColRef); }
         }
-        noteIn(readSigns(col), tStart); lastEnd = tcur;
+        if(tStart-tFill>=div/16-1e-6) skO('空拍'); tFill=tcur;   /* v70.3 B1 */
+        noteIn(readSigns(col), tStart); lastEnd = tcur; ledVox(el, 'main', null, col); ledMainEl=el;   /* v70.3 B1 台账 */
       });
+      if(cols.length && tcur-tFill>=div/16-1e-6) skO('空拍');   /* v70.3 B1 第一声部没写满（末尾 forward） */
       if(part===primaryPart && mrActive) simMap[mi2]=mrActive;   // v41.3 小节反复段内小节全部省写
       return cols;
     });
@@ -45647,9 +45779,11 @@ function importMusicXML(xmlStr){
   const tabPartCols = tabParts.map(part=>{
     let div=24, pendTabGrace=[], pendTabGraceDur=8;   /* v52.7 TAB 倚音：累积挂给下一个主音列 */
     let pendTabChord='';   /* v65.3 B3a ④ TAB 列和弦：<harmony> 挂给下一列 */
+    let tabMainEl=null;   /* v70.3 B1 本列主音的 <note>（台账查重用） */
     const meas=[...part.querySelectorAll(':scope > measure')];
     return meas.map((m,mi2)=>{
       const cols=[];
+      let firstVoice=null, tcur=0, lastEnd=0;   /* v70.3 B3 每小节只留第一个 voice（同旋律行口径），其余计 skip.voices——此前第二声部被追加成后续列、小节超拍，skip 却是 0 */
       [...m.children].forEach(el=>{
         const tag=el.tagName;
         if(tag==='attributes'){
@@ -45662,15 +45796,20 @@ function importMusicXML(xmlStr){
           }
           return;
         }
-        if(tag==='direction'){ if(part===primaryPart) navScan(el, mi2); return; }   // v65.1 纯 TAB 文件的导航记号
+        if(tag==='direction'){ const nav = part===primaryPart && navScan(el, mi2); ledDir(el, true, {nav}); return; }   // v65.1 纯 TAB 文件的导航记号；v70.3 B1 其余方向记号计数
         if(tag==='harmony'){ const hn=harmonyName(el); if(hn) pendTabChord=hn; return; }   // v65.3
+        /* v70.3 B3 backup / forward：六线谱行不按时间游标落列（只留第一个 voice）；拆谱表时留下 / 补出的（data-pyq-cur）不计，其余同旋律行计入其他记号 */
+        if(tag==='backup' || tag==='forward'){ const dd=(+(txt(el,'duration')||0))||0; tcur = tag==='backup'? Math.max(0, tcur-dd) : tcur+dd; return; }
         if(tag!=='note') return;
+        const tStart=tcur; if(!q(el,'grace') && !q(el,'chord')) tcur += (+(txt(el,'duration')||0))||0;   /* 时间游标只用来查空拍（同旋律行口径） */
+        { const vc=txt(el,'voice'); if(vc!=null){ if(firstVoice==null) firstVoice=vc; else if(vc!==firstVoice){ skip.voices++; return; } } }   /* v70.3 B3 */
         if(q(el,'grace')){   /* v52.7 TAB 前倚音：string/fret 反解、挂给下一个主音列（同 vox pendGrace 口径）*/
           const tgE=el.querySelector(':scope > notations technical');
           const sG=tgE&&tgE.querySelector('string'), fG=tgE&&tgE.querySelector('fret');
           if(sG && fG && pendTabGrace.length<3){
             pendTabGrace.push({s:+sG.textContent.trim()||1, f:Math.max(0,+fG.textContent.trim()||0)});
             const gd=TYPE_INV[txt(el,'type')||'']; if(gd) pendTabGraceDur=gd;
+            ledTab(el, 'grace');
           } else skip.notes++;
           return;
         }
@@ -45685,9 +45824,9 @@ function importMusicXML(xmlStr){
             if(Math.abs(quarters-qn*1.75)<1e-3){dur=d2;dotted=2;break;} if(Math.abs(quarters-qn*2/3)<1e-3){dur=d2;tup=1;break;} }
           if(!dur){ skip.notes++; dur=quarters>=3?2:quarters>=1.5?4:quarters>=0.7?4:quarters>=0.35?8:16; } }
         const nt3=q(el,'notations'); const ferm=!!(nt3&&nt3.querySelector('fermata'));
-        if(q(el,'rest')){ const c0={dur,dotted,notes:[],...(tup?{tup}:{}),...(tupM2?{tupM:tupM2}:{}),...(ferm?{ferm:true}:{})}; if(pendTabChord){ c0.chord=pendTabChord; pendTabChord=''; } cols.push(c0); return; }
+        if(q(el,'rest')){ const c0={dur,dotted,notes:[],...(tup?{tup}:{}),...(tupM2?{tupM:tupM2}:{}),...(ferm?{ferm:true}:{})}; if(pendTabChord){ c0.chord=pendTabChord; pendTabChord=''; } if(tStart-lastEnd>=div/16-1e-6) skO('空拍'); cols.push(c0); lastEnd=tcur; ledTab(el, 'rest'); tabMainEl=el; return; }
         const tech=el.querySelector(':scope > notations technical'); const sEl=tech&&tech.querySelector('string'), fEl=tech&&tech.querySelector('fret');
-        if(!sEl||!fEl){ skip.notes++; return; }   // 无 string/fret 的音（如五线声部混入）跳过
+        if(!sEl||!fEl){ skip.notes++; if(!q(el,'chord')) lastEnd=tcur; return; }   // 无 string/fret 的音（如五线声部混入）跳过
         const nObj={s:+sEl.textContent.trim()||1, f:Math.max(0,+fEl.textContent.trim()||0)};
         const nh=q(el,'notehead'); if(nh && /x/i.test(nh.textContent.trim())) nObj.x=1;
         /* v67.0 TAB 声部连音线：本音带 tie / tied stop ＝ 同弦前一音的延音 → note.tieIn（逐弦；此前 TAB 声部的连音线整条丢弃） */
@@ -45714,12 +45853,14 @@ function importMusicXML(xmlStr){
           const stopT = tech.querySelector('hammer-on[type="stop"]')? 'h' : tech.querySelector('pull-off[type="stop"]')? 'p'
             : (nt3 && [...nt3.querySelectorAll('slide')].some(x=>x.getAttribute('type')==='stop'))? 'sl' : ot.includes('bend-target')? 'b' : '';
           if(stopT) nObj._stop=stopT; }
-        if(q(el,'chord') && cols.length){ const last=cols[cols.length-1]; (last.notes=last.notes||[]).push(nObj); return; }
+        if(q(el,'chord') && cols.length){ const last=cols[cols.length-1]; (last.notes=last.notes||[]).push(nObj); ledTab(el, 'chord', tabMainEl); return; }
         const colObj={dur,dotted,notes:[nObj],...(tup?{tup}:{}),...(tupM2?{tupM:tupM2}:{}),...(ferm?{ferm:true}:{}),...(pkIn?{pk:pkIn}:{})};
         if(pendTabGrace.length){ colObj.grace={notes:pendTabGrace.slice(0,3), dur:pendTabGraceDur}; pendTabGrace=[]; pendTabGraceDur=8; }   /* v52.7 */
         if(pendTabChord){ colObj.chord=pendTabChord; pendTabChord=''; }   /* v65.3 */
-        cols.push(colObj);
+        if(tStart-lastEnd>=div/16-1e-6) skO('空拍');
+        cols.push(colObj); lastEnd=tcur; ledTab(el, 'main'); tabMainEl=el;   /* v70.3 B1 台账 */
       });
+      if(cols.length && tcur-lastEnd>=div/16-1e-6) skO('空拍');
       return cols;
     });
   });
@@ -45785,6 +45926,7 @@ function importMusicXML(xmlStr){
       if(mEl.querySelector('repeat[direction="backward"]')) mea.repeatEnd=true;
       /* v65.1 B3a ② 房子 / 段落双细线 / 终止线（非末小节、无反复的 light-heavy） */
       [...mEl.querySelectorAll(':scope > barline')].forEach(bl=>{
+        ledBar(bl);   /* v70.3 B1 / B2 台账（主声部小节线） */
         const en=q(bl,'ending');
         if(en && en.getAttribute('type')==='start'){ const n=parseInt(en.getAttribute('number')||'1',10); voltaCur = n>=2? 2 : 1; }
         const bs=txt(bl,'bar-style');
