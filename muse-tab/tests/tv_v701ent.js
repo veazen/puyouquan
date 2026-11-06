@@ -14,7 +14,7 @@
        ?next=0 与回滚副本 0 条、命令表 id＋标题序列与 fixture n0.cmd / nx.cmd 逐字节
    C2  命令执行：19 条逐条 FLOW.cmd.run(id) → 面板打开、st.pick＝该形态 / 常用卡、回车建成的 song 与等价计划（深链 / 用途）逐字节同、与在面板里点同一目标逐字节同（接缝 ①，依赖 A 组面板）；
        ui_cmd＝cmd:go:<id> 过 FLOW.track 格式、最近用过记 id；启动台上也能执行（sp:1）
-   C3  搜索：「简谱合唱」首条 nf:hechang:jianpu、「简谱 带伴奏」「带伴奏」nf:pacc、「尤克里里」nf:uku:tanchang、「钢琴独奏」nf:gangqin:duzou；回归 24 个既有查询首条与回滚副本相同；
+   C3  搜索：「简谱合唱」首条 nf:hechang:jianpu、「简谱 带伴奏」「带伴奏」nf:pacc、「尤克里里」nf:uku:tanchang、「钢琴独奏」nf:gangqin:duzou、「合唱 钢琴」「合唱伴奏」「合唱带伴奏」nf:hechang:jianpu（v70.1 验收修③）；回归 24 个既有查询首条与回滚副本相同；
        真实路径 Ctrl+/ 输入「简谱合唱」→ 首行 → Enter → 面板落合唱谱 › 简谱合唱
    K1  谱友圈指法调：新外壳谱友圈（离线本地示例 ＋ 同一卡片数据造的接口卡片）吉他 / 尤克里里卡片写「X调指法」（有夹位加「 · 夹N」），与对同一卡片数据跑官网 PYQ_PZ.fkeyText 逐字同；
        简谱 / 五线谱 / 钢琴卡片照旧（1=C / C 调 / a 小调）；?shell=classic / ?next=0 谱友圈卡片不写指法调、调名照旧（同 tv_libpz Z13 口径）
@@ -59,18 +59,20 @@ const CMDS = [
   ['nf:jita:zhitan', '新建：吉他谱 指弹', 'jtpzt jtzt 吉他指弹 吉他独奏', 'type-guitar', { form: 'jita.zhitan' }],
   ['nf:uku:tanchang', '新建：尤克里里 弹唱', 'ykll ykltc 尤克里里弹唱 乌克丽丽 尤克里里 ukulele', 'type-uku', { form: 'uku.tanchang' }],
   ['nf:uku:zhitan', '新建：尤克里里 指弹', 'yklzt 尤克里里指弹 尤克里里独奏', 'type-uku', { form: 'uku.zhitan' }],
-  ['nf:hechang:jianpu', '新建：合唱谱 简谱合唱', 'hcpjp jphc 简谱合唱 合唱谱 简谱四部合唱', 'type-vocal', { form: 'hechang.jianpu' }],
+  ['nf:hechang:jianpu', '新建：合唱谱 简谱合唱', 'hcpjp jphc 简谱合唱 合唱谱 简谱四部合唱 合唱钢琴 合唱带伴奏 合唱伴奏', 'type-vocal', { form: 'hechang.jianpu' }],
   ['nf:hechang:wuxian', '新建：合唱谱 五线合唱', 'hcpwx wxhc 五线合唱 五线谱合唱', 'type-vocal', { form: 'hechang.wuxian' }],
   ['nf:gongneng:jishu', '新建：功能谱 级数谱', 'gnpjsp jsp 级数谱 功能谱 和弦简谱', 'type-func', { form: 'gongneng.jishu' }],
   ['nf:gongneng:hexian', '新建：功能谱 和弦格', 'gnphxg hxg 和弦格 小节和弦', 'type-func', { form: 'gongneng.hexian' }],
-  ['nf:pacc', '新建：钢琴即兴伴奏', 'gqjxbz jxbz 钢琴即兴伴奏 即兴伴奏 考编 简谱带伴奏 五线谱带伴奏 钢琴谱弹唱', 'type-jg', { scene: 'pacc' }],
+  ['nf:pacc', '新建：钢琴即兴伴奏', 'gqjxbz jxbz 钢琴即兴伴奏 即兴伴奏 考编 带伴奏 简谱带伴奏 五线谱带伴奏 钢琴谱弹唱', 'type-jg', { scene: 'pacc' }],
   ['nf:kids', '新建：儿歌弹唱', 'egtc 儿歌弹唱 师范 钢琴谱儿歌弹唱', 'type-kids', { scene: 'kids' }],
   ['nf:sight', '新建：视唱练耳谱例', 'scle 视唱练耳 艺考 五线谱视唱', 'type-sight', { scene: 'sight' }],
   ['nf:teach', '新建：教学对照谱', 'jxdzp 教学对照谱 课堂 对照谱 简谱对照谱 五线谱对照谱', 'type-teach', { scene: 'teach' }],
 ];
 const BAN = ['导入', 'midi', '编辑', '模式', '播放', '练习', '四步', '和弦图', '写法', '联排', '配伴奏', '织体'];
 const QREG = ['sc', 'bf', 'hy', 'sd', 'zz', 'qy', 'qb', '打印', '横排', '导入MIDI', '编辑模式', '和弦图', '和弦写法', '联排低音谱号', '联排高音谱号', '音色库', '悬浮条', '起步', '智能', '织体', '配伴奏', '新建', '1=D', '3/4'];
-const QNEW = [['简谱合唱', 'nf:hechang:jianpu'], ['简谱 带伴奏', 'nf:pacc'], ['带伴奏', 'nf:pacc'], ['尤克里里', 'nf:uku:tanchang'], ['钢琴独奏', 'nf:gangqin:duzou']];
+const QNEW = [['简谱合唱', 'nf:hechang:jianpu'], ['简谱 带伴奏', 'nf:pacc'], ['带伴奏', 'nf:pacc'], ['尤克里里', 'nf:uku:tanchang'], ['钢琴独奏', 'nf:gangqin:duzou'],
+  /* v70.1 验收修③：合唱 ＋ 钢琴伴奏的三种搜法（修前 0 条）首条＝新建：合唱谱 简谱合唱 */
+  ['合唱 钢琴', 'nf:hechang:jianpu'], ['合唱伴奏', 'nf:hechang:jianpu'], ['合唱带伴奏', 'nf:hechang:jianpu']];
 const goldOf = id => NFP.GOLD.find(g => g.id === id);
 
 function INIT() {
@@ -235,7 +237,7 @@ async function qmInfo(pg, real) {
       /* v70.1 验收修②：小屏几何——真实路径（文件 ▾ → 行尾 ▾）打开新形态菜单（两组 13 项），1366×657 / 1280×650 / 1024×700 / 1100×700 × 默认字体 / DejaVu Sans：
          菜单不出滚动条；末项「新建面板…」整块在菜单与视口内且中心命中自身；每个 menuitem 高 ≥44（不小于 v70.0）、整块在菜单内、名字不截断。修前红：菜单 660px 高，四个视口都要滚、末项被裁 */
       const QVP = [[1366, 657], [1280, 650], [1024, 700], [1100, 700]], gq = [], gn = [];
-      await Promise.all([false, true].flatMap(font => QVP.map(async ([w, h]) => {
+      for (const font of [false, true]) await Promise.all(QVP.map(async ([w, h]) => {   /* 一次 4 路（8 路并行在负载下 goto 会超时） */
         const o = await open(b, URL0, { tag: 'Q2g', w, h, font });
         await o.pg.evaluate(() => { try { localStorage.removeItem('musetab-nw-last'); } catch (_) {} });
         await o.pg.click('#flw-file'); await o.pg.waitForSelector('#popmenu [data-fa="r1:newdd"]', { state: 'visible' }); await o.pg.click('#popmenu [data-fa="r1:newdd"]');
@@ -254,7 +256,7 @@ async function qmInfo(pg, real) {
         gn.push(tag + ' ' + r.mt + '–' + r.mb + '（' + r.sh + '/' + r.ch + '）');
         if (r.scroll || r.lq !== 'panel' || !r.full || !r.hit || r.bad.length) gq.push(tag + ' ' + J({ scroll: r.scroll, sh: r.sh, ch: r.ch, last: r.lq, lt: r.lt, lb: r.lb, mb: r.mb, vh: r.vh, full: r.full, hit: r.hit, bad: r.bad.slice(0, 4) }));
         await o.ctx.close();
-      })));
+      }));
       T('Q2', !gq.length, '小屏几何（真实路径 文件 ▾ → ▾；1366×657 / 1280×650 / 1024×700 / 1100×700 × 默认字体 / DejaVu Sans）：菜单不出滚动条、末项「新建面板…」整块可见且命中、每项高 ≥44 不截断', gq.join(' | '));
       NOTE('快速新建 ▾ 小屏：' + gn.join('，'));
     };
