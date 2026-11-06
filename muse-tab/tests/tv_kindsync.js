@@ -35,6 +35,9 @@ const path = require('path'), fs = require('fs'), os = require('os');
 const { spawn, spawnSync } = require('child_process');
 const http = require('http');
 const { songbieXML } = require('./fixtures/songbie_ai.js');
+/* v70.1 迁移（规格 docs/spec-2026-11-v701.md §15.2）：新外壳新形态第一步按谱种，「器乐独奏」卡不在了——K7 改 nfpick.nfPick(pg, 'inst', {instKey:'violin'})
+   （卡可见点卡；否则「五线谱」行 → 「器乐」形态，各自先断言可见），其后乐器下拉 violin / ⋯ / G 行开关照旧 */
+const NFP = require('./lib/nfpick');
 
 const ED = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env.MUSETAB_URL.slice(7) : path.resolve(__dirname, '../index.html');
 const API_DIR = path.dirname(process.env.MUSETAB_API || path.resolve(__dirname, '../../api/server.js'));
@@ -477,7 +480,7 @@ async function mkPage(b, url, opt) {
       /* 面板悬停预告＝建成谱名：器乐独奏 · 小提琴（不要歌词）点亮「钢琴大谱表」 */
       await pg.evaluate(() => { try { closeModal(); } catch (_) {} localStorage.removeItem('musetab-nw-last'); });
       await pg.click(NEWB); await pg.waitForSelector('.nf-modal [data-scene]');
-      await pg.click('[data-scene="inst"]');
+      await NFP.nfPick(pg, 'inst', { instKey: 'violin' });
       /* v69.1 C 迁移（新建面板合稿）：新形态乐器在参数行下拉 #nf-inst、五种谱开关在 ⋯ 弹层（先断言 ⋯ 可见再点）；?next=0 / 旧外壳照旧点乐器分段 */
       if (await pg.evaluate(() => !!document.querySelector('.nf-modal.nf-nx'))) {
         await pg.selectOption('.nf-modal #nf-inst', 'violin'); await pg.waitForTimeout(80);
