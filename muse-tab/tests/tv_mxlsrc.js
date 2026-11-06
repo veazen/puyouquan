@@ -227,7 +227,8 @@ function censusFn(x) {
         const gr = !!q(el, 'grace'), ch = !!q(el, 'chord'), du = +(tx(el, 'duration') || 0) || 0;
         if (!mine) { if (!gr && !ch && du > 0) tcur += du; return; }
         const tS = tcur; if (!gr && !ch) tcur += du;
-        const gap = () => { if (tS - fill >= div / 16 - 1e-6) k('（时间）forward 留下的空拍', 'rep', '空拍'); fill = tcur; };
+        /* v70.4 有意迁移（v70.3 验收 minor）：六线谱第一声部 forward 留下的空拍按时值补普通休止（保留，不再进报告）；旋律行照旧计「空拍」 */
+        const gap = () => { if (tS - fill >= div / 16 - 1e-6) { if (tab) k('（时间）forward 空拍 → 补休止[六线谱]', 'keep'); else k('（时间）forward 留下的空拍', 'rep', '空拍'); } fill = tcur; };
         if (!tab) {
           if (gr) { if (q(el, 'pitch') && !ch && gN < 3) { gN++; P.grace++; noteCensus(el, 'grace', false); } else { expNotes++; k('note[倚音·第 4 个起 / 和弦 / 无音高]', 'rep'); } return; }
           const vc = tx(el, 'voice'); if (vc != null) { if (fv == null) fv = vc; else if (vc !== fv) { expVoices++; k('note[同谱表第二声部]', 'rep'); return; } }
@@ -245,7 +246,7 @@ function censusFn(x) {
         if (!sE || !fE) { expNotes++; if (!ch) fill = tcur; k('note[无弦 / 品][六线谱]', 'rep'); return; }
         if (ch && nCols > 0) { noteCensus(el, 'chord', true); return; }
         gap(); nCols++; gN = 0; mainEl = el; noteCensus(el, 'main', true); });
-      if (nCols && tcur - fill >= div / 16 - 1e-6) k('（时间）forward 留下的空拍', 'rep', '空拍'); }); });
+      if (nCols && tcur - fill >= div / 16 - 1e-6) { if (tab) k('（时间）forward 空拍 → 补休止[六线谱]', 'keep'); else k('（时间）forward 留下的空拍', 'rep', '空拍'); } }); });
   /* 谱面数据上的保留数 */
   const S = im.song, got = { ferm: 0, breath: 0, trem: 0, grace: 0, lyr: 0, fing: 0, afing: 0, gliss: 0, artic: {}, orn: {}, dash: 0 };
   S.measures.forEach(m => { (m.voxes || []).forEach(r => (r || []).forEach(c => { if (!c) return;

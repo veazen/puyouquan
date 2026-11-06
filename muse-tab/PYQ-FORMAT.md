@@ -25,6 +25,7 @@
 | `voxTransp` | (number\|null)[]? | v69.8 可选，按旋律声部下标：移调乐器的整数半音（实音 − 记谱，与 `transp` 同号向），−24…24 / `null`。**存实音**，只决定五线谱显示成记谱调与记谱音（♭B 单簧管 `-2`）；无键＝不移调显示。与整曲 `transp`（存记谱音）并存时 `transp` 照旧作用于发声、`voxTransp` 只叠加显示 |
 | `rowNames` | number? | v69.8 可选：`1`＝印首行声部 / 乐器名（首系统全称、续行简称；花括号组只在中部写一次；本谱 ≥2 条旋律行且至少一条五线谱行时生效）；无键＝不印（老谱） |
 | `voxShort` | (string\|null)[]? | v69.8 可选，按旋律声部下标：续行用的声部简称；`''` / `null`＝按全称自动取（Soprano→S.、Piano→Pno.、中文取前 2 字…）；无键＝全部自动 |
+| `src` | object? | v70.4 可选：谱面来源 `{via, sw}`，只写非缺省值。`via`＝`mxl` MusicXML 导入（含 .mxl）· `midi` MIDI 导入 · `gp` Guitar Pro 导入 · `arr` 智能配谱产物（新窗口打开的伴奏谱）；`sw`＝MusicXML `<encoding><software>` 前 40 字（空白归一；智能配谱产物沿用旋律谱的 `sw`）。只在导入 / 生成的那一刻写，编辑不改；别的 `via` 值、非字符串、空串读取端当没写。无键＝在谱友圈里新建（或来源不明的老谱）。曲库种子不带（来源记在条目 `source`） |
 | `measures` | Measure[] | 小节数组 |
 
 > 按旋律声部下标的数组（`voxClefOct` / `voxTransp` / `voxShort`，同 `voxNotations` / `voxDual`）长度须等于 `voxVoices`；不等长的数组由 `migrate()` 丢弃（旧版本增删声部后的兜底）。
@@ -41,6 +42,7 @@
 
 > GM program（MIDI / MusicXML，0 起）：6 种新乐器写乐器本身的音色——竖笛 74、口风琴 22、陶笛 79、箫 77、大提琴 42、单簧管 71（混音台改过音色时按混音台）。读取端遇到不认识的键按无乐器身份处理（谱名「器乐谱」），键原样保留。
 > MusicXML 往返（v70.0）：自家导出在 `<identification><miscellaneous>` 写 `pyq-intent`（有 `intent` 时）与 `pyq-instkey`（有 `intent` 且有 `instKey` 时；老谱输出不变），导入只认上表 / 11 个用途的合法值。
+> v70.4：有 `src` 时另写 `<miscellaneous-field name="pyq-src">`（规整后的 JSON），导入原样读回（往返保留）；没有这一项的第三方文件写 `{via:"mxl", sw}`，没有这一项的自家文件不写 `src`（自家往返逐项相等）。
 
 ## Measure（小节）
 
@@ -110,6 +112,6 @@
 ## 兼容性约定
 
 - 读取端必须忽略未知字段；缺省字段按文档默认值处理（向前兼容）。
-- 可选字段只写非缺省值，回到缺省就删键（不写 `false` / `0` / 空数组）：没用到新字段的曲谱 JSON 与旧版逐字节相同。v69.8 新增 8 个：`col.syl`、`grace.slash`、`mea.tempos`、`col.tieSlur`、`voxClefOct`、`voxTransp`、`rowNames`、`voxShort`——旧版本打开新谱时忽略它们，退回不画连字符 / 斜线照画 / 整曲一个速度 / 同音按连音线 / 实音显示 / 不印声部名。v70.0 新增 1 个：`intent`（旧版本忽略、原样保留，按谱面推断归属）；`instKey` 只增 6 个取值（v69.9 打开时键原样保留，谱名退成「器乐谱（简谱 / 五线谱）」、图标退成其他器乐 / 人声，谱面与播放不受影响）。
+- 可选字段只写非缺省值，回到缺省就删键（不写 `false` / `0` / 空数组）：没用到新字段的曲谱 JSON 与旧版逐字节相同。v69.8 新增 8 个：`col.syl`、`grace.slash`、`mea.tempos`、`col.tieSlur`、`voxClefOct`、`voxTransp`、`rowNames`、`voxShort`——旧版本打开新谱时忽略它们，退回不画连字符 / 斜线照画 / 整曲一个速度 / 同音按连音线 / 实音显示 / 不印声部名。v70.0 新增 1 个：`intent`（旧版本忽略、原样保留，按谱面推断归属）；`instKey` 只增 6 个取值（v69.9 打开时键原样保留，谱名退成「器乐谱（简谱 / 五线谱）」、图标退成其他器乐 / 人声，谱面与播放不受影响）。v70.4 新增 1 个：`src`（旧版本忽略、原样保留；谱面与播放不读它，只有 MusicXML 导出写 `pyq-src`）。
 - `v` 提升时保证提供迁移函数（编辑器内置 `migrate()`）。
 - 时间戳存证：对整个曲谱 JSON 字符串计算 SHA-256（`sha256:` 前缀十六进制）。
