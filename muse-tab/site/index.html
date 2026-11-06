@@ -34,7 +34,7 @@
   <div class="chip-row" id="lib-cats" role="group" aria-label="谱种"></div>
   <div class="chip-row lib-subs" id="lib-subs" role="group" aria-label="二级分类" hidden></div>
   <div class="chip-row lib-insts" id="lib-insts" role="group" aria-label="乐器" hidden></div>
-  <p class="lib-zt" id="lib-zt"><a href="kaobian.html" data-zt="kaobian">考编</a> · <a href="yikao.html" data-zt="yikao">艺考</a> · <a href="shifan.html" data-zt="shifan">师范</a> · <a href="?sub=duizhao" data-zt="ketang">课堂</a></p>
+  <p class="lib-zt" id="lib-zt"><a href="?zt=kaobian" data-zt="kaobian">考编</a> · <a href="?zt=yikao" data-zt="yikao">艺考</a> · <a href="?zt=shifan" data-zt="shifan">师范</a> · <a href="?sub=duizhao" data-zt="ketang">课堂</a></p>
 </div></header>
 
 <section class="sec" id="lib-sec" style="padding-top:30px"><div class="wrap">
@@ -72,7 +72,7 @@
 (function(){
   var Z=window.PYQ_PZ, PAGE=12;
   var X0=function(){ return {parts:[], chord:false, acc:false, verses:false, erge:false, keys:[], meters:[], speeds:[]}; };
-  var all=[], favs={}, st={q:'', pz:'', sub:'', inst:'', hacc:'', favOnly:false, shown:PAGE, x:X0(), sort:'new', instMore:false, mInst:false, conv:false, drawer:false};
+  var all=[], favs={}, st={q:'', pz:'', sub:'', inst:'', zt:'', ztPg:'', hacc:'', favOnly:false, shown:PAGE, x:X0(), sort:'new', instMore:false, mInst:false, conv:false, drawer:false};
   /* v62.7 A6（P1-34）：首页只拉最新一批（接口附 total）；被截断时，搜索 / 筛选 / 「♥ 收藏」从服务端补齐全库结果。extra＝不在首批里的补充卡片（按 id 去重） */
   var total=0, extra={}, cats=null, srv=null, srvFail={}, rtimer=0, fetched={}, zrLast='';
   var $=function(id){ return document.getElementById(id); };
@@ -84,13 +84,17 @@
   var isMp=function(){ try{ return !!(window.PYQ_MP && PYQ_MP.is()); }catch(_){ return false; } };
   function isMobile(){ return matchMedia('(max-width:580px)').matches; }
 
-  /* ---- URL → 状态：?pz=&sub=&inst=&conv=（参数顺序固定）＋ ?q=；旧按钮 id 别名 ?cat=guitar / piano / vocal … ---- */
+  /* 专题（方案 §4.4 并集口径，＝api/pzq.js ZT_NAME）：v70.2 首页文字链与二级行末入口都落站内谱单 ?zt=，条件区「了解专题 ›」再去原宣传页（课堂仍走 ?sub=duizhao） */
+  var ZT_NAME={kaobian:'考编即兴伴奏', yikao:'艺考视唱练耳', shifan:'师范儿歌弹唱', ketang:'课堂对照谱'}, ZT_PG={kaobian:'kaobian.html', jixing:'jixing.html', yikao:'yikao.html', shifan:'shifan.html'};
+  /* ---- URL → 状态：?pz=&sub=&inst=&zt=&conv=（参数顺序固定）＋ ?q=；旧按钮 id 别名 ?cat=guitar / piano / vocal … ---- */
   try{ var sp=new URLSearchParams(location.search), q0=sp.get('q'); if(q0){ st.q=q0; qIn.value=q0; }
     var cat=sp.get('cat')||'', al=own(Z.CAT_ALIAS, cat)? Z.CAT_ALIAS[cat] : null, noPS=!sp.get('pz') && !sp.get('sub');
     var pz0=sp.get('pz')||(al && noPS? al.pz||'' : ''), sub0=sp.get('sub')||(al && noPS? al.sub||'' : ''), in0=sp.get('inst')||'';
     if(pz0 && Z.has(pz0)) st.pz=pz0;
     if(sub0 && Z.has(st.pz, sub0)) st.sub=sub0;
     if(in0 && own(Z.INST, in0) && (st.pz==='jianpu' || st.pz==='wuxian')) st.inst=in0;
+    var zt0=sp.get('zt')||'', ztJx=zt0==='jixing'; if(ztJx) zt0='kaobian';   /* v70.2 专题＝站内谱单（?zt＝接口口径，jixing 落 kaobian、地址栏改写） */
+    if(own(ZT_NAME, zt0)){ st.zt=zt0; st.ztPg=ztJx? 'jixing' : zt0; if(ztJx) setTimeout(function(){ syncURL(); }, 0); }
     if(sp.get('conv')==='1') st.conv=true;
     if(al) setTimeout(function(){ syncURL(); }, 0);   /* 旧 ?cat= 别名：地址栏改写成新参数（可转发） */
   }catch(_){}
@@ -99,7 +103,7 @@
 
   function syncURL(){
     var p=[];
-    if(st.pz) p.push('pz='+st.pz); if(st.sub) p.push('sub='+st.sub); if(st.inst) p.push('inst='+st.inst);
+    if(st.pz) p.push('pz='+st.pz); if(st.sub) p.push('sub='+st.sub); if(st.inst) p.push('inst='+st.inst); if(st.zt) p.push('zt='+st.zt);
     if(st.conv && convPz()) p.push('conv=1');
     if(st.q.trim()) p.push('q='+encodeURIComponent(st.q.trim()));
     try{ history.replaceState(null, '', p.length? '?'+p.join('&') : location.pathname); }catch(_){}
@@ -121,7 +125,7 @@
   var FOCUS={'gangqin.tanchang':1, 'jianpu.erge':1, 'wuxian.shichang':1, 'jianpu.duizhao':1, 'wuxian.duizhao':1};
   /* 钢琴谱两个二级的悬停（方案 §4.2）：弹唱＝旋律＋歌词＋钢琴；伴奏＝纯伴奏与给合唱 / 器乐的伴奏（与编辑器新外壳谱友圈 CC_SUB_TIP 同文） */
   var SUB_TIP={'gangqin.tanchang':'旋律＋歌词＋钢琴', 'gangqin.banzou':'纯伴奏 · 合唱器乐伴奏'};
-  var ZT={jianpu:['shifan.html','shifan','儿歌弹唱 ›'], wuxian:['yikao.html','yikao','艺考视唱 ›'], gangqin:['kaobian.html','kaobian','即兴伴奏 ›'], gongneng:['jixing.html','kaobian','即兴伴奏 ›']};
+  var ZT={jianpu:['shifan','shifan','儿歌弹唱 ›'], wuxian:['yikao','yikao','艺考视唱 ›'], gangqin:['kaobian','kaobian','即兴伴奏 ›'], gongneng:['jixing','kaobian','即兴伴奏 ›']};   /* [原宣传页, 专题 zt, 文字] */
   function chip(attr, label, on, extraCls){ return '<button type="button" class="fchip lg'+(extraCls?' '+extraCls:'')+(on?' on':'')+'" '+attr+'>'+label+'</button>'; }
   function instList(pz){ var C=counts(), o=(C.pz[pz]||{}).inst||{};
     return Object.keys(o).filter(function(k){ return o[k]>0 && own(Z.INST,k); }).sort(function(a,b){ return o[b]-o[a] || (a<b?-1:1); }); }
@@ -146,7 +150,7 @@
     if(st.pz==='jianpu') h+=chip('data-tg="acc"', '带伴奏', st.x.acc, 'tg')+chip('data-tg="chord"', '已配和弦', st.x.chord, 'tg');
     else if(st.pz==='wuxian') h+=chip('data-tg="acc"', '带伴奏', st.x.acc, 'tg');
     else if(st.pz==='hechang') h+='<span class="lib-rl">伴奏</span>'+chip('data-hacc=""', '全部', !st.hacc, 'tg')+chip('data-hacc="yes"', '带伴奏', st.hacc==='yes', 'tg')+chip('data-hacc="no"', '无伴奏', st.hacc==='no', 'tg');
-    var z=ZT[st.pz]; if(z) h+='<a class="lib-ztl" href="'+z[0]+'" data-zt="'+z[1]+'">'+z[2]+'</a>';
+    var z=ZT[st.pz]; if(z) h+='<a class="lib-ztl" href="?zt='+z[1]+'" data-zt="'+z[1]+'" data-zp="'+z[0]+'">'+z[2]+'</a>';
     return h;
   }
   function chips(){
@@ -186,6 +190,8 @@
     var h='', p=srvMode()? srv.parse : null;
     if(p) (p.conds||[]).forEach(function(c){ h+='<button type="button" class="cond" data-rm="'+esc(c.rm)+'" title="去掉这个条件">'+esc(c.label)+' <b aria-hidden="true">×</b></button>'; });
     if(st.sub && !st.pz) h+='<button type="button" class="cond" data-rmsub title="去掉这个条件">'+esc(Z.subName('', st.sub))+' <b aria-hidden="true">×</b></button>';
+    if(st.zt && !(p && (p.conds||[]).some(function(c){ return c.k==='zt'; }))) h+='<button type="button" class="cond" data-rmzt title="去掉这个条件">专题：'+esc(ZT_NAME[st.zt])+' <b aria-hidden="true">×</b></button>';
+    if(st.zt && ZT_PG[st.ztPg||st.zt]) h+='<a class="cond-lk" href="'+ZT_PG[st.ztPg||st.zt]+'">了解专题 ›</a>';
     if(p && srv.fb) h+='<span class="cond-note">'+esc(srv.fb)+'</span>';
     if(p && p.hint==='inst') h+='<span class="cond-note">按乐器找：</span>'+HINT.concat(st.hintMore? Object.keys(Z.INST).filter(function(k){ return HINT.indexOf(k)<0 && ['other','piano','guitar','uku'].indexOf(k)<0; }) : [])
       .map(function(k){ return '<button type="button" class="fchip" data-hinst="'+k+'">'+Z.INST[k]+'</button>'; }).join('')+(st.hintMore? '' : '<button type="button" class="fchip" data-hmore>更多</button>');
@@ -194,7 +200,7 @@
 
   /* ---- 列表 ---- */
   function localQuery(){
-    var words=normQ(st.q), r=Z.query(pool(), {f:fNow(), words:words, conv:true, more:true, x:xEff(), sort:st.sort});
+    var words=normQ(st.q), r=Z.query(pool(), {f:fNow(), words:words, conv:true, more:true, x:xEff(), sort:st.sort, zt:st.zt});
     var cp=convPz(), shown=cp && (st.conv || !!words || r.n0<6);
     return {list: shown? r.list : r.list.filter(function(e){ return e.sec!==2; }), n0:r.n0, nConv: cp? r.nConv : 0, tail:r.tail, convShown:shown, totalN:null};
   }
@@ -207,12 +213,13 @@
     return pz==='jianpu'? ['五线谱','简谱'] : ['简谱','五线谱'];
   }
   var TAIL={tab:'吉他 / 尤克里里弹唱谱（也标了和弦）', jp:'吉他弹唱谱里也有简谱旋律', mel:'歌曲旋律（也能直接拉 / 吹）'};
-  function searching(){ return !!(st.q.trim() || st.pz || st.sub || st.favOnly || xActive() || st.hacc || st.sort!=='new'); }
+  function searching(){ return !!(st.q.trim() || st.pz || st.sub || st.zt || st.favOnly || xActive() || st.hacc || st.sort!=='new'); }
   function titleText(){
     if(st.favOnly) return '我的收藏';
     if(st.q.trim()) return '搜索结果';
     if(st.pz){ var t=Z.pzDef(st.pz).name; if(st.sub) t+=' › '+Z.subName(st.pz, st.sub); if(st.inst) t+=' › '+Z.INST[st.inst]; return t; }
     if(st.sub) return Z.subName('', st.sub);
+    if(st.zt) return ZT_NAME[st.zt];
     return (xActive() || st.sort!=='new')? '筛选结果' : '最新上架';
   }
   function draw(){
@@ -258,7 +265,7 @@
   function drawer(){
     if(!st.drawer){ drawerEl.hidden=true; document.body.classList.remove('lib-dopen'); return; }
     var x=st.x, tab=st.pz==='jita' || st.pz==='uku', mob=isMobile();
-    var base=Z.query(pool(), {f:fNow(), words:normQ(st.q), conv:false, x:Object.assign({}, x, {keys:[], meters:[], hacc:st.hacc})}).list;
+    var base=Z.query(pool(), {f:fNow(), words:normQ(st.q), conv:false, zt:st.zt, x:Object.assign({}, x, {keys:[], meters:[], hacc:st.hacc})}).list;
     var kc={}, mc={};
     base.forEach(function(e){ var c=e.c, k=tab && c.fx && c.fx.fkey? c.fx.fkey : String(c.key||''); if(k) kc[k]=(kc[k]||0)+1; if(c.beats>0 && c.unit>0){ var m=c.beats+'/'+c.unit; mc[m]=(mc[m]||0)+1; } });
     var top=function(o, sel){ return Object.keys(o).sort(function(a,b){ return o[b]-o[a] || (a<b?-1:1); }).slice(0,10).concat(sel.filter(function(v){ return !o[v]; })); };
@@ -281,7 +288,7 @@
   /* ---- 接口：搜索解析（防抖 300ms）· 库被截断时按当前筛选补齐全库 ---- */
   function qsNow(o){
     var p=[], x=st.x;
-    if(st.pz) p.push('pz='+st.pz); if(st.sub) p.push('sub='+st.sub); if(st.inst) p.push('inst='+st.inst);
+    if(st.pz) p.push('pz='+st.pz); if(st.sub) p.push('sub='+st.sub); if(st.inst) p.push('inst='+st.inst); if(st.zt) p.push('zt='+st.zt);
     if(x.parts.length) p.push('parts='+x.parts.join(',')); if(x.chord) p.push('chord=1'); if(x.acc) p.push('acc=1'); if(x.verses) p.push('verses=1'); if(x.erge) p.push('erge=1');
     if(x.keys.length) p.push('key='+encodeURIComponent(x.keys.join(','))); if(x.meters.length) p.push('meter='+encodeURIComponent(x.meters.join(','))); if(x.speeds.length) p.push('speed='+x.speeds.join(','));
     if(st.hacc) p.push('hacc='+st.hacc); if(st.sort!=='new') p.push('sort='+st.sort);
@@ -321,7 +328,7 @@
       (j.scores||[]).map(Z.norm).forEach(function(c){ if(!have[c.id]){ s0.list.push(c); have[c.id]=1; } }); draw(); }).catch(function(){});
   }
   function remoteFilter(){
-    if(!truncated() || st.q.trim() || !(st.pz || st.sub || st.inst || xActive() || st.hacc)) return;
+    if(!truncated() || st.q.trim() || !(st.pz || st.sub || st.inst || st.zt || xActive() || st.hacc)) return;
     var key=qsNow({conv:true, more:true}); if(fetched[key]) return; fetched[key]=1;
     (function page(n){
       fetch('/api/pub/scores?'+key+'&size=60&page='+n, {credentials:'include'}).then(function(r){ return r.ok? r.json() : null; }).then(function(j){
@@ -366,12 +373,16 @@
   document.querySelector('.home-hero').addEventListener('click', function(e){
     var b=e.target.closest('button,a'); if(!b) return;
     var ds=b.dataset;
-    if(ds.zt!==undefined){ track('zt', ds.zt); if(ds.zt==='ketang'){ e.preventDefault(); st.pz=''; st.sub='duizhao'; st.inst=''; st.mInst=false; changed(); } return; }
+    if(ds.zt!==undefined){ track('zt', ds.zt); e.preventDefault();
+      if(ds.zt==='ketang'){ st.pz=''; st.sub='duizhao'; st.inst=''; st.zt=''; st.mInst=false; changed(); }
+      else if(own(ZT_NAME, ds.zt)){ st.pz=''; st.sub=''; st.inst=''; st.hacc=''; st.x.acc=false; st.x.chord=false; st.favOnly=false; st.mInst=false; st.zt=ds.zt; st.ztPg=ds.zp||ds.zt; changed(); }
+      return; }
     if(ds.pz!==undefined){
+      st.zt='';
       if(st.pz===ds.pz){ st.pz=''; st.sub=''; st.inst=''; }   /* 再点已选的＝回到全部 */
       else if(st.pz!==ds.pz){ st.pz=ds.pz; st.sub=''; st.inst=''; st.hacc=''; st.x.acc=false; st.x.chord=false; st.instMore=false; }
       st.favOnly=false; st.mInst=false; changed('pz', ds.pz); return; }
-    if(ds.cat==='all' || ds.back!==undefined){ st.pz=''; st.sub=''; st.inst=''; st.hacc=''; st.favOnly=false; st.mInst=false; changed(); return; }
+    if(ds.cat==='all' || ds.back!==undefined){ st.pz=''; st.sub=''; st.inst=''; st.zt=''; st.hacc=''; st.favOnly=false; st.mInst=false; changed(); return; }
     if(ds.fav!==undefined){
       if(!Object.keys(favs).length && window.PYQ_ACCT && !PYQ_ACCT.user){ PYQ_ACCT.openLogin(); return; }
       st.favOnly=!st.favOnly; changed(); return; }
@@ -388,6 +399,7 @@
     if(hdlTg(b)) return;
     if(ds.rm!==undefined){ st.q=ds.rm; qIn.value=ds.rm; srv=null; changed(); return; }
     if(ds.rmsub!==undefined){ st.sub=''; changed(); return; }
+    if(ds.rmzt!==undefined){ st.zt=''; changed(); return; }
     if(ds.hmore!==undefined){ st.hintMore=true; conds(); return; }
     if(ds.hinst!==undefined){ var nm=Z.INST[ds.hinst], q2=normQ(st.q).split(' ').map(function(w){ return /^器乐谱?$/.test(w)? nm : w; }).join(' ');
       if(q2===normQ(st.q)) q2=(q2+' '+nm).trim(); st.q=q2; qIn.value=q2; track('q2f', ds.hinst); changed(); return; }

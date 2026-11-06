@@ -48136,7 +48136,9 @@ const CC_TYPE_PZ={guitar:['jita','tanchang'], uku:['uku','tanchang'], solo:['jit
 const CC_FOCUS={'gangqin.tanchang':1, 'jianpu.erge':1, 'wuxian.shichang':1, 'jianpu.duizhao':1, 'wuxian.duizhao':1};
 /* 钢琴谱两个二级的悬停（方案 §4.2：「弹唱」取虫虫钢琴的叫法＝旋律＋歌词＋钢琴；「伴奏」只装纯伴奏与给合唱 / 器乐的伴奏）；≤12 字，与官网 site/index.html SUB_TIP 同文 */
 const CC_SUB_TIP={'gangqin.tanchang':'旋律＋歌词＋钢琴', 'gangqin.banzou':'纯伴奏 · 合唱器乐伴奏'};
-const CC_ZT={jianpu:['shifan','儿歌弹唱'], wuxian:['yikao','艺考视唱'], gangqin:['kaobian','即兴伴奏'], gongneng:['jixing','即兴伴奏']};
+const CC_ZT={jianpu:['shifan','儿歌弹唱'], wuxian:['yikao','艺考视唱'], gangqin:['kaobian','即兴伴奏'], gongneng:['jixing','即兴伴奏']};   /* [原宣传页, 文字]；专题 zt＝页名（jixing 落 kaobian，同接口口径） */
+/* v70.2 专题入口改站内谱单（方案 §4.4 并集口径 / §十四 P3 最小一步）：点了按 zt 筛（＝接口 ?zt=，名字＝api/pzq.js ZT_NAME），条件区「了解专题 ›」新开窗口去原宣传页 */
+const CC_ZT_NAME={kaobian:'考编即兴伴奏', yikao:'艺考视唱练耳', shifan:'师范儿歌弹唱', ketang:'课堂对照谱'};
 /* 卡片 → 谱种字段：线上卡片接口 P0 起带 pz / sub / inst / also / fx；本地演示谱按谱面现算（同一个 PQ_KIND）；都没有（旧接口）按旧 type 粗归 */
 function ccPzOf(pb){
   const o={id:pb.pid};
@@ -48170,7 +48172,7 @@ function ccNxTrack(dim, v){ try{ if(/^[a-z0-9]{1,16}$/.test(String(v)) && FLOW &
 function ccNxQuery(){
   if(ccNxSrv()){ const S=ccNx.srv, nota=S.parse && S.parse.nota;
     return {list:S.list.map(pb=>({c:pb, sec:pb.sec|0, nota:pb.nota||nota||''})), n0:S.n0, nConv:S.nConv, tail:S.tail, convShown:!!S.conv, pz:S.pz, sub:S.sub, total:S.total}; }
-  const words=ccNxQ(), r=PQ_KIND.pzQuery(ccNxPool(), {f:ccNxF(), words, conv:true, more:true, x:ccNxX(), sort:ccNx.sort});
+  const words=ccNxQ(), r=PQ_KIND.pzQuery(ccNxPool(), {f:ccNxF(), words, conv:true, more:true, x:ccNxX(), sort:ccNx.sort, zt:ccNx.zt});
   const cp=ccNxConvPz(), shown=cp && (ccNx.conv || !!words || r.n0<6);
   return {list:shown? r.list : r.list.filter(e=>e.sec!==2), n0:r.n0, nConv:cp? r.nConv : 0, tail:r.tail, convShown:shown, pz:ccNx.pz, sub:ccNx.sub, total:null};
 }
@@ -48194,7 +48196,7 @@ function renderCircleNx(){
     if(s.pz==='jianpu') h+=ccNxChip('data-tg="acc"', '带伴奏', s.x.acc, 'tg')+ccNxChip('data-tg="chord"', '已配和弦', s.x.chord, 'tg');
     else if(s.pz==='wuxian') h+=ccNxChip('data-tg="acc"', '带伴奏', s.x.acc, 'tg');
     else if(s.pz==='hechang') h+='<span class="cc-rl">伴奏</span>'+ccNxChip('data-hacc=""', '全部', !s.hacc, 'tg')+ccNxChip('data-hacc="yes"', '带伴奏', s.hacc==='yes', 'tg')+ccNxChip('data-hacc="no"', '无伴奏', s.hacc==='no', 'tg');
-    const z=CC_ZT[s.pz]; if(z) h+=`<a class="cc-ztl" href="https://www.puyouquan.com/${z[0]}.html" target="_blank" rel="noopener" data-zt="${z[0]==='jixing'? 'kaobian' : z[0]}">${z[1]} ›</a>`;
+    const z=CC_ZT[s.pz]; if(z){ const zt=z[0]==='jixing'? 'kaobian' : z[0]; h+=`<a class="cc-ztl" href="https://www.puyouquan.com/?zt=${zt}" data-zt="${zt}" data-zp="${z[0]}">${z[1]} ›</a>`; }
   }
   const r2=div.querySelector('.cc-subrow'); r2.innerHTML=h; r2.hidden=!h;
   /* 乐器行 */
@@ -48208,6 +48210,8 @@ function renderCircleNx(){
   let ch='';
   const P=ccNxSrv()? s.srv.parse : null;
   if(P) (P.conds||[]).forEach(c=>{ ch+=`<button type="button" class="cc-chip cc-cond" data-rm="${esc(c.rm)}" title="去掉这个条件">${esc(c.label)} ×</button>`; });
+  if(s.zt && !(P && (P.conds||[]).some(c=>c.k==='zt'))) ch+=`<button type="button" class="cc-chip cc-cond" data-rmzt title="去掉这个条件">专题：${CC_ZT_NAME[s.zt]} ×</button>`;
+  if(s.zt && s.zt!=='ketang') ch+=`<a class="cc-ztl" href="https://www.puyouquan.com/${s.ztPg||s.zt}.html" target="_blank" rel="noopener" data-ztx>了解专题 ›</a>`;
   if(P && s.srv.fb) ch+=`<span class="cc-note">${esc(s.srv.fb)}</span>`;
   if(P && P.hint==='inst') ch+='<span class="cc-note">按乐器找</span>'+['erhu','guzheng','dizi','hulusi','sax','violin'].map(k=>ccNxChip(`data-hinst="${k}"`, ccInstNm(k), false)).join('');
   const r4=div.querySelector('.cc-condrow'); r4.innerHTML=ch; r4.hidden=!ch;
@@ -48249,7 +48253,7 @@ function renderCircleNxDrawer(){
   const dr=document.querySelector('#circle .cc-drawer'); if(!dr || !ccNx) return;
   if(!ccNx.drawer){ dr.hidden=true; return; }
   const x=ccNx.x, tab=ccNx.pz==='jita' || ccNx.pz==='uku';
-  const base=PQ_KIND.pzQuery(ccNxPool(), {f:ccNxF(), words:ccNxQ(), conv:false, x:Object.assign({}, x, {keys:[], meters:[], hacc:ccNx.hacc})}).list;
+  const base=PQ_KIND.pzQuery(ccNxPool(), {f:ccNxF(), words:ccNxQ(), conv:false, zt:ccNx.zt, x:Object.assign({}, x, {keys:[], meters:[], hacc:ccNx.hacc})}).list;
   const kc={}, mc={};
   base.forEach(e=>{ const c=e.c, k=tab && c.fx && c.fx.fkey? c.fx.fkey : String(c.key||''); if(k) kc[k]=(kc[k]||0)+1; if(c.beats>0 && c.unit>0){ const m=c.beats+'/'+c.unit; mc[m]=(mc[m]||0)+1; } });
   const top=(o, sel)=>Object.keys(o).sort((a,b)=>o[b]-o[a] || (a<b?-1:1)).slice(0,10).concat(sel.filter(v=>!o[v]));
@@ -48269,7 +48273,7 @@ function renderCircleNxDrawer(){
 /* 在线：搜索交接口解析（防抖 300ms）；库被截断（接口 total 大于首批）时按当前筛选补齐全库 */
 function ccNxQs(o){
   const s=ccNx, x=s.x, p=[];
-  if(s.pz) p.push('pz='+s.pz); if(s.sub) p.push('sub='+s.sub); if(s.inst) p.push('inst='+s.inst);
+  if(s.pz) p.push('pz='+s.pz); if(s.sub) p.push('sub='+s.sub); if(s.inst) p.push('inst='+s.inst); if(s.zt) p.push('zt='+s.zt);
   if(x.parts.length) p.push('parts='+x.parts.join(',')); if(x.chord) p.push('chord=1'); if(x.acc) p.push('acc=1'); if(x.verses) p.push('verses=1'); if(x.erge) p.push('erge=1');
   if(x.keys.length) p.push('key='+encodeURIComponent(x.keys.join(','))); if(x.meters.length) p.push('meter='+encodeURIComponent(x.meters.join(','))); if(x.speeds.length) p.push('speed='+x.speeds.join(','));
   if(s.hacc) p.push('hacc='+s.hacc); if(s.sort!=='new') p.push('sort='+s.sort);
@@ -48298,7 +48302,7 @@ function ccNxRemote(now){
     return;
   }
   s.srv=null;
-  if(!(s.total>(ccRemote||[]).length) || !(s.pz || s.sub || s.inst || ccNxX())) return;
+  if(!(s.total>(ccRemote||[]).length) || !(s.pz || s.sub || s.inst || s.zt || ccNxX())) return;
   const key=ccNxQs({conv:true, more:true}); if(s.fetched[key]) return; s.fetched[key]=1;
   const page=n=>apiCall('/pub/scores?'+key+'&size=60&page='+n).then(j=>{ if(ccNx!==s || !j) return; (j.scores||[]).forEach(x=>{ if(!s.extra[x.id]) s.extra[x.id]=ccNxCard(x); }); renderCircleNx();
     if((n+1)*60<(j.total|0) && n<4) page(n+1); }).catch(()=>{});
@@ -48308,7 +48312,7 @@ function ccNxChanged(dim, v){ if(dim) ccNxTrack(dim, v); renderCircleNx(); ccNxR
 function openCircleNx(){
   seedCircle();
   closePop(); closeModal();
-  ccNx={q:'', pz:'', sub:'', inst:'', hacc:'', favOnly:false, pay:'all', x:{parts:[], chord:false, acc:false, verses:false, erge:false, keys:[], meters:[], speeds:[]},
+  ccNx={q:'', pz:'', sub:'', inst:'', zt:'', ztPg:'', hacc:'', favOnly:false, pay:'all', x:{parts:[], chord:false, acc:false, verses:false, erge:false, keys:[], meters:[], speeds:[]},
     sort:'new', instMore:false, conv:false, drawer:false, extra:{}, fetched:{}, srv:null, cats:null, total:0, timer:0};   // 每次进入重置筛选（不落本机）
   let div=document.getElementById('circle');
   if(div) div.remove();
@@ -48362,9 +48366,12 @@ function openCircleNx(){
       fv.classList.toggle('on',on); fv.textContent=on?'♥':'♡'; fv.title=on?'取消收藏':'收藏';
       if(s.favOnly) renderCircleNxGrid(); return; }
     const b=e.target.closest('button,a'), d=b? b.dataset : {};
-    if(b && d.zt!==undefined){ ccNxTrack('zt', d.zt); return; }
-    if(b && d.pzall!==undefined){ s.pz=''; s.sub=''; s.inst=''; s.hacc=''; s.favOnly=false; ccNxChanged(); return; }
+    if(b && d.zt!==undefined){ e.preventDefault();   /* v70.2 专题＝站内谱单：清一级 / 二级 / 开关，按 zt 筛 */
+      s.zt=d.zt; s.ztPg=d.zp||d.zt; s.pz=''; s.sub=''; s.inst=''; s.hacc=''; s.x.acc=false; s.x.chord=false; s.favOnly=false; ccNxChanged('zt', d.zt); return; }
+    if(b && d.rmzt!==undefined){ s.zt=''; ccNxChanged(); return; }
+    if(b && d.pzall!==undefined){ s.pz=''; s.sub=''; s.inst=''; s.zt=''; s.hacc=''; s.favOnly=false; ccNxChanged(); return; }
     if(b && d.pz!==undefined){
+      s.zt='';
       if(s.pz===d.pz){ s.pz=''; s.sub=''; s.inst=''; }
       else { s.pz=d.pz; s.sub=''; s.inst=''; s.hacc=''; s.x.acc=false; s.x.chord=false; s.instMore=false; }
       s.favOnly=false; ccNxChanged('pz', d.pz); return; }

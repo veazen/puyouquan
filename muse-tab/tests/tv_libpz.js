@@ -16,6 +16,7 @@
    Z12 新外壳行 1「发布」弹层「将归入」主谱种 › 二级（「也出现在」在悬停）＝发布后 /api/pub/scores 卡片的 pz / sub / also（简谱旋律＋钢琴、纯简谱歌曲、合唱＋钢琴三种，
        发布体＝编辑器提交时 PUT 的那份 data）；搜索「合唱 带伴奏」「合唱 伴奏」＝合唱谱 › 带伴奏、「无伴奏」＝合唱谱 › 无伴奏（官网搜索框不被清空）；
        钢琴谱二级悬停（官网＋编辑器）与编辑器合唱谱「伴奏」行标
+   Z14 v70.2 专题入口＝站内谱单：官网首页文字链与二级行末、编辑器新外壳谱友圈行末 → ?zt= 列表与计数＝接口、「了解专题 ›」到原宣传页
    Z13 v70.0 验收⑦：接口卡片带 mode；官网 / 编辑器新外壳谱友圈卡片小调写关系小调（《致爱丽丝》a 小调）；旧外壳卡片照写「C 调」
    Z5h 退路之后仍 0 首：接口不给 fb、官网不写「下面是其他谱」，zero_result 照常记
    Z2d / Z2e 筛选抽屉（编制 / 能用来 / 风格 / 调拍速，吉他谱按「G调指法 · 夹2」）· 原稿不满 6 首自动展开可转
@@ -204,15 +205,15 @@ const typeQ = async (pg, q) => { await pg.fill('#lib-q', q); await pg.waitForTim
       const r4 = await pg.evaluate(() => ({ url: location.search, lit: [...document.querySelectorAll('#lib-cats .fchip.on')].map(e => e.textContent.trim()), subsHidden: document.getElementById('lib-subs').hidden }));
       await pg._ctx.close();
       T(J(r0.cats) === J(['全部', '简谱', '五线谱', '钢琴谱', '吉他谱', '尤克里里', '合唱谱', '功能谱', '♥ 收藏']) && r0.subsHidden
-        && J(r0.zt) === J(['考编>kaobian.html', '艺考>yikao.html', '师范>shifan.html', '课堂>?sub=duizhao']),
-        'Z2a 官网一级＝全部 · 简谱 · 五线谱 · 钢琴谱 · 吉他谱 · 尤克里里 · 合唱谱 · 功能谱 · ♥ 收藏（旧 10 类按钮不在）；首页文字链 考编 · 艺考 · 师范 · 课堂', J(r0));
+        && J(r0.zt) === J(['考编>?zt=kaobian', '艺考>?zt=yikao', '师范>?zt=shifan', '课堂>?sub=duizhao']),
+        'Z2a 官网一级＝全部 · 简谱 · 五线谱 · 钢琴谱 · 吉他谱 · 尤克里里 · 合唱谱 · 功能谱 · ♥ 收藏（旧 10 类按钮不在）；首页文字链 考编 · 艺考 · 师范 · 课堂（v70.2 有意迁移：都落站内谱单 ?zt= / ?sub=）', J(r0));
       /* v70.0 C 有意迁移：种子新增官方示例 / 视唱谱例（lib-ex-shichang-g＝简谱 › 视唱），视唱有谱就该露出——按全库实际有没有简谱 › 视唱算期望（规则「视唱 0 首不出」不变） */
       const scN = cards.filter(c => K.pzMatch(c, { pz: 'jianpu', sub: 'shichang' }) >= 0).length;
       T(r1.url === '?pz=jianpu' && J(r1.lit) === J(['简谱']) && r1.title === '简谱' && r1.subs.join(',') === '歌曲,儿歌,合唱,器乐,' + (scN ? '视唱,' : '') + '对照谱,带伴奏,已配和弦,儿歌弹唱 ›'
         && r1.insts[0] === '二胡' && r1.insts.length >= 3 && list.length > 0 && segs.every((v, i) => v >= 0 && (!i || segs[i - 1] <= v)),
         'Z2b 点「简谱」：URL ?pz=jianpu；二级只露有谱的＋主攻（儿歌 0 首也在、视唱 0 首不出）＋行末「带伴奏」「已配和弦」＋专题「儿歌弹唱 ›」；乐器行按数量排（二胡最多）；列表全是简谱成员、主谱种在前',
         J({ r1, n: list.length, segBad: segs.filter(v => v < 0).length }));
-      T(r2 === '简谱合唱,五线合唱,伴奏,全部,带伴奏,无伴奏' && /^独奏,弹唱,伴奏,即兴伴奏 ›>kaobian\.html$/.test(r3) && r4.url === '' && J(r4.lit) === J(['全部']) && r4.subsHidden,
+      T(r2 === '简谱合唱,五线合唱,伴奏,全部,带伴奏,无伴奏' && /^独奏,弹唱,伴奏,即兴伴奏 ›>\?zt=kaobian$/.test(r3) && r4.url === '' && J(r4.lit) === J(['全部']) && r4.subsHidden,
         'Z2c 合唱谱二级＋伴奏三选（全部 · 带伴奏 · 无伴奏）；钢琴谱二级＋「即兴伴奏 ›」专题入口；再点已选的一级回到全部', J({ r2, r3, r4 }));
     });
 
@@ -524,6 +525,65 @@ const typeQ = async (pg, q) => { await pg.fill('#lib-q', q); await pg.waitForTim
         && Object.values(old).every(o => o.cls === '' && o.synth && !o.any && (!o.grid || o.grid.includes('C 调'))),
         'Z13 验收⑦ 小调卡片调名：接口卡片带 mode（小调＝minor、其余＝空串，只增字段）；官网卡片与编辑器新外壳谱友圈卡片《致爱丽丝》写「a 小调」（此前「C 调」）；旧外壳 ?shell=classic / ?next=0 谱友圈卡片照写「C 调」',
         J({ fe: { key: fe.key, mode: fe.mode, type: fe.type }, modes, site, nx, old }));
+    });
+
+    /* ---------- Z14 v70.2 专题入口＝站内谱单（方案 §4.4 / §十四 P3 最小一步）：官网首页文字链 3 个＋二级行末 4 个、编辑器新外壳谱友圈行末 4 个 ---------- */
+    await guard('Z14', async () => {
+      const API = {}; for (const z of ['kaobian', 'yikao', 'shifan']) { const r = await allPages('zt=' + z); API[z] = { ids: r.cards.map(c => c.id).sort(), n: r.total }; }
+      const snapW = pg => pg.evaluate(() => ({ url: location.search, title: document.getElementById('lib-title').textContent, count: document.getElementById('lib-count').textContent.trim(),
+        ids: [...document.querySelectorAll('#lib-grid .cc-card')].map(c => ((c.getAttribute('href') || '').match(/pub=([^&]+)/) || [])[1]).sort(),
+        conds: [...document.querySelectorAll('#lib-conds .cond')].map(c => c.textContent.replace(/\s+/g, ' ').trim()), lk: [...document.querySelectorAll('#lib-conds a.cond-lk')].map(a => a.textContent.trim() + '>' + a.getAttribute('href')),
+        lit: [...document.querySelectorAll('#lib-cats .fchip.on')].map(e => e.textContent.trim()) }));
+      const NAME = { kaobian: '考编即兴伴奏', yikao: '艺考视唱练耳', shifan: '师范儿歌弹唱' };
+      const okW = (r, z, page) => r.url === '?zt=' + z && r.title === NAME[z] && J(r.ids) === J(API[z].ids) && r.count === API[z].n + ' 首' && J(r.conds) === J(['专题：' + NAME[z] + ' ×']) && J(r.lk) === J(['了解专题 ›>' + page + '.html']) && J(r.lit) === J(['全部']);
+      const site = [];
+      for (const z of ['kaobian', 'yikao', 'shifan']) {
+        const pg = await mkPage(b, 'https://www.puyouquan.com/');
+        await pg.click('#lib-zt [data-zt="' + z + '"]'); await pg.waitForTimeout(1500);
+        const r = await snapW(pg); site.push({ from: '文字链 ' + z, ok: okW(r, z, z), r });
+        if (z === 'kaobian') {   /* 去掉条件回到全部；了解专题 → 原宣传页（同站） */
+          await pg.click('#lib-conds [data-rmzt]'); await pg.waitForTimeout(500);
+          const r2 = await snapW(pg); site.push({ from: '去掉专题', ok: r2.url === '' && r2.title === '最新上架' && !r2.conds.length && !r2.lk.length, r: r2 });
+          await pg.click('#lib-zt [data-zt="kaobian"]'); await pg.waitForTimeout(800);
+          await Promise.all([pg.waitForNavigation({ timeout: 8000 }).catch(() => {}), pg.click('#lib-conds a.cond-lk')]);
+          site.push({ from: '了解专题', ok: new URL(pg.url()).pathname === '/kaobian.html', r: pg.url() });
+        }
+        await pg._ctx.close();
+      }
+      const TAIL = [['jianpu', 'shifan', 'shifan'], ['wuxian', 'yikao', 'yikao'], ['gangqin', 'kaobian', 'kaobian'], ['gongneng', 'kaobian', 'jixing']];
+      for (const [pz, z, page] of TAIL) {
+        const pg = await mkPage(b, 'https://www.puyouquan.com/?pz=' + pz);
+        await pg.click('#lib-subs .lib-ztl'); await pg.waitForTimeout(1500);
+        const r = await snapW(pg); site.push({ from: '行末 ' + pz, ok: okW(r, z, page), r });
+        await pg._ctx.close();
+      }
+      const pj = await mkPage(b, 'https://www.puyouquan.com/?zt=jixing');   /* 旧口径 ?zt=jixing：落考编、地址栏改写，「了解专题」回即兴伴奏页 */
+      const rj = await snapW(pj); await pj._ctx.close(); site.push({ from: '?zt=jixing', ok: okW(rj, 'kaobian', 'jixing'), r: rj });
+      /* 编辑器新外壳谱友圈：行末 4 个入口在谱友圈里按 zt 筛（不新开窗口），条件区「了解专题 ›」新开窗口去原宣传页 */
+      const pe = await mkPage(b, 'https://zhipu.puyouquan.com/', { wait: 2000 });
+      await pe.evaluate(() => { hideStartPad(); openCircle(); }); await pe.waitForTimeout(1500);
+      const ed = [];
+      for (const [pz, z, page] of TAIL) {
+        await pe.click('#circle [data-pz="' + pz + '"]'); await pe.waitForTimeout(500);
+        const a0 = await pe.evaluate(() => { const a = document.querySelector('#circle .cc-subrow .cc-ztl'); return a ? { t: a.textContent.trim(), tg: a.getAttribute('target') || '' } : null; });
+        const n0 = pe.context().pages().length;
+        await pe.click('#circle .cc-subrow .cc-ztl'); await pe.waitForTimeout(1500);
+        const r = await pe.evaluate(() => ({ cls: document.getElementById('circle') && document.getElementById('circle').className, count: document.querySelector('#circle .cc-count').textContent.trim(),
+          ids: [...document.querySelectorAll('#circle .cc-card[data-pub]')].map(c => c.dataset.pub).sort(), conds: [...document.querySelectorAll('#circle .cc-condrow .cc-cond')].map(c => c.textContent.trim()),
+          lk: [...document.querySelectorAll('#circle .cc-condrow a[data-ztx]')].map(a => a.textContent.trim() + '>' + a.getAttribute('href') + '>' + a.getAttribute('target')),
+          lit: [...document.querySelectorAll('#circle .cc-pzrow .cc-chip.on')].map(e => e.textContent.trim()), subHidden: document.querySelector('#circle .cc-subrow').hidden }));
+        ed.push({ pz, a0, r, ok: !!a0 && a0.tg === '' && pe.context().pages().length === n0 && r.cls === 'cc-nx' && J(r.ids) === J(API[z].ids) && r.count === API[z].n + ' 首'
+          && J(r.conds) === J(['专题：' + NAME[z] + ' ×']) && J(r.lk) === J(['了解专题 ›>https://www.puyouquan.com/' + page + '.html>_blank']) && J(r.lit) === J(['全部']) && r.subHidden });
+        await pe.click('#circle .cc-condrow [data-rmzt]'); await pe.waitForTimeout(400);
+      }
+      const back = await pe.evaluate(() => ({ conds: document.querySelectorAll('#circle .cc-condrow > *').length, n: document.querySelectorAll('#circle .cc-card[data-pub]').length }));
+      const zEv = pe._ev.filter(e => e.name === 'ui_cmd' && /^lib:zt:/.test(e.meta)).map(e => e.meta);
+      await pe._ctx.close();
+      T(site.every(x => x.ok), 'Z14a 官网专题入口落站内谱单：首页「考编 · 艺考 · 师范」与简谱 / 五线谱 / 钢琴谱 / 功能谱行末入口 → URL ?zt=、列表与计数＝接口 ?zt= 全库、条件块「专题：…」可删、「了解专题 ›」指向原宣传页（功能谱 → jixing.html）、点了同站跳转；?zt=jixing 落考编',
+        J(site.filter(x => !x.ok).map(x => ({ from: x.from, r: x.r, want: API }))).slice(0, 1500));
+      T(ed.every(x => x.ok) && back.conds === 0 && back.n > 0 && J([...new Set(zEv)].sort()) === J(['lib:zt:kaobian', 'lib:zt:shifan', 'lib:zt:yikao']) && zEv.every(m => /^lib:zt:(kaobian|yikao|shifan)$/.test(m)),   /* 同一会话同一 id 只记一次 */
+        'Z14b 编辑器新外壳谱友圈行末 4 个专题入口：站内按 zt 筛（不新开窗口）、计数＝接口 zt 计数、条件块可删、「了解专题 ›」新开窗口到 www 原页；埋点 lib:zt:*',
+        J({ bad: ed.filter(x => !x.ok), back, zEv, want: Object.fromEntries(Object.entries(API).map(([k, v]) => [k, v.n])) }).slice(0, 1500));
     });
 
     /* ---------- Z11 埋点 / 小程序 / 后台 / 谱名 ---------- */
