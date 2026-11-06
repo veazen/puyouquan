@@ -13,8 +13,9 @@
           ③ number="1, 2" 与 "3" 的房子各计 1（房子编号 2），单个 1 / 2 不计 ④ 和弦每音带 <arpeggiate> → 琶音按列计 1 ⑤ 和弦倚音计 skip.notes
           ⑥ 杂项（caesura / cue / 菱形符头 / 颤音线 / 持续音踏板 / 跟 rit. 的延续虚线 / 休止上的歌词…）全部按名进报告
    S4 白名单 MXL_LED 在、skipText 按名点出前 5 类（多于 5 类写「等」）
+   S5 B4 曲库质量门 ③ 扩口径（deploy/build-library.js skipAllow 逐曲签字白名单）：反例清单（侏儒去掉白名单、阿特拉斯白名单少 1 对且没签字）不过门、逐曲点名
    E  页面脚本错误 0
-   env：MUSETAB_URL 被测页（缺省 ../index.html；修前副本跑红用）。单跑约 30 秒 */
+   env：MUSETAB_URL 被测页（缺省 ../index.html；修前副本跑红用；S5 走 build-library.js 自己的编辑器路径）。单跑约 30 秒 */
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const toUrl = u => /^file:/.test(u) ? u : 'file://' + path.resolve(u);
@@ -313,6 +314,19 @@ function censusFn(x) {
     t6: skipText({ other: 21, otherBy: { '震音': 6, accent: 5, notehead: 4, dashes: 3, 'detached-legato': 2, caesura: 1 } }), t1: skipText({ other: 3, otherBy: { '房子编号': 3 } }), t0: skipText({ other: 2 }) }));
   T(s4.led && /其他记号 21 处（震音 6 对、重音 5、符头样式 4、延续虚线 3、半断奏 2 等）/.test(s4.t6) && /其他记号 3 处（房子编号 3）/.test(s4.t1) && /其他记号 2 处$/.test(s4.t0),
     'S4 MXL_LED 白名单在；skipText 按名点出前 5 类（多于 5 类写「等」，没有 otherBy 照旧只报总数）', J(s4));
+
+  /* S5 B4 质量门 ③ 扩口径（deploy/build-library.js）：造一份反例清单——侏儒去掉白名单、阿特拉斯白名单少 1 对且没签字——必须不过门、逐曲点名；
+     （正例：曲库 10 首与签字白名单一致＝tv_library L1 的 build-library --check） */
+  { const man = JSON.parse(JSON.stringify(MAN)), zi = man.items.find(i => /lc6838113/.test(i.id)), ai = man.items.find(i => /lc4985985/.test(i.id));
+    delete zi.skipAllow; ai.skipAllow = { other: { '震音': 50 }, why: '反例' };
+    const tmp = path.join(require('os').tmpdir(), 'pyq-mxlsrc-' + process.pid + '.json');
+    fs.writeFileSync(tmp, JSON.stringify({ items: [zi, ai] }));
+    let msg = '', code = 0;
+    try { msg = require('child_process').execFileSync('node', [path.join(ROOT, 'deploy', 'build-library.js'), '--check', '--manifest=' + tmp], { encoding: 'utf8', env: Object.assign({}, process.env, { MUSETAB_URL: '' }), timeout: 300000, stdio: ['ignore', 'pipe', 'pipe'] }); }
+    catch (e) { code = e.status; msg = (e.stdout || '') + (e.stderr || ''); }
+    try { fs.unlinkSync(tmp); } catch (_) {}
+    T(code === 1 && /未过质量门/.test(msg) && /lc6838113[^\n]*其他「震音」188（白名单 0）/.test(msg) && /lc4985985[^\n]*白名单缺签字[^\n]*其他「震音」51（白名单 50）/.test(msg),
+      'S5 质量门③：没写白名单的震音 188 对、白名单少 1 对且没签字的阿特拉斯都不过门，逐曲点名', msg.trim().slice(0, 900)); }
 
   T(!errs.length, 'E 页面脚本错误 0', errs.slice(0, 5).join(' | '));
   console.log((pass === total ? 'PASS ' : 'FAIL ') + pass + '/' + total + (fails.length ? '  红：' + fails.join(' ') : '') + '  ' + ((Date.now() - t0) / 1000).toFixed(1) + 's');

@@ -6,6 +6,9 @@
      ① 音高：源文件与「导入 → 再导出」逐小节比音高多重集（不含倚音），一个小节都不能差
      ② 时值：beatErrors() 为 0（不完整小节由导入标记 irr 豁免）
      ③ 不丢：skip.parts / voices / notes 都为 0（同谱表第二声部、超过 4 音的和弦、超出的声部都会计数）
+        v70.3 B4 扩口径（基石方案 docs/plan-2026-11-foundation.md §3.1）：skip 各项——parts / voices / notes / lyrics / slurs，other 按 skip.otherBy 逐名
+        （导入台账 MXL_LED：双音震音、半断奏、括号符头…）——必须与 manifest 条目的 skipAllow 逐项相等：没写 skipAllow 的全 0；
+        写了的必须有 signed（by / date）与 why（逐曲签字的例外）；计数变了（多了或少了）都不过门，白名单跟着改、重新签（双音震音 v70.4 撤）
      ④ v69.4 拼写：源文件与「导入 → 再导出」逐小节比 音高＋step＋alter 多重集（不含倚音）——此前只比音高，450 个音被改拼（B♭→A♯）也能过门
      ⑤ v69.4 文字：导入后的标注 anno 不得只由数字 / 点 / 空白组成（OpenScore 节拍器拆写的「.6」残片）
      ⑥ v69.8 歌词音节（col.syl）：源文件与「导入 → 再导出」逐（有词 part × 段）比 syllabic 序列（缺省＝single，只算有 <text> 的 lyric；
@@ -44,6 +47,16 @@ const MAKER_EX = '谱友圈官方', MAKER_PD = '谱友圈官方 · 据公有领�
 const LICENSES = ['CC0 1.0', '公有领域', '谱友圈自编'];
 const EDITOR = 'file://' + path.join(ROOT, 'muse-tab', 'index.html') + '?shell=classic';
 /* ⑫ check 串规整：段间「|」、谱表间「/」、音与音空白分隔 → [[行 token 串]] */
+/* ③ v70.3 B4：skip 与逐曲白名单 skipAllow 逐项比（返回不一致的说明，空串＝过） */
+function skipGate(sk, al) {
+  const why = [], A = al || {};
+  if (al && !(al.signed && al.signed.by && al.signed.date && al.why)) why.push('白名单缺签字（skipAllow.signed.by / date、why）');
+  ['parts', 'voices', 'notes', 'lyrics', 'slurs'].forEach(k => { const g = sk[k] | 0, w = A[k] | 0; if (g !== w) why.push(k + ' ' + g + '（白名单 ' + w + '）'); });
+  const ob = sk.otherBy || {}, wo = A.other || {};
+  [...new Set([...Object.keys(ob), ...Object.keys(wo)])].forEach(n => { const g = ob[n] | 0, w = wo[n] | 0; if (g !== w) why.push('其他「' + n + '」' + g + '（白名单 ' + w + '）'); });
+  const sum = Object.values(ob).reduce((a, b) => a + (b | 0), 0); if ((sk.other | 0) !== sum) why.push('other 合计 ' + (sk.other | 0) + ' ≠ 分项和 ' + sum);
+  return why.join('、');
+}
 const checkSegs = s => String(s || '').split('|').map(seg => seg.split('/').map(r => r.trim().split(/\s+/).filter(Boolean).join(' ')));
 /* 页面里跑的门 ⑨ ⑩ ⑪ 与 ⑫ 的清单生成（src＝谱面数据；返回 data＝migrate 后、去掉 id 的谱面，及各门结果）。toString 后在页面里 new Function 求值 */
 function pageGates(src) {
@@ -94,7 +107,7 @@ function pageGates(src) {
 async function build() {
   const man = JSON.parse(fs.readFileSync(MAN, 'utf8'));
   const b = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
-  const out = [], bad = [], tot = {};
+  const out = [], bad = [], tot = {}, allow = [];   /* allow：③ 白名单内、计数一致的例外（打印用） */
   try {
     for (const it of man.items) {
       const xml = fs.readFileSync(path.join(__dirname, 'library', it.file), 'utf8');
@@ -178,8 +191,9 @@ async function build() {
       }, xml);
       await pg.close();
       if (r.err) { bad.push(it.id + ' 导入失败：' + r.err); continue; }
-      const sk = r.skip || {}, lost = (sk.parts | 0) + (sk.voices | 0) + (sk.notes | 0);
-      if (r.pitchDiff || r.beatErr || lost || r.spellDiff || r.junk.length || r.lyrBad.length || r.tpBad.length || r.trBad.length) { bad.push(`${it.id}（${it.title}）未过质量门：音高不同小节 ${r.pitchDiff} · 时值不符 ${r.beatErr} · 丢弃 ${lost} · 拼写不同小节 ${r.spellDiff} · 数字残片标注 ${r.junk.length}${r.junk.length ? '（' + r.junk.slice(0, 5).join(' ') + '）' : ''}`
+      const lost = skipGate(r.skip || {}, it.skipAllow);   /* ③ v70.3 B4 */
+      if (it.skipAllow && !lost) allow.push(it.title.replace(/（.*$/, '') + ' ' + Object.entries(Object.assign({}, it.skipAllow.other || {}, ...['parts', 'voices', 'notes', 'lyrics', 'slurs'].filter(k => it.skipAllow[k]).map(k => ({ [k]: it.skipAllow[k] })))).map(([k, v]) => k + ' ' + v).join(' '));
+      if (r.pitchDiff || r.beatErr || lost || r.spellDiff || r.junk.length || r.lyrBad.length || r.tpBad.length || r.trBad.length) { bad.push(`${it.id}（${it.title}）未过质量门：音高不同小节 ${r.pitchDiff} · 时值不符 ${r.beatErr} · 不丢③ ${lost || '一致'} · 拼写不同小节 ${r.spellDiff} · 数字残片标注 ${r.junk.length}${r.junk.length ? '（' + r.junk.slice(0, 5).join(' ') + '）' : ''}`
         + ` · 歌词音节 ${r.lyrBad.length}${r.lyrBad.length ? '（' + r.lyrBad.slice(0, 3).join('；') + '）' : ''} · 速度点 ${r.tpBad.length}${r.tpBad.length ? '（' + r.tpBad.join('；').slice(0, 300) + '）' : ''} · 移调 / 八度谱号 ${r.trBad.length}${r.trBad.length ? '（' + r.trBad.join('；') + '）' : ''}`); continue; }
       for (const k in r.cnt) tot[k] = (tot[k] || 0) + r.cnt[k];
       if (Array.isArray(r.song.voxVoices)) r.song.voxVoices = r.song.voxVoices.map(n => (typeof n === 'string' && r.nameFix[n]) || n);
@@ -228,13 +242,14 @@ async function build() {
     }
     if (png) console.log('   第一页 PNG：' + png);
   } finally { await b.close(); }
-  return { out, bad, tot };
+  return { out, bad, tot, allow };
 }
 
 (async () => {
   const check = process.argv.includes('--check');
-  const { out, bad, tot } = await build();
+  const { out, bad, tot, allow } = await build();
   if (bad.length) { console.error('❌ 质量门未过：\n  ' + bad.join('\n  ')); process.exit(1); }
+  if (allow.length) console.log('   ③ 逐曲白名单（已签字，计数一致）' + allow.length + ' 首：' + allow.join('；'));
   console.log(`   ⑥–⑧ 记数：连字符 ${tot.hy | 0}（源谱矛盾 syllabic 规整 ${tot.sylFix | 0} 处）· 延长线 ${tot.ext | 0} · 速度点 ${tot.tp | 0}（印出 ${tot.tpShown | 0}）· 移调 / 八度谱号 part ${tot.trans | 0}`);
   const txt = JSON.stringify(out) + '\n';
   if (check) {
