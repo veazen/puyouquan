@@ -4,13 +4,14 @@
    ② 已知短码字段（SD_CODE：技法/升降/和弦名…）不得含尖括号（dyn 的楔形 '<'/'>' 例外）；③ 自由文本（曲名/歌词…）不限字符——输出点转义；
    ④ 未知字段与新可选字段一律透传，服务端不因编辑器新增字段而拒收或剥离数据。返回首个违规位置供提示。 */
 const SD_NUM = new Set(['v', 'beats', 'unit', 'tempo', 'capo', 'lyricLines', 'dur', 'deg', 'oct', 's', 'f', 'volta', 'simile', 'tup', 'mi', 'ci', 'vi', 'li', 'si', 'q', 'bpm', 'syl', 'voxTransp', 'voxClefOct', 'rowNames', 'trem2']);   /* v70.4 双音震音杠数 col.trem2（与编辑器 SAN_NUM 同一张表） */
-const SD_FREE = new Set(['title', 'singer', 'lyricist', 'composer', 'maker', 'lyrics', 'label', 'anno', 'text', 'name', 'tabVoices', 'voxVoices', 'intro', 'desc', 'note', 'tempoTerm', 'author', 'voxShort']);
+/* v70.4 D：song.src.sw（导入文件的软件名）是自由文本；song.src.via（mxl / midi / gp / arr）进短码表 */
+const SD_FREE = new Set(['title', 'singer', 'lyricist', 'composer', 'maker', 'lyrics', 'label', 'anno', 'text', 'name', 'tabVoices', 'voxVoices', 'intro', 'desc', 'note', 'tempoTerm', 'author', 'voxShort', 'sw']);
 const SD_KEEP = { dyn: new Set(['<', '>']) };
 /* 已知短码字段（数据模型 §3.1 + 渲染裸拼点审计）：合法取值不含尖括号。只在这些字段里拒收 <>，
    未知字段透传——编辑器以后新增的可选字段不会因为服务端没登记而被拒（编辑器载入时另有 normalizeSongFields 兜底）。
    v70.0 P2a：song.intent（建谱用途，11 个 ASCII 短码 gtr / pacc / … / custom）进短码表——拒收尖括号；不做枚举剥除（不认识的值留在数据里，PQ_KIND.intentOf 当没写）。
    编辑器 SAN_* 表不加：normalizeSongFields 对不在任何表里的字符串字段默认走短码分支（剥 <>），sanitizeUntrusted 另剥引号，11 个合法值往返逐字节不变 */
-const SD_CODE = new Set(['acc', 'bAmt', 'chord', 'dyn', 'inst', 'key', 'keyTo', 'orn', 'strum', 'tech', 'voxNotations', 'artic', 'ped', 'fing', 'clef', 'ott', 'trem', 'perc', 'texId', 'tabNota', 'rhFing', 'lhF', 'mode', 'tempoUnit', 'intent']);
+const SD_CODE = new Set(['acc', 'bAmt', 'chord', 'dyn', 'inst', 'key', 'keyTo', 'orn', 'strum', 'tech', 'voxNotations', 'artic', 'ped', 'fing', 'clef', 'ott', 'trem', 'perc', 'texId', 'tabNota', 'rhFing', 'lhF', 'mode', 'tempoUnit', 'intent', 'via']);
 /* v67.6 第二轮验收：顶层标量字段（调号 / 拍号 / 速度 / 歌词段数…）只能是数字或文字——值是对象 / 数组（如 key:{"toString":1}）时
    服务端 String()/+ 取值会抛「Cannot convert object to primitive value」，此前存得进库、过审后整页谱库 500。只查顶层（嵌套里同名键如织体型 s:[…] 是合法数组）
    v70.0 P2a：intent 同理（顶层值是对象 / 数组拒收，防 String() 抛错） */

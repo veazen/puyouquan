@@ -197,6 +197,8 @@ async function build() {
         + ` · 歌词音节 ${r.lyrBad.length}${r.lyrBad.length ? '（' + r.lyrBad.slice(0, 3).join('；') + '）' : ''} · 速度点 ${r.tpBad.length}${r.tpBad.length ? '（' + r.tpBad.join('；').slice(0, 300) + '）' : ''} · 移调 / 八度谱号 ${r.trBad.length}${r.trBad.length ? '（' + r.trBad.join('；') + '）' : ''}`); continue; }
       for (const k in r.cnt) tot[k] = (tot[k] || 0) + r.cnt[k];
       if (Array.isArray(r.song.voxVoices)) r.song.voxVoices = r.song.voxVoices.map(n => (typeof n === 'string' && r.nameFix[n]) || n);
+      /* v70.4 D：导入器给第三方 MusicXML 写 song.src（{via:'mxl', sw}）；曲库的来源另记在条目 source（许可 / 出处），种子不带 src——种子逐字节不变 */
+      delete r.song.src;
       const data = Object.assign(r.song, { title: it.title, composer: it.composer, lyricist: it.lyricist, maker: MAKER });
       out.push({ id: it.id, title: it.title, singer: it.composer, data, source: it.source });
     }

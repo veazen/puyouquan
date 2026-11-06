@@ -140,7 +140,7 @@ async function clickStep(pg, mi, vi, ci, step) {
         q.pkIn = await EV(pg, () => __st(2));
         q.irr = await run({ setup: s => { s.measures[0].irr = 1; } }, 'Delete Delete Delete r 5 1 1 5 5', 2);
         q.free = await run({ setup: s => { s.freeMeter = true; } }, 'Delete Delete Delete r 5 1 1 5 5', 2);
-        q.range = await EV(pg, () => { __fresh(); selRange = { row: 'vox', vi: 0, m1: 0, c1: 0, m2: 0, c2: 1 }; setDur(8); selRange = null; sel.ci = 2; render(); inputDigit(5); inputDigit(6); return __st(1); });
+        q.range = await EV(pg, () => { __fresh(); selRange = { row: 'vox', vi: 0, m1: 0, c1: 0, m2: 0, c2: 1 }; setDur(8); selRange = null; sel.ci = 4; render(); inputDigit(5); inputDigit(6); return __st(1); });   /* v70.4 有意迁移：批量改短补休止列（0/8 0/8 后补 0/8 0/8），原来的两格四分落在第 5、6 格 */
         q.ins = await run({}, 'r Shift+Insert 5 6 3 1');                                   /* 插入搭出的格按原样落，之后按格落（v68.7 老打法照旧） */
         q.combo = await EV(pg, () => { __fresh(); setDur(4); applyDurCombo(DUR_COMBOS.find(c => J0(c.durs) === '[[16],[16],[16],[16]]') || DUR_COMBOS[1]); inputDigit(1); inputDigit(2); inputDigit(3); inputDigit(4); inputDigit(5); return __st(1); function J0(x) { return JSON.stringify(x); } });
         q.rest = await run({}, 'r 5 6 0 1');                                               /* 0（休止）不套沿用值，只走过这一格 */
@@ -153,7 +153,7 @@ async function clickStep(pg, mi, vi, ci, step) {
           'V3b' + tag + ' 附点不沿用、补足格按原样落：「e 3 . 2 1」→ 3/4. 2/8 1/4 ·「5 r . 6 3 1」→ 5/4 6/8. 3/16 1/8（预选附点仍作用于当前格）·「r 5 . 6 3 . 1」→ 5/8. 6/16 3/8. 1/16', J({ a: q.dotA.m, b: q.dotB.m, c: q.dotC.m }));
         T(q.pk.m === '5/8 | 1/4 1/4 5/4 5/4' && q.irr.m === q.pk.m && q.free.m.split(' | ')[1] === '1/4 1/4 5/4 5/4' && q.pkIn.m === '0/4 1/4 0/4 0/4 | 5/8 0/8 0/4 0/4 0/4' && q.pk.be === 0,
           'V3c' + tag + ' 弱起首小节 / 不完整小节 / 散拍草稿里的时值键不记（之后整小节照四分落）；正常小节记下的沿用值不带进弱起小节', J({ pk: q.pk.m, irr: q.irr.m, free: q.free.m, pkIn: q.pkIn.m }));
-        T(q.range.m === '0/8 0/8 5/4 6/4' && q.ins.m === '5/8 6/8 3/4 1/4 0/4' && q.ins.be === 0 && /^1\/16 2\/16 3\/16 4\/16 5\/4/.test(q.combo.m) && q.rest.m === '5/8 6/8 0/4 1/8 0/8 0/4',
+        T(q.range.m === '0/8 0/8 0/8 0/8 5/4 6/4' && q.ins.m === '5/8 6/8 3/4 1/4 0/4' && q.ins.be === 0 && /^1\/16 2\/16 3\/16 4\/16 5\/4/.test(q.combo.m) && q.rest.m === '5/8 6/8 0/4 1/8 0/8 0/4',
           'V3d' + tag + ' 选区批量改时值不记 · 插入搭出的格按原样落、之后按格落（「r Shift+Insert 5 6 3 1」→ 5/8 6/8 3/4 1/4，v68.7 老打法）· 组合时值搭出的格按原样落、之后按格落 · 0（休止）不套沿用值', J({ range: q.range.m, ins: q.ins.m, combo: q.combo.m, rest: q.rest.m }));
         T(q.undo.a === '5/8 6/8 3/8 0/8 0/4 0/4' && q.undo.b1 === '5/8 6/8 0/4 0/4 0/4' && q.undo.back, 'V3e' + tag + ' 沿用改格与落音同一步撤销（撤一次回到落 3 之前；全撤回到原 JSON）', J(q.undo));
       }

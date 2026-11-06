@@ -306,7 +306,7 @@ const EV = (pg, fn, arg) => pg.evaluate(fn, arg).catch(e => ({ err: String(e.mes
             m68: one({ opt: { nMea: 2, beats: 6, unit: 8 } }, at(2, 16)),
             tab_4to8: one({ kind: 'solo', opt: { nMea: 2, nVox: 0 }, row: 'tab', si: 2 }, at(0, 8)),
             staff_4to8: one({ setup: s => { s.voxNotations = ['staff']; } }, at(0, 8)),
-            /* IN4 不补：已有音符的列 · 连音组 · 选区批量 · 同值 */
+            /* IN4 不补：已有音符的列 · 连音组 · 同值（选区批量 v70.4 起保住小节总时值、补在最后一个选中列之后——有意迁移，见 tv_v704io B） */
             filled: one({ setup: s => { s.measures[0].voxes[0][0].deg = 5; } }, at(0, 8)),
             tup: one({ setup: s => { s.measures[0].voxes[0] = [1, 2, 3].map(() => V(0, 8, { tup: 3 })).concat([V(0, 4), V(0, 2)]); } }, at(0, 16)),
             range: one({}, () => { selRange = { row: 'vox', vi: 0, m1: 0, c1: 0, m2: 0, c2: 1 }; setDur(8); selRange = null; }),
@@ -361,10 +361,10 @@ const EV = (pg, fn, arg) => pg.evaluate(fn, arg).catch(e => ({ err: String(e.mes
         T(!q.err && !bad3.length, 'IN3' + tag + ' 补列规则（' + Object.keys(W3).length + ' 例：4→16 / 2→8 / 全→64 上限 16 格＋余数 / 附点四分→附点八分 / 双附点八分→32（降单附点）/ 6/8 中 8→16 / TAB 空列 / 五线谱行）：数据串与总拍（改前＝改后）逐条相同，撤销栈 +1，Ctrl+Z 一步回到原 JSON',
           q.err || (bad3.length ? bad3.map(k => k + '=' + J(q[k])).join(' ') : 'ok'));
         /* v68.7 的数据（测于 27a74c1）：不补的路径必须逐字相同 */
-        const W4 = { filled: '5/8 0/4 0/4 0/4', tup: '0/16t3 0/8t3 0/8t3 0/4 0/2', range: '0/8 0/8 0/4 0/4', same: '0/4 0/4 0/4 0/4' };
+        const W4 = { filled: '5/8 0/4 0/4 0/4', tup: '0/16t3 0/8t3 0/8t3 0/4 0/2', range: '0/8 0/8 0/8 0/8 0/4 0/4', same: '0/4 0/4 0/4 0/4' };
         const bad4 = Object.keys(W4).filter(k => !q[k] || q[k].m !== W4[k]);
         T(!q.err && !bad4.length && R.in4w.m === '5/4 0/2 0/4 | 0/4 0/4 0/4 0/4',
-          'IN4' + tag + ' 不补的边界与 v68.7 数据逐字相同：已有音符的列（5/8 0/4 0/4 0/4，照旧 3.5 拍报错）· 连音组内的空列 · 选区批量 · 同值 · 改长「5 w」→ 5/4 0/2 0/4（v63.6 吸收）',
+          'IN4' + tag + ' 不补的边界与 v68.7 数据逐字相同：已有音符的列（5/8 0/4 0/4 0/4，照旧 3.5 拍报错）· 连音组内的空列 · 选区批量（v70.4 起补列：0/8 0/8 0/8 0/8 0/4 0/4）· 同值 · 改长「5 w」→ 5/4 0/2 0/4（v63.6 吸收）',
           q.err || J(Object.assign({}, ...Object.keys(W4).map(k => ({ [k]: q[k] && q[k].m })), { w: R.in4w.m })));
         T(q.over && q.over.m === '0/16 0/8. 0/4 0/4 0/4' && q.over.sum === 4, 'IN5' + tag + ' 超拍小节（5 个空四分）首列按 t → 「0/16 0/8. 0/4 0/4 0/4」（补列后照旧吸收，与 v68.7 相同）', J(q.over));
         const i6 = R.in6 || {};
