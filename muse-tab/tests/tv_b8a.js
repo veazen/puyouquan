@@ -9,9 +9,12 @@
    flow 段（T4f）走新入口：排版模式（真实点模式条「排版」）→ 右栏「版式」页的 #lp-fix。口径：flow 的谱面区在 1440（左栏 248 + 右栏 264）、
    1280 竖条态都 ≥ #paper 上限 900，自适应版宽恰好＝870＝FIXED_A4，开 / 关看不出版宽变化；故 flow 段用 1280 + 右栏钉住（musetab-rdock='1'，
    S4 的正式状态）——谱面区 752 → 自适应 722，开启＝870、关闭回 722（断言不放宽：仍要求 before≠FA4、开启＝FA4、关闭＝before）
-   突变实证：对 v64.5 之前的文件复跑，T1–T5 全部报红（0/5）。 */
+   突变实证：对 v64.5 之前的文件复跑，T1–T5 全部报红（0/5）。
+   v70.1 迁移（规格 docs/spec-2026-11-v701.md §15.2）：新外壳新形态第一步按谱种，「歌谱 · 合唱」卡不在了——T1 改用 nfpick 的页内 __nfPick('vocal')（卡可见点卡，否则「简谱」行 → 「歌曲」形态，各自先断言可见）；
+   点不到就抛错（原写法找不到卡静默按默认吉他弹唱建，断言失真） */
 const { chromium } = require('playwright');
 const path = require('path');
+const NFP = require('./lib/nfpick');
 const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env.MUSETAB_URL.slice(7) : path.resolve(__dirname, '../index.html');
 const MK = `window.mkLong=(fixed)=>{ const s=createSong('vocal',{title:'长谱',key:'C',beats:4,unit:4,nMea:40,nVox:1,lyr:1});
   s.measures.forEach(m=>m.voxes[0].forEach((c,i)=>{ c.deg=[1,2,3,5][i]; c.lyrics=['啦']; }));
@@ -27,6 +30,7 @@ const MK = `window.mkLong=(fixed)=>{ const s=createSong('vocal',{title:'长谱',
     pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
     if (ls) await pg.addInitScript(o => { for (const k in o) localStorage.setItem(k, o[k]); }, ls);
     await pg.goto('file://' + FILE + (q ? '?' + q : '')); await pg.waitForTimeout(900);
+    await pg.evaluate(NFP.PAGE_INIT);
     await pg.evaluate(`(()=>{ guardReplace=(p)=>p(); hideStartPad(); ${MK} })()`);
     if (FA4 == null) FA4 = await pg.evaluate(() => typeof FIXED_A4 === 'number' ? FIXED_A4 : null);
     return pg; };
@@ -34,7 +38,7 @@ const MK = `window.mkLong=(fixed)=>{ const s=createSong('vocal',{title:'长谱',
   /* T1 */
   { const pg = await open(1440, 900);
     const r = await pg.evaluate(`(async()=>{ showNewWizard(); await new Promise(r=>setTimeout(r,80));
-      const iv=document.querySelector('.nw-int[data-int="vocal"], .nf-modal [data-scene="vocal"]'); if(iv) iv.click();   /* v67.4 新建面板：「歌谱 · 合唱」用途（原声乐意图卡） */ await new Promise(r=>setTimeout(r,80));
+      if(!__nfPick('vocal')) throw new Error('新建面板点不到「歌谱 · 合唱」：'+JSON.stringify(window.__nfPicked));   /* v70.1 卡或「简谱 › 歌曲」（nfpick） */ await new Promise(r=>setTimeout(r,80));
       const c=document.getElementById('nw-create'); if(c) c.click(); await new Promise(r=>setTimeout(r,300));
       return {fixed: !!(song.layout && song.layout.fixed), title: song.title}; })()`).catch(e => ({ err: e.message }));
     T(!r.err && r.fixed, 'T1 新建向导出的谱默认固定版宽', JSON.stringify(r));
