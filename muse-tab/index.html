@@ -39967,6 +39967,9 @@ const LS_NWLAST = 'musetab-nw-last';
 /* v70.0 P2a 新组合 / 新乐器 / 示例分组的总开关（规格 docs/spec-2026-11-v700.md §2 / §6.1）：新外壳新形态的电脑端才为真——
    与面板内 NXP() 同口径，但不依赖面板状态 st（深链 fresh() 时面板还没建）。旧外壳、?next=0、≤820 窄档 / 手机（flw-m、isMobileNew）一律假＝v69.9 界面。
    函数声明（免 TDZ）；第 0 步只定义，B / C 组接线 */
+/* v70.1 P2b「新建：第一步按谱种」回滚开关（规格 docs/spec-2026-11-v701.md §13）：1＝新外壳新形态电脑端的新建面板第一步按谱种（常用 4 卡 ＋ 谱种 7 行 ＋ 形态 chip）、
+   快速新建 ▾ 与命令面板随之；0＝三处与 v70.0 逐字节相同。旧外壳 / ?next=0 / 手机 / ≤820 窄档不读它。下一行原文固定（tests/lib/nfpick.js rollbackUrl 按这串字替换），注释不要写到同一行 */
+const NW_P2B = 1;
 function nwP2A(){
   try{ return !isMobileNew() && typeof flowOn==='function' && flowOn() && FLOW.nxOn() && !document.body.classList.contains('flw-m'); }catch(_){ return false; }
 }
@@ -40014,7 +40017,87 @@ var NWP = (function(){
     instKey:{lab:'乐器', opts:[['piano','钢琴','inst-piano'],['violin','小提琴','inst-violin'],['erhu','二胡','inst-erhu'],['guzheng','古筝','inst-guzheng']], d:'piano'},
     oclef:  {lab:'谱号', opts:[['staff','高音','clef-treble'],['alto','中音','clef-alto'],['bass','低音','clef-bass']], d:'staff'},
   };
-  const ROWBTN = [['J','简谱','nota-jianpu'],['S','五线谱','nota-staff'],['T','六线谱','nota-tab6'],['G','大谱表','nota-grand'],['C','和弦','nota-chord']];
+  /* ---- v70.1 P2b 形态表（规格 docs/spec-2026-11-v701.md §3.1；字段名固定，测试按字段读）：每个形态＝已有用途 sc ＋ 已有变体值 v ＋ 旋律用——形态只是预设，不是新数据。
+     id＝data-form（谱种.二级，同 PQ_KIND.PZ）；pz 谱种；n 形态名（≤4 字）；mel＝形态定死的旋律记谱法；mel0＝进入时置这个、可改（只 #14 / #15 / #23）；
+     ks＝保持本形态选中所允许的面板谱行（stackOfState）；pc＝声部类（1 独唱 / 2＝二部及以上，fmMatch 只比类）；def＝谱种默认形态（●，每谱种恰一个，＝PZ_DEF）；
+     home＝归属（反推目标：fmHome 只落 home 行或常用卡）；hid＝本形态下不再画的控件（值由形态定，仍在 varsShown 里、仍进计划）；ik＝乐器下拉族（IGRP3）。
+     顺序＝chip 顺序；谱种顺序＝PQ_KIND.PZ */
+  const PZ_FORMS = [
+    {id:'jianpu.gequ',      pz:'jianpu',   n:'歌曲',     sc:'vocal', v:{parts:1},                   mel:'J', ks:['J','JG'],    pc:1, def:1, home:1, hid:['mel','parts']},
+    {id:'jianpu.daiban',    pz:'jianpu',   n:'带伴奏',   sc:'pacc',  v:{acc:'mel'},                 mel:'J', ks:['JG'],                          hid:['mel','acc']},
+    {id:'jianpu.hechang',   pz:'jianpu',   n:'合唱',     sc:'vocal', v:{parts:4},                   mel:'J', ks:['J','JG'],    pc:2,             hid:['mel']},
+    {id:'jianpu.qiyue',     pz:'jianpu',   n:'器乐',     sc:'inst',  v:{instKey:'erhu', tacc:'no'}, mel:'J', ks:['J'],               home:1, hid:['mel','tacc'], ik:'jianpu'},
+    {id:'jianpu.shichang',  pz:'jianpu',   n:'视唱',     sc:'sight', v:{},                          mel:'J', ks:['J'],               home:1, hid:['mel']},
+    {id:'jianpu.duizhao',   pz:'jianpu',   n:'对照谱',   sc:'teach', v:{},                                   ks:['SJ','SJG'],                    hid:[]},
+    {id:'wuxian.gequ',      pz:'wuxian',   n:'歌曲',     sc:'vocal', v:{parts:1},                   mel:'S', ks:['S','SG'],    pc:1, def:1, home:1, hid:['mel','parts']},
+    {id:'wuxian.daiban',    pz:'wuxian',   n:'带伴奏',   sc:'pacc',  v:{acc:'mel'},                 mel:'S', ks:['SG'],                          hid:['mel','acc']},
+    {id:'wuxian.hechang',   pz:'wuxian',   n:'合唱',     sc:'vocal', v:{parts:4},                   mel:'S', ks:['S','SG'],    pc:2,             hid:['mel']},
+    {id:'wuxian.qiyue',     pz:'wuxian',   n:'器乐',     sc:'inst',  v:{instKey:'violin'},          mel:'S', ks:['S','SG'],          home:1, hid:['mel'], ik:'wuxian'},
+    {id:'wuxian.shichang',  pz:'wuxian',   n:'视唱',     sc:'sight', v:{},                          mel:'S', ks:['S'],                           hid:['mel']},
+    {id:'wuxian.duizhao',   pz:'wuxian',   n:'对照谱',   sc:'teach', v:{},                                   ks:['SJ','SJG'],                    hid:[]},
+    {id:'gangqin.duzou',    pz:'gangqin',  n:'独奏',     sc:'inst',  v:{instKey:'piano'},                    ks:['G'],           def:1, home:1, hid:[], ik:'gangqin'},
+    {id:'gangqin.tanchang', pz:'gangqin',  n:'弹唱',     sc:'pacc',  v:{acc:'mel'},                 mel0:'J', ks:['JG','SG'],                    hid:['acc']},
+    {id:'gangqin.erge',     pz:'gangqin',  n:'儿歌弹唱', sc:'kids',  v:{acc:'mel'},                 mel0:'J', ks:['JG','SG'],                    hid:['acc']},
+    {id:'gangqin.chunban',  pz:'gangqin',  n:'纯伴奏',   sc:'pacc',  v:{acc:'pure'},                         ks:['CG'],                 home:1, hid:['acc']},
+    {id:'jita.tanchang',    pz:'jita',     n:'弹唱',     sc:'gtr',   v:{inst:'guitar'},                      ks:['JT'],          def:1, home:1, hid:['inst']},
+    {id:'jita.zhitan',      pz:'jita',     n:'指弹',     sc:'solo',  v:{inst:'guitar'},                      ks:['ST'],                 home:1, hid:['inst']},
+    {id:'uku.tanchang',     pz:'uku',      n:'弹唱',     sc:'gtr',   v:{inst:'uku'},                         ks:['JT'],          def:1, home:1, hid:['inst']},
+    {id:'uku.zhitan',       pz:'uku',      n:'指弹',     sc:'solo',  v:{inst:'uku'},                         ks:['ST'],                 home:1, hid:['inst']},
+    {id:'hechang.jianpu',   pz:'hechang',  n:'简谱合唱', sc:'vocal', v:{parts:4},                   mel:'J', ks:['J','JG'],    pc:2, def:1, home:1, hid:['mel']},
+    {id:'hechang.wuxian',   pz:'hechang',  n:'五线合唱', sc:'vocal', v:{parts:4},                   mel:'S', ks:['S','SG'],    pc:2,        home:1, hid:['mel']},
+    {id:'gongneng.jishu',   pz:'gongneng', n:'级数谱',   sc:'chord', v:{ftype:'CJ'},                mel0:'J', ks:['CJ','CS'],         def:1, home:1, hid:['ftype']},
+    {id:'gongneng.hexian',  pz:'gongneng', n:'和弦格',   sc:'chord', v:{ftype:'C'},                          ks:['C'],                  home:1, hid:['ftype']},
+  ];
+  const PZ_FORM = Object.fromEntries(PZ_FORMS.map(f=>[f.id, f]));
+  /* 谱种默认形态（＝表中 def:1；方案 §8.1 的 ●，本版不按 create_stack 校准）。功能谱默认级数谱，与 SC.chord.def（和弦格）不同——只影响「点功能谱」这一路 */
+  const PZ_DEF = {jianpu:'jianpu.gequ', wuxian:'wuxian.gequ', gangqin:'gangqin.duzou', jita:'jita.tanchang', uku:'uku.tanchang', hechang:'hechang.jianpu', gongneng:'gongneng.jishu'};
+  /* 谱种图标：与新外壳谱友圈 CC_PZ_IC 逐项相同（不直接引用——它是文件更后面的顶层 const，深链 fresh() 时可能还在 TDZ）；不新增图标 */
+  const PZ_IC = {jianpu:'nota-jianpu', wuxian:'nota-staff', gangqin:'type-piano', jita:'type-guitar', uku:'type-uku', hechang:'type-vocal', gongneng:'type-func'};
+  /* 新形态 P2b 的 #nf-inst（规格 §3.2 / §3.5）：按形态的 ik 列族，组名不带「· 简谱 / · 五线谱」（记谱法已由谱种定）；组内顺序同 NW_INSTS、贝斯排组末，空组不出 */
+  const IGRP3 = {
+    jianpu:  [['民乐', x=>x.fam==='jianpu' && /^民乐/.test(x.grp||'')], ['课堂乐器', x=>x.fam==='jianpu' && /^课堂乐器/.test(x.grp||'')], ['西洋管弦', x=>x.fam==='staff']],
+    wuxian:  [['西洋管弦', x=>x.fam==='staff'], ['民乐', x=>x.fam==='jianpu' && /^民乐/.test(x.grp||'')], ['课堂乐器', x=>x.fam==='jianpu' && /^课堂乐器/.test(x.grp||'')], ['其他', x=>x.fam==='other']],
+    gangqin: [['键盘', x=>x.fam==='kbd']],
+  };
+  /* 形态与当前计划对得上吗（规格 §3.3，纯函数）：pick＝'sc:<用途>' | 'fm:<形态 id>' */
+  function fmMatch(pick, st){
+    const p=String(pick||'');
+    if(p.slice(0,3)==='sc:') return st.scene===p.slice(3);
+    if(p.slice(0,3)!=='fm:') return false;
+    const F=own(PZ_FORM, p.slice(3))? PZ_FORM[p.slice(3)] : null, np=+st.v.parts||1;
+    return !!F && F.sc===st.scene && F.ks.includes(stackOfState(st))
+      && (F.pc==null || (F.pc===1? np<=1 : np>=2))
+      && (F.v.inst==null || st.v.inst===F.v.inst);
+  }
+  /* 当前计划的归属（T17；返回 pick 串）：合唱 → 合唱谱、对照 → 常用卡、旋律＋伴奏 → 常用卡、儿歌 → 常用卡、五线谱视唱 → 常用卡、纯伴奏 → 钢琴谱 › 纯伴奏，其余各归各的谱种 */
+  function fmHome(st){
+    const sc=st.scene;
+    if(sc==='custom' || sc==='blank' || sc==='teach' || sc==='kids') return 'sc:'+sc;
+    if(sc==='pacc') return stackOfState(st)==='CG'? 'fm:gangqin.chunban' : 'sc:pacc';
+    if(sc==='sight') return stackOfState(st)==='J'? 'fm:jianpu.shichang' : 'sc:sight';
+    const F=PZ_FORMS.find(f=>f.home && fmMatch('fm:'+f.id, st));
+    return F? 'fm:'+F.id : 'sc:custom';
+  }
+  /* 选形态（规格 §3.4）＝深链预选同一路：applyScene ＋ 变体 ＋ 旋律用；init＝打开面板时（fresh），调拍等照用途惯例。
+     同用途换形态只写本形态的 v 与旋律，其余参数（钢琴伴奏、声部数——声部类不变时、曲名、调拍）不动 */
+  function fmApply(st, id, init){
+    const F=own(PZ_FORM, id)? PZ_FORM[id] : null; if(!F) return false;
+    const same = !init && st.scene===F.sc;
+    st.pick='';   /* 先清：applyScene 里的 melSync 不按旧形态抑制 */
+    if(!same) applyScene(st, F.sc, !!init);
+    Object.keys(F.v).forEach(k=>{
+      if(k==='parts' && same && F.pc && ((+st.v.parts||1)>=2)===(F.pc>=2)) return;   /* 合唱谱 简谱合唱 ↔ 五线合唱 保留三部 */
+      st.v[k]=F.v[k];
+    });
+    if(F.mel){ st.mel=F.mel; if(nwP2A()){ st.melAuto=false; st.melK=melSitu(st); if(st.melK) st.melBy=st.melK; } }   /* 形态定死旋律＝等于亲手选过（P2a §6.3 口径） */
+    else if(F.mel0 && !same){ st.mel=F.mel0; if(nwP2A()){ st.melAuto=false; st.melK=melSitu(st); } }
+    else melSync(st);
+    if(!init) st.link=null;
+    st.rows=stackRows(sceneStack(st.scene, st.v, st.mel, nwP2A()));
+    st.pick='fm:'+id;
+    return true;
+  }
+  const ROWBTN =[['J','简谱','nota-jianpu'],['S','五线谱','nota-staff'],['T','六线谱','nota-tab6'],['G','大谱表','nota-grand'],['C','和弦','nota-chord']];
   const ROWN = {J:'简谱', S:'五线谱', T:'六线谱', G:'钢琴大谱表', C:'和弦'};
   const SRCN = {scene:'场景惯例', last:'沿用上次', user:'你改的', link:'按链接', default:'默认值'};   /* v67.6 link＝深链 ?new= 带来的值 */
 
@@ -40205,7 +40288,8 @@ var NWP = (function(){
   }
   function blankState(){
     return {tab:'new', scene:'gtr', srcScene:'gtr', rows:['J','T'], v:Object.assign({}, DEFV, varDefaults()), mel:'J', src:{}, more:false, note:null, hint:'', tpRaw:null, tpMsg:'', tpBad:false,
-      imp:{src:'file', a:null, target:null, ex:null, rc:0, err:''}};   /* imp＝「从已有音乐」：来源 / 读进来的文件分析 / 做成哪种谱 / 所选示例 / 所选接着做 / 说明 */
+      imp:{src:'file', a:null, target:null, ex:null, rc:0, err:''},   /* imp＝「从已有音乐」：来源 / 读进来的文件分析 / 做成哪种谱 / 所选示例 / 所选接着做 / 说明 */
+      pick:''};   /* v70.1 P2b 左栏选中的目标（'sc:<用途>' | 'fm:<形态 id>'，''＝待定）：只给界面用，不进计划、不进本机键（lastSave 只存 st.v / st.mel）、不进埋点 */
   }
   function applyScene(st, id, init){
     const s=SC[id]; st.scene=id; if(id!=='custom') st.srcScene=id;
@@ -40252,6 +40336,7 @@ var NWP = (function(){
       if(!own(NWB.STACKS, stackOfState(st))) return fresh(Object.assign({}, opt, {clean:true}));   /* 读出来拼不成合法组合：当没有上次 */
     } else applyScene(st, 'gtr', true);
     if(opt.scene && own(SC, opt.scene)) applyScene(st, opt.scene, true);
+    if(opt.form && own(PZ_FORM, opt.form)) fmApply(st, opt.form, true);   /* v70.1 P2b 按形态预选（命令面板「新建：<谱种> <形态>」/ 快速新建谱种项）；旧调用不带 form */
     if(opt.link) linkApply(st, opt.link);   /* v67.6 深链预选（只改面板状态，不写本机键） */
     if(opt.tab) st.tab=opt.tab;
     if(opt.isrc && ['file','ai','ex','recent','audio','image'].includes(opt.isrc)) st.imp.src=opt.isrc;
@@ -40429,6 +40514,8 @@ var NWP = (function(){
      右上「示例」、下方虚线「5–16」、伴奏行淡紫）· ⋯ 弹层（歌词段数 / 定弦 / 变调夹 / 其余变体 / 要哪几种谱五开关 + .nf-rowhint）；右：三步胶片（与建好后悬浮条同名同序）；
      底：「创建 ↗」（新窗口）。删：用途长句、预览三句说明、依据框、键位说明、新窗口说明、「将建成」眉标、用途名重复、更多设置摘要字。输入框沿用 #nw-* / #nf-*，事件处理不变 ==== */
   const NXP = ()=>{ try{ return !!(st && !st.mob && typeof flowOn==='function' && flowOn() && FLOW.nxOn() && !document.body.classList.contains('flw-m')); }catch(_){ return false; } };
+  /* v70.1 P2b（规格 §1-2 / §13）：新建面板第一步按谱种——只在回滚开关为 1 且新形态桌面时为真 */
+  const p2b = ()=> NW_P2B===1 && NXP();
   const SRCN2 = {scene:'按惯例', last:'沿用上次', user:'你改的', link:'按链接', default:'默认'};
   /* 主变体（参数行 chip）：器乐独奏＝乐器下拉、吉他弹唱＝吉他 / 尤克里里、歌谱合唱＝声部、和弦谱＝谱式；其余变体在 ⋯ */
   const MAINV = {gtr:'inst', vocal:'parts', chord:'ftype', inst:'#inst', solo:'inst'};   /* v70.0 P2a 指弹「吉他 / 尤克里里」同吉他弹唱 */
@@ -41518,6 +41605,7 @@ var NWP = (function(){
     quickMenu, quickMenuClose:qmClose, quickCreate, lastLoad, lastDesc, SC, VARS, GROUPS, SCENE_IDS, INSTS, INSTS_ALL, instsShown, keyName,
     readFile, dropFile, fileKind, sniffKind, analyze, convert, bandDefs, pvInfo:()=>pvLast, pvSync, pvStats, pvClear:()=>PVC.clear(), PV_WAIT, TARGETS, ISRC,
     linkParse, linkApply, linkOf, linkKey, LINK_P, lyrShown, recentList, recentOpen,
+    P2B:NW_P2B, PZ_FORMS, PZ_DEF, PZ_IC, fmHome, fmMatch, fmApply,
     get state(){ return st; }, get modal(){ return modal; }};
 })();
 /* ---- ④ 宿主：真实创建（NWB.build → createSong，零新增字段 → addDoc 新窗口） ---- */
