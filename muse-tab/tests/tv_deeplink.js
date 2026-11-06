@@ -26,10 +26,15 @@
    D17 entry-1 曲名第 80 个码元落在 emoji 中间：建成的曲名不留半个 emoji（≤80 码元、无孤立代理项），导出 PNG / 分享卡 / 发布缩图照常；手机页不白屏；linkOf 遇孤立代理项不抛错
    D18 entry-2 create_stack 区分深链入口：深链打开的面板 via=link（用途认不出 link-bad），启动台用途卡仍 panel——两条 meta 不再逐字节相同
    D19 entry-3 手机 → 电脑曲名空白原样：全角空格 U+3000 / NBSP / 连续空格经链接到电脑建成的曲名＝手机所填＝电脑直接输入
-   突变实证：MUSETAB_URL=file://…/v67.5 原版 → 无深链 / 无手机主卡 / 官网按钮未换 → 全红（D8 读的是工作树 site 文件，另用 SITE_DIR 指向 v67.5 的 site 复跑）。file:// 直载。 */
+   突变实证：MUSETAB_URL=file://…/v67.5 原版 → 无深链 / 无手机主卡 / 官网按钮未换 → 全红（D8 读的是工作树 site 文件，另用 SITE_DIR 指向 v67.5 的 site 复跑）。file:// 直载。
+   v70.1 迁移（规格 docs/spec-2026-11-v701.md §15.2）：新外壳新形态第一步按谱种，gtr / vocal / solo / inst / chord 五张用途卡不在了——
+   D1「在面板里真点一下」改 nfpick.nfPick(pg, sc)（卡可见点卡，否则谱种行 → 形态 chip，各自先断言可见；gtr 仍不点）；
+   左栏选中项判据由 data-scene 改 nfpick.nfSel：面板有谱种行（新形态）时＝nfpick.nfHome(pg, sc)（归属：常用卡 'sc:…' 或形态 'fm:谱种.形态'），
+   没有谱种行（v70.0 / 回滚 / 旧外壳）时照旧＝'sc:'+用途；建谱计划＝真点结果不变。D19 电脑面板点「器乐独奏」改 nfPick(pp, 'inst') */
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
+const NFP = require('./lib/nfpick');
 const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
 /* v68.2 默认外壳 flow：电脑上「新建」入口＝页签「＋」#dt-add（同 Alt+N / 文件 ▾「新建…」，都是 showNewWizard）；旧外壳（?shell=classic）是顶栏 #b-new。
    深链本身（?new= 打开面板）与外壳无关；D1 / D19 里「在面板里真点一下」的对照入口换成 #dt-add */
@@ -53,10 +58,12 @@ const SCENES = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst'
   const guard = async (name, fn) => { try { await fn(); } catch (e) { T(false, name, 'EXC: ' + String(e.message || e).split('\n')[0]); } };
   const EV = (pg, s, a) => pg.evaluate(s, a).catch(e => ({ err: String(e.message || e).split('\n')[0] }));
   /* 面板当前状态（建谱计划 + 左栏选中项 + 依据文字），与「同一用途默认值」对照 */
-  const panelInfo = pg => EV(pg, () => {
+  /* v70.1：pick＝左栏选中（nfpick.nfSel 口径：'sc:<用途>' / 'fm:<谱种.形态>'）；pz＝面板有谱种行（新形态 P2b） */
+  const panelInfo = async pg => { const r = await panelInfo0(pg); if (r && r.open) { r.pick = await NFP.nfSel(pg).catch(e => 'ERR ' + e.message); } return r; };
+  const panelInfo0 = pg => EV(pg, () => {
     const st = NWP.state; if (!st || !document.querySelector('.nf-modal [data-scene]')) return { open: false };
     const sel = document.querySelector('.nf-modal [role=option][aria-selected="true"]');
-    return { open: true, scene: st.scene, sel: sel && sel.dataset.scene, plan: JSON.stringify(NWP.planOf(st)), kind: (document.getElementById('nf-kind') || {}).textContent,
+    return { open: true, scene: st.scene, sel: sel && sel.dataset.scene, pz: !!document.querySelector('.nf-modal [data-pz]'), plan: JSON.stringify(NWP.planOf(st)), kind: (document.getElementById('nf-kind') || {}).textContent,
       basis: (document.getElementById('nf-basis') || {}).textContent || '', userChips: document.querySelectorAll('#nf-basis i.c-user').length,
       linkChips: [...document.querySelectorAll('#nf-basis i.c-link')].map(x => x.textContent), bad: (document.getElementById('nf-linkbad') || {}).textContent || '',
       docs: docs.length, pad: typeof startPadOn === 'function' && startPadOn(), last: localStorage.getItem('musetab-nw-last') };
@@ -73,10 +80,12 @@ const SCENES = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst'
       /* 同一用途在面板里真点一下（面板默认＝上次 / 吉他弹唱，再点该用途）：深链预选＝点它的结果 */
       let clicked = null;
       if (r.open) { await pg.keyboard.press('Escape'); await pg.evaluate(() => { try { localStorage.removeItem('musetab-nw-last'); } catch (_) {} hideStartPad(); });
-        await pg.click(NEWB); await pg.waitForSelector('.nf-modal [data-scene]'); if (sc !== 'gtr') await pg.click('[data-scene="' + sc + '"]');
+        await pg.click(NEWB); await pg.waitForSelector('.nf-modal [data-scene]'); if (sc !== 'gtr') await NFP.nfPick(pg, sc);
         clicked = await EV(pg, () => JSON.stringify(NWP.planOf(NWP.state))); }
       seen.push(sc + ':' + (r.open ? r.kind : 'closed'));
-      if (!(r.open && r.scene === sc && r.sel === sc && r.plan === want && r.plan === clicked && r.docs === 1 && r.pad && r.userChips === 0 && !r.bad && r.last === null))
+      const home = r.pz ? await NFP.nfHome(pg, sc) : 'sc:' + sc;
+      if (r.open) r.home = home;
+      if (!(r.open && r.scene === sc && r.pick === home && r.plan === want && r.plan === clicked && r.docs === 1 && r.pad && r.userChips === 0 && !r.bad && r.last === null))
         bad.push(sc + ' ' + JSON.stringify({ r, want: (want || '').slice(0, 160), clicked: (clicked || '').slice(0, 160) }));
       await pg._ctx.close();
     }
@@ -556,7 +565,7 @@ const SCENES = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst'
       await pd.keyboard.press('Enter'); await pd.waitForTimeout(400);
       const built = await EV(pd, () => song.title); await pd._ctx.close();
       const pp = await open('', 1440, 900);
-      await EV(pp, () => hideStartPad()); await pp.click(NEWB); await pp.waitForSelector('#nw-title'); await pp.click('[data-scene="inst"]');
+      await EV(pp, () => hideStartPad()); await pp.click(NEWB); await pp.waitForSelector('#nw-title'); await NFP.nfPick(pp, 'inst');
       await pp.fill('#nw-title', t); await pp.click('#nw-create'); await pp.waitForTimeout(400);
       const typed = await EV(pp, () => song.title); await pp._ctx.close();
       r.flow.push({ t, built, typed, ok: built === t && typed === t });
