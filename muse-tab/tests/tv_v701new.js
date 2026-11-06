@@ -265,8 +265,8 @@ const VK = ['instKey', 'inst', 'acc', 'tacc', 'ftype', 'pen', 'parts', 'clef', '
       T('F3', src.split(NFP.NEEDLE).length - 1 === 1 && (src.split('\n').find(l => l.includes(NFP.NEEDLE)) || '') === NFP.NEEDLE, '源码里「const NW_P2B = 1;」恰一处、独占一行（回滚副本按这串字替换）');
       const cur = await NFP.snapShell(b, URL0, ['sc'], { errs: pageErrs, tag: 'F3 当前' });
       const d2 = cmp(NFP.hashSc(cur.sc), FX.nx.sc);
-      /* 第 0 步：界面零变化。A 组 ② 落左栏 ＋ chip 后把这条改成「不同」（规格 §14.1 F3「当前页新形态与 fixture nx.sc 不同（防开关失效）」） */
-      T('F3', !d2.length, '第 0 步：当前页新形态 11 个用途 .nf-shell 与 fixture nx.sc 逐字节相同（界面零变化）', '不同：' + d2.join(' '));
+      /* 规格 §14.1 F3：当前页（NW_P2B＝1）新形态 11 个用途都与 fixture nx.sc 不同（左栏换成谱种——防开关失效；第 0 步时这条是「相同」） */
+      T('F3', d2.length === 11, '当前页（NW_P2B＝1）新形态 11 个用途 .nf-shell 都与 fixture nx.sc 不同（防开关失效）', '相同的：' + Object.keys(FX.nx.sc).filter(k => !d2.includes(k)).join(' '));
     });
 
     T('E', !pageErrs.length, '页面脚本错误 0', pageErrs.slice(0, 5).join(' | '));
