@@ -14,6 +14,8 @@
    N8  全部建谱路径写 intent：面板点击 / 双击用途 / 回车、▾ 用途、Alt+Shift+N、命令面板 r1:new / r1:last、启动台 sc:*、深链＋回车；旧外壳同样写
    N9  快捷键（Alt+N、↑↓ / Home / End、1–5、←→ 组内、Enter、Esc、Alt+Shift+N）行为序列与基线新形态相同（fixtures panel.keys）
    N10 点击数（P2a 形态，只记录）：尤克里里指弹 3、简谱视唱 3、萨克斯简谱 4；验收⑤ 合唱＋钢琴＝4（歌谱 → 四部 → 参数行「加伴奏」→ 创建）
+   v70.1 P2b 迁移（规格 docs/spec-2026-11-v701.md §15.2）：N1 真实点击走 nfPick（谱种行 ＋ 形态 chip，形态已定的旋律 / 乐器 chip 不再点）；N8 ▾ 用途认 data-q="chord" 或 "pz:gongneng"、r1:new 后 nfPick；
+   N3 / N9 / N10 改跑回滚副本（nfpick.rollbackUrl：const NW_P2B = 0;）——P2a 状态机 / 键序列 / 点击数在回滚路径上照守，P2b 下的同口径由 tv_v701new F11 / F7 / F1 守
    E   页面脚本错误 0
    用法：node tv_v700new.js [--write-base]（--write-base＝用 git show 6d8d6f8:muse-tab/index.html 生成 fixtures/v700_base.json 的 panel 键，其余键原样保留）
    env：MUSETAB_URL 被测页 · ONLY=N1,N5 · FONTS=0（N5 只跑默认字体） */
@@ -21,6 +23,7 @@ const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path'), os = require('os'), crypto = require('crypto');
 const { execFileSync } = require('child_process');
 const GC = require('./geom_census');
+const NFP = require('./lib/nfpick');   /* v70.1 P2b：新形态第一步按谱种（gtr / vocal / solo / inst / chord 不再是卡）——nfPick 卡可见就点卡，否则谱种行 ＋ 形态 chip；回滚副本 rollbackUrl */
 const toUrl = u => /^file:/.test(u) ? u : 'file://' + path.resolve(u);
 const URL0 = process.env.MUSETAB_URL ? toUrl(process.env.MUSETAB_URL) : 'file://' + path.resolve(__dirname, '../index.html');
 const withQ = (u, q) => u + (u.includes('?') ? '&' : '?') + q;
@@ -375,21 +378,22 @@ function GEO_PAGE() {
       ];
       for (const c of CL) {
         await pg.evaluate(() => { try { localStorage.removeItem('musetab-nw-last'); } catch (_) {} __panel(); }); await W(250);
-        await pg.click('.nf-modal [data-scene="' + c.sc + '"]'); await W(80);
+        /* v70.1 P2b：卡可见就点卡，否则谱种行 ＋ 形态 chip（先断言可见再点）；fixed＝形态已定的维度（旋律 / 吉他 · 尤克里里 chip），不再点 */
+        const pk0 = await NFP.nfPick(pg, c.sc, Object.assign(Object.fromEntries(c.main || []), c.inst ? { instKey: c.inst } : {}, c.more ? Object.fromEntries(c.more) : {}), c.mel); await W(80);
         const vis = [];
         if (c.inst) { vis.push(await pg.isVisible('#nf-inst')); await pg.selectOption('#nf-inst', c.inst); await W(60); }
-        for (const [k, v] of c.main || []) { const s = '#nf-params [data-act="var"][data-k="' + k + '"][data-v="' + v + '"]'; vis.push(await pg.isVisible(s)); await pg.click(s); await W(60); }
+        for (const [k, v] of c.main || []) { if (pk0.fixed.includes(k)) continue; const s = '#nf-params [data-act="var"][data-k="' + k + '"][data-v="' + v + '"]'; vis.push(await pg.isVisible(s)); await pg.click(s); await W(60); }
         if (c.more) { vis.push(await pg.isVisible('#nf-more')); await pg.click('#nf-more'); await W(80);
           for (const [k, v] of c.more) { const s = '#nf-moreb [data-act="var"][data-k="' + k + '"][data-v="' + v + '"]'; vis.push(await pg.isVisible(s)); await pg.click(s); await W(60); }
           if (await pg.isVisible('#nf-moreb')) { await pg.click('#nf-more'); await W(60); } }
-        if (c.mel) { const s = '#nf-pvmel [data-act="mel"][data-v="' + c.mel + '"]'; vis.push(await pg.isVisible(s)); await pg.click(s); await W(60); }
+        if (c.mel && !pk0.fixed.includes('mel')) { const s = '#nf-pvmel [data-act="mel"][data-v="' + c.mel + '"]'; vis.push(await pg.isVisible(s)); await pg.click(s); await W(60); }
         const pk = await pg.evaluate(() => [document.getElementById('nf-kind').textContent, document.getElementById('nf-gokind').textContent]);
         vis.push(await pg.isVisible('#nw-create'));
         const d0 = await pg.evaluate(() => docs.length);
         await pg.click('#nw-create'); await W(150);
         const I = await pg.evaluate(() => Object.assign(__songInfo(song), { docs: docs.length, tip: (document.querySelector('.dtab.on') || {}).title || '' }));
         const ok = vis.every(Boolean) && pk[0] === c.name && pk[1] === c.name && I.k === c.k && I.name === c.name && I.intent === c.intent && I.docs === d0 + 1 && I.tip.indexOf(c.name) >= 0;
-        if (!ok) clickBad.push(c.n + ' ' + J({ vis, pk, I }));
+        if (!ok) clickBad.push(c.n + ' ' + J({ via: pk0, vis, pk, I }));
         await pg.evaluate(() => { if (docs.length > 3) closeDocAt(curDocI); });
       }
       T('N1', !clickBad.length, '真实点击 ' + CL.length + ' 个代表组合（参数行 chip / ⋯ 弹层 / 乐器下拉 / 预览左上「旋律」先断言可见再点）：面板「将建成」＝创建钮读屏名＝建成谱名＝页签提示、谱行与 intent 对', clickBad.join(' | '));
@@ -398,7 +402,7 @@ function GEO_PAGE() {
 
     /* ===== N3 「旋律用」默认值 ===== */
     if (want('N3')) await guard('N3', async () => {
-      const { ctx, pg } = await open(b, URL0, { tag: 'N3' });
+      const { ctx, pg } = await open(b, NFP.rollbackUrl(URL0), { tag: 'N3' });   /* v70.1：P2a「旋律用」状态机在回滚路径上不变（P2b 口径见 tv_v701new F11） */
       const S = async () => pg.evaluate(() => __st());
       const sc = async id => { await pg.click('.nf-modal [data-scene="' + id + '"]'); await W(60); return S(); };
       const mel = async m => { await pg.click('#nf-pvmel [data-act="mel"][data-v="' + m + '"]'); await W(60); return S(); };
@@ -627,10 +631,11 @@ function GEO_PAGE() {
       await reset(); await pg.evaluate(() => __panel()); await W(200); await pg.click('.nf-modal [data-scene="teach"]'); await pg.keyboard.press('Enter'); await W(250); await info('回车', 'teach');
       await reset();
       await pg.waitForSelector('#flw-file', { state: 'visible' }); await pg.click('#flw-file'); await pg.waitForSelector('#popmenu [data-fa="r1:newdd"]'); await pg.click('#popmenu [data-fa="r1:newdd"]');
-      await pg.waitForSelector('.nf-qm [data-q="chord"]'); await pg.click('.nf-qm [data-q="chord"]'); await W(250); await info('快速新建 ▾ 用途', 'chord');
+      /* v70.1 P2b：▾ 的「和弦谱 · 功能谱」在新形态是谱种项「功能谱」（B 组 data-q="pz:gongneng"）——点存在的那个，intent 照旧 chord */
+      await pg.waitForSelector('.nf-qm [data-q="chord"], .nf-qm [data-q="pz:gongneng"]'); await pg.click(await pg.$('.nf-qm [data-q="chord"]') ? '.nf-qm [data-q="chord"]' : '.nf-qm [data-q="pz:gongneng"]'); await W(250); await info('快速新建 ▾ 用途', 'chord');
       await reset(); await pg.mouse.click(5, 450); await pg.keyboard.press('Alt+Shift+KeyN'); await W(300); await info('Alt+Shift+N 按上次', 'chord');
       await reset(); await pg.evaluate(() => FLOW.cmd.run('r1:last')); await W(300); await info('命令面板 r1:last', 'chord');
-      await reset(); await pg.evaluate(() => FLOW.cmd.run('r1:new')); await W(250); await pg.click('.nf-modal [data-scene="solo"]'); await pg.click('#nw-create'); await W(250); await info('命令面板 r1:new → 面板', 'solo');
+      await reset(); await pg.evaluate(() => FLOW.cmd.run('r1:new')); await W(250); await NFP.nfPick(pg, 'solo'); await pg.click('#nw-create'); await W(250); await info('命令面板 r1:new → 面板', 'solo');
       await reset(); await pg.evaluate(() => nwLinkBoot('?new=inst&instKey=violin&tacc=with')); await W(250); await pg.keyboard.press('Enter'); await W(250); await info('深链 ?new=inst… ＋回车', 'inst');
       await reset(); await pg.evaluate(() => NWP.quickCreate('vocal')); await W(250); await info('NWP.quickCreate(用途)', 'vocal');
       await ctx.close();
@@ -648,14 +653,14 @@ function GEO_PAGE() {
     /* ===== N9 快捷键 ===== */
     if (want('N9')) await guard('N9', async () => {
       if (!BP || !BP.keys) { T('N9', false, 'fixtures/v700_base.json 缺 panel.keys（先跑 --write-base）'); return; }
-      const cur = await keySeq(b, URL0), base = BP.keys;
+      const cur = await keySeq(b, NFP.rollbackUrl(URL0)), base = BP.keys;   /* v70.1：回滚路径与 v70.0 逐步相同（P2b 键序列见 tv_v701new F7） */
       const diff = cur.map((x, i) => x === base[i] ? null : [i, x, base[i]]).filter(Boolean);
-      T('N9', !diff.length && cur.length === base.length && cur.length >= 20, '快捷键序列 ' + cur.length + ' 步（Alt+N · ↑↓ Home End · 1–5 · ←→ 组内 · Enter · Esc · Alt+Shift+N）与基线新形态逐步相同', J(diff.slice(0, 4)));
+      T('N9', !diff.length && cur.length === base.length && cur.length >= 20, '回滚副本快捷键序列 ' + cur.length + ' 步（Alt+N · ↑↓ Home End · 1–5 · ←→ 组内 · Enter · Esc · Alt+Shift+N）与基线新形态逐步相同', J(diff.slice(0, 4)));
     });
 
     /* ===== N10 点击数 ===== */
     if (want('N10')) await guard('N10', async () => {
-      const { ctx, pg } = await open(b, URL0, { tag: 'N10' });
+      const { ctx, pg } = await open(b, NFP.rollbackUrl(URL0), { tag: 'N10' });   /* v70.1：P2a 形态的点击数在回滚副本上照记（P2b 步数见 tv_v701new F1：合唱＋钢琴＝3） */
       const run = async (steps, want) => {
         await pg.evaluate(() => { try { closeModal(); } catch (_) {} localStorage.removeItem('musetab-nw-last'); __panel(); }); await W(250);
         let n = 0; for (const s of steps) { if (s[0] === 'sel') await pg.selectOption('#nf-inst', s[1]); else await pg.click(s[1]); n++; await W(60); }

@@ -3,14 +3,14 @@
    只新形态（F.nxOn()，桌面非手机页）；?next=0 / ?shell=classic 与 v69.0（658d425）逐字节相同。
    N0  ?next=0 / ?shell=classic：新建面板（默认 + 钢琴即兴伴奏）.nf-shell 去掉预览框内容后与基线逐字节相同；启动台 #start-pad 同理（新形态节点 #spd-nx 不建）
    N1  新形态 newpanel / newpanel-pacc：textaudit 单屏抽取 总字 ≤120、说明字 0、说明行 0
-   N2  9 用途 + 5 垂类徽标原样（名称 / 顺序 / 徽标字与 ?next=0 逐项同；「自选记谱法」可见字「自选」、读屏名不变）
+   N2  v70.1 P2b 左栏：常用 4 卡（pacc kids sight teach，名称 / 徽标字与 ?next=0 同 id 逐字同）＋ 谱种 7 行（data-pz 顺序＝PQ_KIND.PZ、名＝PZ[].name）＋ 空白谱 · 自选（「自选」读屏名「自选记谱法」）；徽标 4 个
    N3  参数行：#nw-title 占位「曲名」、#nw-key 显示 1=C、4/4、♩=72、#nf-nmea 16 先断言可见；直接键入（曲名 / 速度 96 / 小节数 24）→ 建谱字段与 ?next=0 面板同输入相同
    N4  记谱法只一处：[data-act=mel] 全在 #nf-pvmel；点「五线」→ 预览重刻（pvStats +1）、#nf-kind 变；「对照」→ 谱行同时有简谱与五线谱；固定用途只读读数；自选用途五开关在预览左上
    N5  「示例」角标、虚线「5–16」、钢琴伴奏类淡紫伴奏行（.nf-bacc 底色 == --nx-pv）；非伴奏类无淡紫
    N6  三步胶片步名序列 == 建好后 #flw-sbar .flw-sb-t 序列（钢琴伴奏歌谱 / 吉他弹唱先写旋律 / 钢琴弹唱（纯伴奏 CG）/ 无步骤谱类）
    N7  「创建 ↗」：可见、title「创建（Enter）」、Enter 建谱、新窗口打开（docs.length+1）、当前谱保留
    N8  ⋯（#nf-more）：先断言可见再点 → 弹层五开关 / 歌词 / 定弦 / 变调夹 / 其余变体可见可用；键 1–5 不开 ⋯ 也生效（谱名变、⋯ 角标出）；冲突预告 + 撤销照旧；Esc 先收 ⋯
-   N9  点击数不增：吉他弹唱 / 钢琴即兴伴奏 / 儿歌 / 教学对照 / 视唱 / 器乐独奏 / 和弦谱 从面板打开起「点用途 + 创建」2 次就建成该谱类
+   N9  点击数不增：吉他弹唱 / 钢琴即兴伴奏 / 儿歌 / 教学对照 / 视唱 / 器乐独奏 / 和弦谱 从面板打开起「点一下 + 创建」2 次就建成（v70.1 P2b：卡可见就点卡，否则点谱种行——吉他谱 / 钢琴谱 / 功能谱的默认形态，先断言可见）
    N10 深链：?new=sight&key=Dm&tempo=60 → 调 / 速度圆点 data-src="link"；坏参数 → #nf-linkbad 出现
    N11 依据删除后来源可查：每个参数圆点 title ∈ {沿用上次, 按惯例, 你改的, 按链接, 默认}；改速度后速度圆点变「你改的」
    S0  旧外壳 / ?next=0 启动台：#spd-cards 可见、无 #spd-nx（同 N0 逐字节）
@@ -104,12 +104,16 @@ const shellHTML = pg => pg.evaluate(() => { const s = document.querySelector('.n
       await pg.evaluate(() => __panel()); await W(900);
       if (want('N2')) {
         const cur = await pg.evaluate(() => [...document.querySelectorAll('.nf-modal .nf-left [data-scene]')].map(e => [e.dataset.scene, (e.querySelector('b') || {}).textContent, (e.querySelector('.nf-tag') || {}).textContent || '', e.getAttribute('aria-label') || '']));
+        const pz = await pg.evaluate(() => ({ rows: [...document.querySelectorAll('.nf-modal .nf-left [data-pz]')].map(e => [e.dataset.pz, (e.querySelector('b') || {}).textContent, (e.querySelector('.nf-tag') || {}).textContent || '', __vis(e)]), PZ: PQ_KIND.PZ.map(p => [p.id, p.name]) }));
         const { ctx: c2, pg: p2 } = await open(b, withQ(URL0, 'next=0'), { tag: 'N2b' });
         await p2.evaluate(() => __panel()); await W(700);
         const old = await p2.evaluate(() => [...document.querySelectorAll('.nf-modal .nf-left [data-scene]')].map(e => [e.dataset.scene, (e.querySelector('b') || {}).textContent, (e.querySelector('.nf-tag') || {}).textContent || '']));
         await c2.close();
-        const same = cur.length === old.length && cur.every((c, i) => c[0] === old[i][0] && c[2] === old[i][2] && (c[0] === 'custom' ? (c[1] === '自选' && c[3] === old[i][1]) : c[1] === old[i][1]));
-        T('N2', same && cur.length === 11 && cur.filter(c => c[2]).length === 5, '9 用途 + 空白 / 自选与 5 个垂类徽标原样（名称 / 顺序 / 徽标同 ?next=0；「自选」读屏名「自选记谱法」）', J({ cur, old }));
+        /* v70.1 P2b：常用 4 卡 ＋ 空白谱 · 自选（名称 / 徽标与 ?next=0 同 id 逐字同）；gtr / vocal / solo / inst / chord 换成谱种行（不带小标） */
+        const oldOf = id => old.find(o => o[0] === id) || [];
+        const same = J(cur.map(c => c[0])) === J(['pacc', 'kids', 'sight', 'teach', 'blank', 'custom']) && cur.every(c => c[2] === (oldOf(c[0])[2] || '') && (c[0] === 'custom' ? (c[1] === '自选' && c[3] === oldOf(c[0])[1]) : c[1] === oldOf(c[0])[1]));
+        const pzOk = J(pz.rows.map(r => [r[0], r[1]])) === J(pz.PZ) && pz.rows.every(r => !r[2] && r[3]);
+        T('N2', same && pzOk && old.length === 11 && cur.filter(c => c[2]).length === 4, '左栏：常用 4 卡 ＋ 空白 / 自选（名称 / 徽标同 ?next=0；「自选」读屏名「自选记谱法」）＋ 谱种 7 行（顺序 / 名＝PQ_KIND.PZ、可见、无小标）；徽标 4 个', J({ cur, pz, old }));
       }
       if (want('N3') || want('N11')) {
         await pg.click('.nf-modal [data-scene="pacc"]'); await W(600);
@@ -173,9 +177,11 @@ const shellHTML = pg => pg.evaluate(() => { const s = document.querySelector('.n
       if (want('N7')) {
         await pg.evaluate(() => __panel({ scene: 'gtr' })); await W(600);
         const v7 = await pg.evaluate(() => { const c = document.querySelector('.nf-modal #nw-create'); return { vis: __vis(c) && __hit(c), t: c.title, txt: c.textContent.replace(/\s+/g, ''), n: docs.length, cur: song.title }; });
-        await pg.focus('.nf-modal [data-scene="gtr"]'); await pg.keyboard.press('Enter'); await W(1200);
+        /* v70.1 P2b：吉他弹唱在左栏是「吉他谱」行——先断言选中项是它且可见，再聚焦它回车 */
+        v7.sel = await pg.evaluate(() => { const e = document.querySelector('.nf-modal [role=option][aria-selected="true"]'); return e ? { pz: e.dataset.pz || '', vis: __vis(e) } : null; });
+        await pg.focus('.nf-modal [role=option][aria-selected="true"]'); await pg.keyboard.press('Enter'); await W(1200);
         const a7 = await pg.evaluate(() => ({ n: docs.length, modal: !!document.querySelector('.nf-modal'), kind: docTypeLabel(song), prev: docs.some(d => d.song && d.song.title !== song.title) || docs.length > 1 }));
-        T('N7', v7.vis && v7.t === '创建（Enter）' && /^创建/.test(v7.txt) && /↗/.test(v7.txt) && a7.n === v7.n + 1 && !a7.modal && /吉他/.test(a7.kind), '「创建 ↗」可见可点、title「创建（Enter）」；Enter 新窗口建谱（窗口 ' + v7.n + '→' + a7.n + '）、当前谱保留', J({ v7, a7 }));
+        T('N7', v7.vis && v7.sel && v7.sel.pz === 'jita' && v7.sel.vis && v7.t === '创建（Enter）' && /^创建/.test(v7.txt) && /↗/.test(v7.txt) && a7.n === v7.n + 1 && !a7.modal && /吉他/.test(a7.kind), '「创建 ↗」可见可点、title「创建（Enter）」；Enter 新窗口建谱（窗口 ' + v7.n + '→' + a7.n + '）、当前谱保留', J({ v7, a7 }));
       }
       if (want('N8')) {
         await pg.evaluate(() => __panel({ scene: 'gtr' })); await W(600);
@@ -187,7 +193,9 @@ const shellHTML = pg => pg.evaluate(() => { const s = document.querySelector('.n
         const capo = await pg.evaluate(() => NWP.state.v.capo);
         await pg.keyboard.press('Escape'); await W(250);
         const esc = await pg.evaluate(() => ({ modal: !!document.querySelector('.nf-modal'), more: !!document.querySelector('.nf-modal #nf-moreb'), f: document.activeElement && document.activeElement.id }));
-        await pg.focus('.nf-modal [data-scene="gtr"]');
+        /* v70.1 P2b：同 N7——聚焦左栏选中项（吉他谱行，先断言可见） */
+        const sel8 = await pg.evaluate(() => { const e = document.querySelector('.nf-modal [role=option][aria-selected="true"]'); return e ? { pz: e.dataset.pz || '', vis: __vis(e) } : null; });
+        await pg.focus('.nf-modal [role=option][aria-selected="true"]');
         const k0 = await pg.evaluate(() => document.getElementById('nf-kind').textContent);
         await pg.keyboard.press('2'); await W(500);
         const k1 = await pg.evaluate(() => ({ kind: document.getElementById('nf-kind').textContent, note: !!document.querySelector('.nf-modal .nf-note'), undo: __vis('.nf-modal #nf-undo') }));
@@ -199,9 +207,9 @@ const shellHTML = pg => pg.evaluate(() => { const s = document.querySelector('.n
         await pg.keyboard.press('4'); await W(400);
         k1.dot = await pg.evaluate(() => ({ kind: document.getElementById('nf-kind').textContent, scene: NWP.state.scene, dot: __vis('.nf-modal #nf-more .nf-mdot') }));
         k1.dotOk = k1.dot.dot && k1.dot.scene === 'teach' && k1.dot.kind !== t0;
-        T('N8', pre.vis && pre.lab === '更多设置' && pre.rows0 === 0 && inMore.exp === 'true' && inMore.rows === 5 && inMore.lyr && inMore.tun && inMore.capo && inMore.pen && capo === 3 && esc.modal && !esc.more && esc.f === 'nf-more'
+        T('N8', sel8 && sel8.pz === 'jita' && sel8.vis && pre.vis && pre.lab === '更多设置' && pre.rows0 === 0 && inMore.exp === 'true' && inMore.rows === 5 && inMore.lyr && inMore.tun && inMore.capo && inMore.pen && capo === 3 && esc.modal && !esc.more && esc.f === 'nf-more'
           && k1.kind !== k0 && k1.dotOk && k1.note && k1.undo && k2 === k0,
-          '⋯ 可见可点（读屏「更多设置」）→ 五开关 / 歌词 / 定弦 / 变调夹 / 从哪写起都在弹层；Esc 先收 ⋯；键 2 不开 ⋯ 也生效（' + k0 + '→' + k1.kind + '）、⋯ 角标、冲突预告与撤销照旧', J({ pre, inMore, capo, esc, k1, k2 }));
+          '⋯ 可见可点（读屏「更多设置」）→ 五开关 / 歌词 / 定弦 / 变调夹 / 从哪写起都在弹层；Esc 先收 ⋯；键 2 不开 ⋯ 也生效（' + k0 + '→' + k1.kind + '）、⋯ 角标、冲突预告与撤销照旧', J({ sel8, pre, inMore, capo, esc, k1, k2 }));
       }
       const k9 = await pg.evaluate(() => __keys());
       const extra = k9.filter(k => !k0.includes(k) && !/^musetab-(nw-last|docs|doc|song|tabs|win|autosave|last|cur)/.test(k));
@@ -226,14 +234,18 @@ const shellHTML = pg => pg.evaluate(() => { const s = document.querySelector('.n
     if (want('N9')) {
       const { ctx, pg } = await open(b, URL0, { tag: 'N9' });
       const out = [];
+      /* v70.1 P2b：不再是卡的用途点谱种行（默认形态）——吉他谱 › 弹唱 / 钢琴谱 › 独奏 / 功能谱 › 级数谱 */
+      const PZ9 = { gtr: 'jita', inst: 'gangqin', chord: 'gongneng' };
       for (const sc of ['gtr', 'pacc', 'kids', 'teach', 'sight', 'inst', 'chord']) {
         await pg.evaluate(() => __panel()); await W(500);
         const n0 = await pg.evaluate(() => docs.length);
-        await pg.click('.nf-modal [data-scene="' + sc + '"]'); await W(250);
+        const cs = '.nf-modal [data-scene="' + sc + '"]', card = await pg.isVisible(cs).catch(() => false);
+        const s9 = card ? cs : '.nf-modal [data-pz="' + PZ9[sc] + '"]', vis = card || await pg.isVisible(s9).catch(() => false);
+        await pg.click(s9); await W(250);
         await pg.click('.nf-modal #nw-create'); await W(1000);
-        out.push(await pg.evaluate(o => ({ sc: o.sc, ok: docs.length === o.n0 + 1, kind: docTypeLabel(song) }), { sc, n0 }));
+        out.push(await pg.evaluate(o => ({ sc: o.sc, via: o.via, vis: o.vis, ok: docs.length === o.n0 + 1, kind: docTypeLabel(song) }), { sc, n0, via: card ? 'card' : PZ9[sc], vis }));
       }
-      T('N9', out.every(x => x.ok), '点击数不增：7 个用途从面板打开起「点用途 + 创建」2 次就建成', J(out));
+      T('N9', out.every(x => x.ok && x.vis) && J(out.map(x => x.via)) === J(['jita', 'card', 'card', 'card', 'card', 'gangqin', 'gongneng']), '点击数不增：7 个目标从面板打开起「点一下（卡 / 谱种行）+ 创建」2 次就建成', J(out));
       await ctx.close();
     }
     if (want('N10')) {
