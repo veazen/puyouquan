@@ -7,6 +7,9 @@
       B8 弱起首小节不补（允许欠拍）· B9 选中列里有连音组只改时值 · B10 提示：新外壳短文「已改时值」带「撤销」、旧外壳原文
       B11 「自由编辑」（旧外壳 musetab-editmode=free）：批量只改时值（与 v70.2 相同，提示原文逐字）；单格空列改短不补、改长不吸收
       B12 新形态没有两档：预置 free 也照常补列
+      B13 验收修②（三种入口：新外壳 / ?shell=classic / ?next=0，先断言「二分」钮可见再点）：选中列全是空白休止的改长先在选区内部从后往前吸收——
+          4/4 空小节全选改二分 → 2 个二分休止、4 拍、c2 落在第 2 列、撤销 JSON 相等；3/4 → 二分 + 四分休止（3 拍）；跨两个空小节 → 各 2 个二分；
+          选前两格 → 0/2 0/4 0/4（选区所占拍数不变）；选中列有音符（5 0 0 0 全选 / 5 6 0 0 选前两格）保持 v70.4 现状；旧外壳「自由编辑」仍只改时值（4 个二分、8 拍）
    D  song.src（D-15）：D1 第三方 MusicXML 导入 → {via:'mxl', sw:<software> 前 40 字（空白归一）}；没写 software → {via:'mxl'}
       D2 导出写 <miscellaneous-field name="pyq-src">、往返逐项相等（含 via 'midi' / 'gp' / 'arr' 与 sw）；没有来源的谱（新建 / 示例 / 自家往返）不写键、导出不含 pyq-src
       D3 MIDI / GP 导入弹窗 → via 'midi' / 'gp' · D4 智能配谱弹窗新窗口产物 via 'arr'（沿用旋律谱的 sw）· D5 清洗：normalizeSongFields / sanitizeUntrusted / 服务端 scoreDataDanger
@@ -16,6 +19,7 @@
    E  页面脚本错误 0
    修前红：MUSETAB_URL 指向 git show 16de944:muse-tab/index.html 复跑 6/34——B1 B2/B3 B5 B6 B7 B10（两外壳）、B4〔旧外壳〕（提示）、B11b、B12 · D1 D2 D3 D4 D5 D6 · K1–K4 · F1–F3 红；
    绿的是「不变」守卫 B4〔新外壳〕、B8/B9（两外壳）、B11a、D2b、E。
+   B13 修前红（56b0c62 复跑 24/36）：B13a–B13d 三入口共 12 条红（全选得 4 个二分 8 拍 / 3 个二分 6 拍；选前两格得 0/2 0/2——吸收的是选区之后）；B13e（有音符）/ B13f（自由编辑）守卫绿。
    env：MUSETAB_URL 被测页（缺省 ../index.html）· ONLY=B,D 只跑部分段。单跑约 25 秒 */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -123,6 +127,7 @@ async function open(b, o) {
   if (o.free) await pg.addInitScript(() => { try { localStorage.setItem('musetab-editmode', 'free'); } catch (_) {} });
   const errs = []; pg.on('pageerror', e => errs.push(e.message)); pg.on('dialog', d => d.dismiss().catch(() => {}));
   let u = URL0; if (o.shell === 'classic') u = withQ(u, 'shell=classic');
+  if (o.q) u = withQ(u, o.q);
   await pg.goto(u); await pg.waitForTimeout(1200);
   await pg.evaluate(() => { window.guardReplace = p => p(); try { hideStartPad(); } catch (_) {} try { const t = document.querySelector('#flw-tour'); if (t) t.remove(); } catch (_) {} });
   return { ctx, pg, errs };
@@ -187,6 +192,40 @@ const pack = o => (o && typeof o.setup === 'function') ? Object.assign({}, o, { 
         const r = await EV(pg, () => { __fresh({}); __bat({ m1: 0, c1: 0, m2: 0, c2: 3 }, 8); const a = __st(1); __fresh({}); sel.ci = 0; setDur(8); return { a, one: __st(1), nx: flowNx() }; });
         allErrs.push(...A.errs); await A.ctx.close();
         T(r.nx && r.a.tot[0] === 4 && r.one.m === '0/8 0/8 0/4 0/4 0/4', 'B12〔新外壳·预置 free〕新形态没有「自由编辑 / 修复建议」两档：批量与单格照常补列', J(r)); }
+      /* B13 验收修②：选中列全是空白休止的改长先在选区内部从后往前吸收（三种入口；按钮路径先断言「二分」钮可见再点，v68.9 教训） */
+      for (const en of ['flow', 'classic', 'next0']) {
+        const A = await open(b, en === 'classic' ? { shell: 'classic' } : en === 'next0' ? { q: 'next=0' } : {}); const pg = A.pg;
+        const tag = en === 'flow' ? '〔新外壳〕' : en === 'classic' ? '〔旧外壳〕' : '〔?next=0〕';
+        const bat = (o, Rg, d, n) => EV(pg, a => { __fresh(a[0]); __bat(a[1], a[2]); return __st(a[3]); }, [pack(o), Rg, d, n || 1]);
+        const r = {};
+        r.env = await EV(pg, () => ({ on: flowOn(), nx: flowNx(), free: durFreeMode(), shell: document.body.classList.contains('flow') }));
+        await EV(pg, () => { __fresh({}); selRange = { row: 'vox', vi: 0, m1: 0, c1: 0, m2: 0, c2: 3 }; render(); window.__j0 = JSON.stringify(song); });
+        const btn = pg.locator('#eb-dur [data-dur="2"]').first();
+        r.vis = await btn.isVisible().catch(() => false);
+        if (r.vis) { await btn.click(); await pg.waitForTimeout(80); }
+        r.a = await EV(pg, () => { const a = __st(1); const u0 = undoStack.length; undo(); render(); a.u0 = u0; a.back = JSON.stringify(song) === window.__j0; return a; });
+        r.c = await bat({ opt: { beats: 3 } }, { m1: 0, c1: 0, m2: 0, c2: 2 }, 2);
+        r.d = await bat({}, { m1: 0, c1: 0, m2: 1, c2: 3 }, 2, 2);
+        r.e = await bat({}, { m1: 0, c1: 0, m2: 0, c2: 1 }, 2);
+        r.n1 = await bat({ setup: s => { s.measures[0].voxes[0] = [__V(5), __V(0), __V(0), __V(0)]; } }, { m1: 0, c1: 0, m2: 0, c2: 3 }, 2);
+        r.n2 = await bat({ setup: s => { s.measures[0].voxes[0] = [__V(5), __V(6), __V(0), __V(0)]; } }, { m1: 0, c1: 0, m2: 0, c2: 1 }, 2);
+        allErrs.push(...A.errs); await A.ctx.close();
+        T(r.vis && r.env.free === false && r.a.m === '0/2 0/2' && r.a.tot[0] === 4 && r.a.be === 0 && r.a.r === '0,0,0,1' && r.a.rc === 2 && r.a.u0 === 1 && r.a.back,
+          'B13a' + tag + ' 4/4 空小节全选点「二分」（钮可见）→ 2 个二分休止、4 拍、时值检查 0、c2 落在第 2 列；撤销一步 JSON 相等', J(r));
+        T(r.c.m === '0/2 0/4' && r.c.tot[0] === 3 && r.c.be === 0 && r.c.r === '0,0,0,1',
+          'B13b' + tag + ' 3/4 空小节全选改二分 → 二分 + 四分休止（3 拍，选区内部从后往前：删末列、缩短第 2 列）', J(r.c));
+        T(r.d.m === '0/2 0/2 | 0/2 0/2' && r.d.tot.join() === '4,4' && r.d.be === 0 && r.d.r === '0,0,1,1',
+          'B13c' + tag + ' 跨两个空小节全选改二分 → 每小节 2 个二分、各 4 拍、c2 钉在末小节第 2 列', J(r.d));
+        T(r.e.m === '0/2 0/4 0/4' && r.e.tot[0] === 4 && r.e.r === '0,0,0,0',
+          'B13d' + tag + ' 空小节选前两格改二分 → 0/2 0/4 0/4（先在选区内部吸收：选区所占 2 拍不变，后面的格不动）', J(r.e));
+        T(r.n1.m === '5/2 0/2 0/2 0/2' && r.n1.tot[0] === 8 && r.n2.m === '5/2 6/2' && r.n2.tot[0] === 4,
+          'B13e' + tag + ' 选中列里有音符保持 v70.4 现状：「5 0 0 0」全选改二分只改时值（8 拍、提示不符）；「5 6 0 0」选前两格吸收其后空白列（5/2 6/2）', J([r.n1, r.n2]));
+      }
+      { const A = await open(b, { shell: 'classic', free: true }); const pg = A.pg;
+        const f = await EV(pg, () => { __fresh({}); __bat({ m1: 0, c1: 0, m2: 0, c2: 3 }, 2); return Object.assign(__st(1), { free: durFreeMode() }); });
+        allErrs.push(...A.errs); await A.ctx.close();
+        T(f.free && f.m === '0/2 0/2 0/2 0/2' && f.tot[0] === 8 && f.toast === '已批量替换时值（与拍号不符时会提示，可按需一键修复）',
+          'B13f〔旧外壳·自由编辑〕空小节全选改二分仍只改时值（4 个二分、8 拍，与 v70.4 相同）', J(f)); }
     }
 
     /* ================= D song.src ================= */

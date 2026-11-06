@@ -18387,7 +18387,7 @@ function durFreeMode(){ try{ return !editModeSmart() && !flowNx(); }catch(_){ re
 /* v70.4 B 选区批量改时值（基石方案 §3.2 B）：R＝selRange，选中的列逐个改成 d（附点按新时值收敛），再按小节保住总时值——
    改短：在本小节最后一个选中列之后补休止列，补回 min(原总时值, 拍号) − 新总时值（fillRestsAfter：同值空列 + 余数；允许欠拍的小节 meaUnderOk 不补）；
    改长：吸收本小节最后一个选中列之后连续的空白列（absorbRestsAfter：整列删 / 精确缩短，遇到有内容的列、连音组、跨列引用终点就停）；
-   本小节选中的列里有连音组：只改时值（同单格「连音组内不补」）。补出 / 吸收都在选中列之后，选中列的下标不变；
+   本小节选中的列里有连音组：只改时值（同单格「连音组内不补」）。补出 / 吸收都在选中列之后，选中列的下标不变（验收修②例外：选中列全是空白休止的改长先在选区内部从后往前吸收，见下）；
    选区随之更新＝末小节 c2 钉在最后一个改过的列（补出的休止不进选区：再按回原时值时由吸收收回）。
    调用方在 mutate 里调（同一步撤销）；返回 {add 补出的格数, cut 吸收掉的格数, bad 仍不符的小节数} */
 function durBatch(R, d){
@@ -18406,7 +18406,24 @@ function durBatch(R, d){
     if(tup) continue;
     const t1=tot();
     if(t1<t0-1e-4){ const want=Math.min(t0, cap)-t1; if(want>1e-4 && !meaUnderOk(m)) out.add+=fillRestsAfter(cols, b, want, row, unit, m, vi).length; }
-    else if(t1>t0+1e-4){ const n0=cols.length; absorbRestsAfter(cols, b, m, row, vi); out.cut+=n0-cols.length; }
+    else if(t1>t0+1e-4){ const n0=cols.length; let bb=b;
+      /* v70.4 验收修②：本小节选中的列全是空白休止（restBlank）时先在选区内部从后往前吸收——整小节空白框选改二分得 2 个二分休止（此前 4 个二分、8 拍超拍）；
+         删掉多余的选中空白列 / 精确缩短（同 absorbRestsAfter 判据：不在连音组、不是跨列引用终点；至少留第一个选中列），不够再吸收选区之后的空白列；
+         末小节 c2 钉在最后保留的那一列。选中列里有音符（或带和弦名 / 歌词等列级内容）与 v70.4 相同：只吸收选区之后 */
+      let allBlank=true; for(let c=a;c<=b;c++) if(!restBlank(cols[c], row)){ allBlank=false; break; }
+      if(allBlank){
+        let over=tot()-cap, tg=colRefTargets(m, row, vi);
+        for(let i=b; i>a && over>1e-4; i--){
+          const col=cols[i]; if(col.tup || tg.has(i)) break;
+          const bi=beatsOf(col,unit);
+          if(bi<=over+1e-4){ cols.splice(i,1); colRefShift(m, row, vi, i+1, -1); tg=new Set([...tg].map(x=>x>i? x-1 : x)); over-=bi; bb--; continue; }
+          const hit=fitDurTo(bi-over, true, unit);
+          if(hit && Math.abs(beatsOf(hit,unit)-(bi-over))<1e-4){ col.dur=hit.dur; col.dotted=hit.dotted; over=0; }
+          break;
+        }
+        if(m===R.m2) R.c2=bb;
+      }
+      absorbRestsAfter(cols, bb, m, row, vi); out.cut+=n0-cols.length; }
     const t2=tot(); if(Math.abs(t2-cap)>1e-4 && Math.abs(t0-cap)<=1e-4) out.bad++;   /* 原本对、改完不对（改长吸收不够）的小节 */
   }
   return out;
