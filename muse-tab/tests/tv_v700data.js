@@ -319,7 +319,11 @@ const ALIAS_ALL = () => ALIAS.map(x => x[0]);
         if (/pyq-intent/.test(e.mxl)) anyIntent = true;
         if (sha(e.mid) !== w.mid) exBad.push(BASE.presets[i].name + ' MIDI'); if (sha(e.mxl) !== w.mxl) exBad.push(BASE.presets[i].name + ' MusicXML');
       }
-      for (const x of LIB) {
+      for (const x0 of LIB) {
+        /* v70.4 有意迁移：曲库重建后阿特拉斯 / 侏儒带双音震音 col.trem2（新可选字段）——「旧谱」＝去掉 trem2（去掉后与基线种子逐字节相同，导出与基线编辑器逐字节相同）；
+           带 trem2 的导出（tremolo start / stop、交替发声）由 tv_trem W9 / W10 验收，基线文件不动 */
+        const x = Object.assign({}, x0, { data: JSON.parse(JSON.stringify(x0.data)) });
+        x.data.measures.forEach(m => (m.voxes || []).forEach(v => (v || []).forEach(c => { if (c) delete c.trem2; })));
         if (sha(JSON.stringify(x.data)) !== BASE.libSha[x.id]) { libMiss.push(x.id); continue; }
         const e = await pg.evaluate(s => window.__exp(s), x.data), w = BASE.out['lib:' + x.id]; n++;
         if (/pyq-intent/.test(e.mxl)) anyIntent = true;
