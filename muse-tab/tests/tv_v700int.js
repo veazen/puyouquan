@@ -8,7 +8,7 @@
       真实 lbSwitch：萨克斯简谱→钢琴伴奏歌谱（直接换）、尤克里里指弹→吉他弹唱（空谱重建）、简谱视唱→五线谱（直接换）一步撤销连 intent / instKey 一起退；
       合唱＋钢琴→功能谱（另建一份）原谱 intent 不动（B × A）
    I4 ④ 新示例「做同款」（真实点击：新建 → 从已有音乐 → 示例 → 做同款）→ 填一个音 → 云同步载荷（scoreCloudPush 的 PUT body）→ 真服务端发布 → 谱库卡片 intent / 谱种＝node；
-      专题「艺考视唱」（?zt=yikao）收两份视唱、「师范儿歌弹唱」（?zt=shifan）收儿歌弹唱（C × A × 服务端）
+      专题「视唱专题」（?zt=yikao）收两份视唱、「儿歌专题」（?zt=shifan）收儿歌弹唱（C × A × 服务端；v70.3 D9 改显示名，key 不变）
    I5 ⑥ 30 份官方谱口径（实为 29 份：莫扎特 K.2 未录，规格 §7.5 / C 组报告）下真服务端照常：新库启动即种全 seed-library.json（份数读文件，不写死）、
       /api/pub/cats 总数＝种子份数、7 个一级都 ≥1、钢琴谱 › 独奏 ≥3、艺考视唱专题＝种子里 intent＝sight 的那几份（逐 id）、每份卡片谱种＝node pubKindOf
    I6 ⑦（集成人补：C 的种子在 A 的导入导出器合并前生成）29 份种子在最终编辑器上导出 MusicXML 再导入：有 intent 的写 pyq-intent 且读回同值、没有的不写 pyq-intent / pyq-instkey；
@@ -362,12 +362,13 @@ const CREATE = (pg, qs) => pg.evaluate(async qs => {
         const pb = pubs[tag]; if (!pb || !pb.pub || pb.pub.status !== 200) { bad.push(tag + ' 发布 ' + (pb && (pb.pub || pb.put) || {}).status); continue; }
         const c = cards.find(x => x.id === p.id) || {}, pk = K.pubKindOf(p.data);
         if (c.intent !== wantI || c.pz !== pk.pz || c.sub !== pk.sub || J(c.also) !== J(pk.also)) bad.push(tag + ' 卡片 ' + J({ intent: c.intent, pz: c.pz, sub: c.sub, also: c.also, want: pk.pz + '.' + pk.sub }));
-        if (wantI === 'sight' && !yk.includes(p.id)) bad.push(tag + ' 不在艺考视唱专题');
-        if (wantI === 'kids' && !sf.includes(p.id)) bad.push(tag + ' 不在师范儿歌弹唱专题');
+        /* v70.3 有意迁移（基石方案 §2.3 D9）：专题显示名改「视唱专题 / 儿歌专题」（key yikao / shifan 与 ?zt= 口径不变） */
+        if (wantI === 'sight' && !yk.includes(p.id)) bad.push(tag + ' 不在视唱专题（?zt=yikao）');
+        if (wantI === 'kids' && !sf.includes(p.id)) bad.push(tag + ' 不在儿歌专题（?zt=shifan）');
       }
       T('I4', ad.ok && Object.keys(pay).length === 3 && !bad.length && sightIds.every(id => yk.includes(id)),
         '④ 新示例做同款（真实点击：两只老虎（儿歌弹唱）、视唱谱例 C 大调（五线谱）、G 大调（简谱））→ intent 保留（新谱内容留空）→ 填音 → 云同步载荷带 intent → 真服务端发布 → 卡片 intent / 谱种＝node pubKindOf；'
-        + '视唱两份进「艺考视唱」（官方 ' + sightIds.length + ' 份仍在）、儿歌弹唱进「师范儿歌弹唱」', J({ ad: ad.ok, cli: ad.ok ? '' : ad.cli.slice(0, 120), pick, bad: bad.slice(0, 6) }));
+        + '视唱两份进「视唱专题」?zt=yikao（官方 ' + sightIds.length + ' 份仍在）、儿歌弹唱进「儿歌专题」?zt=shifan', J({ ad: ad.ok, cli: ad.ok ? '' : ad.cli.slice(0, 120), pick, bad: bad.slice(0, 6) }));
     });
 
     /* ================= I6 ⑦ 种子 × 最终导入导出器 ================= */

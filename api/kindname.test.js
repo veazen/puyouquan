@@ -366,7 +366,15 @@ T('P1 pzq：停用词 / 整词 / 末尾「X谱」/ 组合规则 / 乐器调只�
   for (const q of ['艺考', '艺考视唱', '艺考视唱练耳']) assert.strictEqual(g(q), '||||yikao||||||', q);
   assert.strictEqual(g('艺考 视唱'), '||shichang||yikao||||||');
   assert.strictEqual(g('小星星 艺考视唱'), '小星星||||yikao||||||');
-  { const r = P.parse('艺考视唱'); assert.ok(r.conds.length === 1 && r.conds[0].label === '专题：艺考视唱练耳' && r.conds[0].rm === '', JSON.stringify(r.conds)); }
+  /* v70.3 有意迁移（基石方案 §2.3 D9）：专题显示名＝伴奏专题 / 视唱专题 / 儿歌专题 / 对照专题，条件块不加「专题：」前缀 */
+  { const r = P.parse('艺考视唱'); assert.ok(r.conds.length === 1 && r.conds[0].label === '视唱专题' && r.conds[0].rm === '', JSON.stringify(r.conds)); }
+  /* v70.3 D9：条件块上的名字再搜一次＝同一专题（只增的四个搜索词）；「伴奏专题 ＋ 儿歌」不被改写成师范 */
+  for (const [q, z] of [['伴奏专题', 'kaobian'], ['视唱专题', 'yikao'], ['儿歌专题', 'shifan'], ['对照专题', 'ketang']]) {
+    assert.strictEqual(g(q), '||||' + z + '||||||', q);
+    const r = P.parse(q); assert.ok(r.conds.length === 1 && r.conds[0].label === P.ZT_NAME[z] && r.conds[0].label === q, JSON.stringify(r.conds));
+  }
+  assert.strictEqual(P.parse('伴奏专题 儿歌').zt, 'kaobian');
+  assert.deepStrictEqual(P.ZT_NAME, { kaobian: '伴奏专题', yikao: '视唱专题', shifan: '儿歌专题', ketang: '对照专题' });
   assert.strictEqual(g('器乐谱'), '|||||||||inst|');
   assert.strictEqual(P.parse('C调葫芦丝').keySort, 'C'); assert.strictEqual(P.parse('C调葫芦丝').key, '', '乐器的调不筛');
   assert.strictEqual(P.parse('G调 吉他 晴天').fkey, 'G'); assert.strictEqual(P.parse('小星星 C调').key, 'C');

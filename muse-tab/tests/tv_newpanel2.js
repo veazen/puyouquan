@@ -18,7 +18,7 @@
    S2  三区可见可用：新建 5 卡 + 全部（点钢琴即兴伴奏 → 面板预选 pacc；全部 → 面板）；导入（徽章 → #b-open 被点；区名 → 面板导入页；拖放框命中区 ≥44）；
        接着写（有自己的谱时最近 ≤3 张、点第 1 张＝切到那一窗口并离台；无时只「我的曲谱」，点它＝我的曲谱）
    S3  启动台无「按上次」卡；Alt+Shift+N 照建（docs+1、谱类＝上次用途）
-   Q1  快速新建首项：图标＝上次用途谱类图标（nw-last 预置 pacc → type-jg）、无 .nf-qk、调拍小标签、Alt+Shift+N 键帽；无「从已有音乐…」；v70.1 起两组「常用 / 谱种」11 项 ＋ 小标 4（?next=0 照旧 9 用途 ＋ 5 小标）；「新建面板…」照有
+   Q1  快速新建首项：图标＝上次用途谱类图标（nw-last 预置 pacc → type-jg）、无 .nf-qk、调拍小标签、Alt+Shift+N 键帽；无「从已有音乐…」；v70.1 起两组「常用 / 谱种」11 项（v70.3 起无用途小标；?next=0 照旧 9 用途 ＋ 5 小标）；「新建面板…」照有
    K   本机键集合差为空（被测动作本来就写的 musetab-nw-last / 窗口与谱存档除外）；页面脚本错误 0
    突变实证（报告里列）：① deskNewNx 的 nf-pvmel 改回右栏 → N4 红；② FLOW.spd 不隐藏 #spd-cards → S1 红；③ quickMenuFlowHTML 首项回 tpl-last → Q1 红。
    env：MUSETAB_URL 被测页 · MUSETAB_BASE 基线页（缺省 git show 658d425；inplace_ref.json 有就读它）· ONLY=N1,S2 */
@@ -111,9 +111,11 @@ const shellHTML = pg => pg.evaluate(() => { const s = document.querySelector('.n
         await c2.close();
         /* v70.1 P2b：常用 4 卡 ＋ 空白谱 · 自选（名称 / 徽标与 ?next=0 同 id 逐字同）；gtr / vocal / solo / inst / chord 换成谱种行（不带小标） */
         const oldOf = id => old.find(o => o[0] === id) || [];
-        const same = J(cur.map(c => c[0])) === J(['pacc', 'kids', 'sight', 'teach', 'blank', 'custom']) && cur.every(c => c[2] === (oldOf(c[0])[2] || '') && (c[0] === 'custom' ? (c[1] === '自选' && c[3] === oldOf(c[0])[1]) : c[1] === oldOf(c[0])[1]));
+        /* v70.3 有意迁移（基石方案 §2.3 D1 / D19）：常用 4 卡改中性显示名、不画用途小标（?next=0 照旧 4 个徽标、原名） */
+        const CYN = { pacc: '钢琴伴奏歌谱', kids: '简易弹唱', sight: '单旋律五线谱', teach: '线简对照谱' };
+        const same = J(cur.map(c => c[0])) === J(['pacc', 'kids', 'sight', 'teach', 'blank', 'custom']) && cur.every(c => !c[2] && (c[0] === 'custom' ? (c[1] === '自选' && c[3] === oldOf(c[0])[1]) : c[1] === (CYN[c[0]] || oldOf(c[0])[1])));
         const pzOk = J(pz.rows.map(r => [r[0], r[1]])) === J(pz.PZ) && pz.rows.every(r => !r[2] && r[3]);
-        T('N2', same && pzOk && old.length === 11 && cur.filter(c => c[2]).length === 4, '左栏：常用 4 卡 ＋ 空白 / 自选（名称 / 徽标同 ?next=0；「自选」读屏名「自选记谱法」）＋ 谱种 7 行（顺序 / 名＝PQ_KIND.PZ、可见、无小标）；徽标 4 个', J({ cur, pz, old }));
+        T('N2', same && pzOk && old.length === 11 && old.filter(c => c[2]).length === 5, '左栏：常用 4 卡（v70.3：钢琴伴奏歌谱 / 简易弹唱 / 单旋律五线谱 / 线简对照谱、无小标）＋ 空白 / 自选（「自选」读屏名「自选记谱法」）＋ 谱种 7 行（顺序 / 名＝PQ_KIND.PZ、可见、无小标）；?next=0 仍 5 个徽标', J({ cur, pz, old }));
       }
       if (want('N3') || want('N11')) {
         await pg.click('.nf-modal [data-scene="pacc"]'); await W(600);
@@ -277,9 +279,10 @@ const shellHTML = pg => pg.evaluate(() => { const s = document.querySelector('.n
         await pg.click('#spd-nx [data-sp="mine"]'); await W(700);
         const mine = await pg.evaluate(() => ({ modal: !!document.querySelector('#modal-mask .modal'), txt: ((document.querySelector('#modal-mask .modal') || {}).textContent || '').slice(0, 30) }));
         await pg.evaluate(() => closeModal());
-        T('S2', s.cards.length === 6 && s.cards[0] === 'sc:gtr:吉他弹唱' && /sc:pacc:钢琴即兴伴奏考编/.test(s.cards[1]) && s.cards[5] === 'new:全部' && s.vis && s.fmt.replace(/\s+/g, '') === 'XMLGPMIDMTAB' && s.drop && s.drop.h >= 44 && s.drop.lab === '拖文件到这里'
+        /* v70.3 有意迁移（基石方案 §2.3 D19）：新建 5 卡＝吉他弹唱 · 钢琴伴奏歌谱 · 合唱谱 · 器乐独奏 · 指弹（data-sp 仍 sc:*、无用途小标） */
+        T('S2', J(s.cards) === J(['sc:gtr:吉他弹唱', 'sc:pacc:钢琴伴奏歌谱', 'sc:vocal:合唱谱', 'sc:inst:器乐独奏', 'sc:solo:指弹', 'new:全部']) && s.vis && s.fmt.replace(/\s+/g, '') === 'XMLGPMIDMTAB' && s.drop && s.drop.h >= 44 && s.drop.lab === '拖文件到这里'
           && J(s.rc) === J(['mine:我的曲谱']) && a.modal && a.scene === 'pacc' && a.pad && a2.modal && a2.tab === 'new' && a3.modal && a3.tab === 'import' && opened === 2 && mine.modal,
-          '三区可见可点：新建 5 卡 + 全部（钢琴即兴伴奏 → 面板预选 pacc）；导入（徽章 / 拖放框 → 打开文件 ×2、区名 → 导入页、拖放框高 ' + (s.drop && s.drop.h) + '）；接着写（首访只「我的曲谱」→ 我的曲谱）', J({ s, a, a2, a3, opened, mine }));
+          '三区可见可点：新建 5 卡 + 全部（v70.3：钢琴伴奏歌谱 → 面板预选 pacc）；导入（徽章 / 拖放框 → 打开文件 ×2、区名 → 导入页、拖放框高 ' + (s.drop && s.drop.h) + '）；接着写（首访只「我的曲谱」→ 我的曲谱）', J({ s, a, a2, a3, opened, mine }));
         /* 有自己的谱：建一份写过音的谱 → 重开页面（同一上下文，存档在）→ 接着写有缩略图，点第 1 张＝切到那一窗口并离台 */
         await pg.evaluate(() => { __panel({ scene: 'blank' }); }); await W(500); await pg.fill('.nf-modal #nw-title', '我的歌A'); await pg.click('.nf-modal #nw-create'); await W(1200);
         await pg.evaluate(() => { song.measures[0].voxes[0][0].deg = 3; persist(); }); await W(400);
@@ -314,13 +317,14 @@ const shellHTML = pg => pg.evaluate(() => { const s = document.querySelector('.n
       const ls = { 'musetab-nw-last': JSON.stringify({ scene: 'pacc', v: { key: 'C', mode: 'major', beats: 4, unit: 4, tempo: 72, acc: 'mel' }, mel: 'J' }) };
       const cur = await q(URL0, ls), old = await q(withQ(URL0, 'next=0'), ls);
       const icJG = await (async () => { const { ctx, pg } = await open(b, URL0, { tag: 'Q1i' }); const h = await pg.evaluate(() => pqIcon('type-jg', 20).slice(0, 160)); await ctx.close(); return h; })();
-      /* v70.1 P2b（规格 §9.1 / §14.2 Q1）：新形态两组「常用 / 谱种」11 项（常用 4 ＋ 谱种 7）、小标 4（考编 师范 艺考 课堂）；?next=0 照旧 9 用途 ＋ 5 小标 */
+      /* v70.1 P2b（规格 §9.1 / §14.2 Q1）：新形态两组「常用 / 谱种」11 项（常用 4 ＋ 谱种 7）；?next=0 照旧 9 用途 ＋ 5 小标。
+         v70.3 有意迁移（基石方案 §2.3 D4）：新形态常用组不画用途小标（原 4 个：考编 师范 艺考 课堂） */
       const SC1 = ['pacc', 'kids', 'sight', 'teach', 'pz:jianpu', 'pz:wuxian', 'pz:gangqin', 'pz:jita', 'pz:uku', 'pz:hechang', 'pz:gongneng'];
       const SC0 = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst', 'chord'];
       T('Q1', cur && cur.first === icJG && !cur.qk && /1=C/.test(cur.qv) && cur.kbd === 'Alt+Shift+N' && /钢琴即兴伴奏/.test(cur.aria) && !cur.imp && cur.panel
-        && J(cur.sc) === J(SC1) && J(cur.tags) === J(['考编', '师范', '艺考', '课堂']) && J(cur.qh) === J(['常用', '谱种'])
+        && J(cur.sc) === J(SC1) && J(cur.tags) === '[]' && J(cur.qh) === J(['常用', '谱种'])
         && J(old.sc) === J(SC0) && J(old.tags) === J(['考编', '师范', '课堂', '艺考', '乐队']) && !old.qh.length && old.imp && old.qk,
-        '快速新建首项：上次用途谱类图标（type-jg）、谱名只进读屏名、调拍小标签与键帽照留；无「从已有音乐…」；两组「常用 / 谱种」11 项 ＋ 小标 4（?next=0 照旧 9 用途 ＋ 5 小标、无组名）；「新建面板…」照有', J({ cur, old }));
+        '快速新建首项：上次用途谱类图标（type-jg）、谱名只进读屏名、调拍小标签与键帽照留；无「从已有音乐…」；两组「常用 / 谱种」11 项、无用途小标（v70.3；?next=0 照旧 9 用途 ＋ 5 小标、无组名）；「新建面板…」照有', J({ cur, old }));
     }
   } catch (e) { T('X', false, '执行异常', e && e.stack || e); }
   await b.close();

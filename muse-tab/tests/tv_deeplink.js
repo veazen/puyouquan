@@ -469,8 +469,9 @@ const SCENES = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst'
       await pg._ctx.close();
     }
     T(r[320].lst === 0 && r[320].det === 0 && r[340].lst === 0 && r[340].det === 0, 'D14 320 / 340 宽手机：「在电脑上开始一份谱」列表页与详情页都不能横向滚动（此前导入说明不换行撑出 34px）', JSON.stringify(r));
-    T(r.aria.li === 10 && r.aria.btn === 1 && r.aria.roleLi === 0 && r.aria.lists === '弹唱伴奏,课堂声乐,独奏乐队,其他',
-      'D14b 读屏：用途行是列表项里的原生按钮（不再 <button role=listitem> 把按钮语义盖掉），按「弹唱伴奏 / 课堂声乐 / 独奏乐队 / 其他」分组（M02）', JSON.stringify(r.aria));
+    /* v70.3 有意迁移（基石方案 §2.3 D5）：新外壳手机组名「课堂声乐」→「歌谱 · 声乐」（旧外壳 GROUPS 原名不动） */
+    T(r.aria.li === 10 && r.aria.btn === 1 && r.aria.roleLi === 0 && r.aria.lists === '弹唱伴奏,歌谱 · 声乐,独奏乐队,其他',
+      'D14b 读屏：用途行是列表项里的原生按钮（不再 <button role=listitem> 把按钮语义盖掉），按「弹唱伴奏 / 歌谱 · 声乐 / 独奏乐队 / 其他」分组（M02；v70.3 D5 改组名）', JSON.stringify(r.aria));
   });
 
   /* ---------- D15 手机横屏启动台：主卡上沿可见、卡片区可滚 ---------- */

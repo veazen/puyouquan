@@ -660,7 +660,8 @@ const VK = ['instKey', 'inst', 'acc', 'tacc', 'ftype', 'pen', 'parts', 'clef', '
       T('F8', r.length === 24 && !bad.length, '§8.1 深链 24 条：落点 st.pick＝表、左栏选中 / chip 选中与之一致、无「没认出」、计划＝fresh({clean, scene, link})、linkOf ∘ linkApply 往返、隐藏控件与落点形态一致', J(bad.slice(0, 4)));
       /* 启动台 5 卡 */
       const sp = [];
-      await par([['gtr', 'fm:jita.tanchang'], ['pacc', 'sc:pacc'], ['teach', 'sc:teach'], ['sight', 'sc:sight'], ['kids', 'sc:kids']], async ([k, exp]) => {
+      /* v70.3 有意迁移（基石方案 §2.3 D19）：启动台 5 卡＝吉他弹唱 · 钢琴伴奏歌谱 · 合唱谱 · 器乐独奏 · 指弹（合唱谱 / 器乐独奏带 data-form） */
+      await par([['gtr', 'fm:jita.tanchang'], ['pacc', 'sc:pacc'], ['vocal', 'fm:hechang.jianpu'], ['inst', 'fm:wuxian.qiyue'], ['solo', 'fm:jita.zhitan']], async ([k, exp]) => {
         const o = await open(b, URL0, { tag: 'F8 sp' });
         await o.pg.evaluate(NFP.PAGE_INIT);
         const s = '#spd-nx [data-sp="sc:' + k + '"]', vis = await o.pg.isVisible(s).catch(() => false);
@@ -668,7 +669,7 @@ const VK = ['instKey', 'inst', 'acc', 'tacc', 'ftype', 'pen', 'parts', 'clef', '
         sp.push(Object.assign({ k, exp, vis }, await o.pg.evaluate(() => ({ pick: NWP.state ? NWP.state.pick : null, sel: NWP.state ? __nfSel() : null }))));
         await o.ctx.close();
       });
-      T('F8', sp.every(x => x.vis && x.pick === x.exp && x.sel === x.exp), '启动台 5 卡落点：吉他弹唱 → 吉他谱 › 弹唱，钢琴即兴伴奏 / 教学对照 / 视唱练耳 / 儿歌弹唱 → 常用卡', J(sp));
+      T('F8', sp.every(x => x.vis && x.pick === x.exp && x.sel === x.exp), '启动台 5 卡落点（v70.3）：吉他弹唱 → 吉他谱 › 弹唱，钢琴伴奏歌谱 → 常用卡，合唱谱 → 合唱谱 › 简谱合唱，器乐独奏 → 五线谱 › 器乐，指弹 → 吉他谱 › 指弹', J(sp));
     });
 
     /* ===== F9 上次 ===== */

@@ -976,7 +976,8 @@ const RUNS = [['旧外壳', F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic
     return { vis, cards, flyClosed, paperHidden, makeOn, ciDash, noLtabOn };
   });
   /* v67.4 启动台卡片：开始一份谱 / 按上次 / 从已有音乐 ＋ 常用用途直达 ＋ 打开文件 / 我的曲谱（框架不动） */
-  T(t27.vis && t27.cards === 'new,last,imp,sc:gtr,sc:pacc,sc:teach,sc:sight,sc:kids,open,mine' && t27.flyClosed && t27.paperHidden,
+  /* v70.3 有意迁移（基石方案 §2.3 D19）：新外壳由 JS 把静态常用 chip 行换成 吉他弹唱 · 钢琴伴奏歌谱 · 合唱谱 · 器乐独奏 · 指弹（旧外壳原样） */
+  T(t27.vis && t27.cards === (FLOWM ? 'new,last,imp,sc:gtr,sc:pacc,sc:vocal,sc:inst,sc:solo,open,mine' : 'new,last,imp,sc:gtr,sc:pacc,sc:teach,sc:sight,sc:kids,open,mine') && t27.flyClosed && t27.paperHidden,
     'T27 启动台默认态(开始一份谱/按上次/从已有音乐＋常用用途＋打开/我的；左栏收起+空白谱面)', JSON.stringify(t27));
   T(t27.makeOn && t27.ciDash && t27.noLtabOn,
     'T31 启动台默认页(创作页+光标—+左栏无高亮)', JSON.stringify(t27));

@@ -158,7 +158,7 @@ function gp5() {
       key: song.key, tempo: song.tempo, prev: JSON.stringify(docs[0].song), modal: !!document.querySelector('.nf-modal'), toast: (window.__toasts.slice(-1)[0] || ''),
       full: ((window.__says || []).slice(-1)[0] || {}).m || '', tst: __tst() }));
     await pg._ctx.close();
-    const want = ['1=C ‖ 按文件', '4/4 · ♩=66 ‖ 按文件', '1 声部 · 有歌词 · 五线谱 ‖ 按内容', '来源：AI Music Transcriber 2.1 ‖ 文件里写明由转谱软件导出 → 按 AI 转谱结果处理', '推荐：教学对照谱 ‖ AI 转谱多为单旋律＋歌词，课堂最常用五线＋简谱对照'];
+    const want = ['1=C ‖ 按文件', '4/4 · ♩=66 ‖ 按文件', '1 声部 · 有歌词 · 五线谱 ‖ 按内容', '来源：AI Music Transcriber 2.1 ‖ 文件里写明由转谱软件导出 → 按 AI 转谱结果处理', '推荐：教学对照谱 ‖ AI 转谱多为单旋律＋歌词，出版与教材常用五线＋简谱对照'];   /* v70.3 有意迁移（基石方案 §2.3 D6）：新外壳推荐理由中性说法（旧外壳 / ?next=0 原文「课堂最常用」） */
     T(clicks === 4 && after.docs === before.docs + 1 && after.cur === before.docs && after.prev === before.s && after.k === 'SJ' && after.label === '教学对照谱' && after.dual[0] === true && after.vn[0] === 'staff' && !after.modal
       && after.notes === "5/4长 3/8亭 5/8 1'/2外 | 6/4古 1'/4道 5/2边" && after.key === 'C' && after.tempo === 66
       /* v68.7 S1 迁移（规格 §6.C3 #50）：新外壳提示条只出「已导入 8 小节」+ data-k=res + 「撤销」（关掉这个新窗口回原谱）；原整句「已导入为教学对照谱《…》8 小节 · 新窗口打开，原谱保留」改判同一次 toastSay 的旧外壳原文（旧外壳照显）。修前红：5cddfb8 新外壳显示整句、没有 data-k / 动作钮 */
@@ -592,7 +592,7 @@ function gp5() {
       && r.m316.bs[1] === '3/4 · ♩=90 ‖ 3/16 拍暂不支持，按 3/4；速度文件没写，按默认' && !r.m316.bs.some(x => /其他记号/.test(x))
       && r.tab.bs[2] === '只有 1 条六线谱 ‖ 按内容' && !r.tab.bs.some(x => /简谱|0 声部/.test(x))
       && r.piano.bs[2] === '钢琴 · 大谱表 2 行 · 无歌词 ‖ 按内容' && /钢琴 · 大谱表 2 行/.test(r.piano.card)
-      && r.ms.bs.includes('来源：MuseScore 4.3.2 ‖ 按文件；你选了「整理 AI 转谱结果」→ 按 AI 转谱结果处理') && r.ms.rec === 'SJ' && r.ms.bs.includes('推荐：教学对照谱 ‖ 单旋律，课堂最常用五线＋简谱对照'),
+      && r.ms.bs.includes('来源：MuseScore 4.3.2 ‖ 按文件；你选了「整理 AI 转谱结果」→ 按 AI 转谱结果处理') && r.ms.rec === 'SJ' && r.ms.bs.includes('推荐：教学对照谱 ‖ 单旋律，出版与教材常用五线＋简谱对照'),   /* v70.3 D6 有意迁移（新外壳） */
       'I19 依据：没写拍号写「文件没写拍号，按 4/4」、3/16 写「暂不支持，按 3/4」（不再重复算一处跳过）；只有六线谱写「只有 1 条六线谱」（不写简谱 / 0 声部）；钢琴一个 part 两行写「钢琴 · 大谱表 2 行」；普通软件文件从「整理 AI 转谱结果」进来写明「你选了…」再推荐对照谱',
       JSON.stringify(r));
   });

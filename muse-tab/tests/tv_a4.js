@@ -1,6 +1,8 @@
 /* v62.9 A4 合规与诚信 + 小程序环境一次性适配（2026-10 评审团 §6.2 A4；D-01「考编包停售改预约」）：
    编辑器
    T1 权益页：考编包「免费预约」（无支付、无「30 套」「常考」）、点预约走 /reserve 后显示已预约；会员文案只写现有增量；支付提示不自相矛盾
+      v70.3 有意迁移（基石方案 docs/plan-2026-11-foundation.md §6.1-2「考编内容包撤下展示卡、不再接新预约；权益与已有预约记录保留」）：
+      T1 改断言卡片与预约按钮都不在、无支付入口；T1b 改断言已开通的 pack_kaobian 权益照写「已购考编内容包」、不出卡片
    T2 小程序环境：权益页不出现任何价格与购买按钮；登录弹窗无扫码登录；观看设置「免费开始制谱」改复制链接
    T3 看谱页 ⚙「举报这首谱」：需选理由，提交走 /report
    T4 线上发布菜单不再出现无效的定价/试读输入框（本机演示仍保留）
@@ -54,8 +56,11 @@ const MPUA = 'Mozilla/5.0 (iPhone) AppleWebKit MicroMessenger/8.0.50 miniProgram
       const pc2=document.getElementById('pcenter'); const card2=pc2 && pc2.querySelector('.mb-card.pack_kaobian');
       return {ct, pay, hasBtn:!!btn, called:window.__calls.some(c=>c.p==='/reserve' && c.b && c.b.kind==='pack_kaobian'),
         after: card2? card2.innerText : '', t}; })()`).catch(e => ({ err: e.message }));
-    T(r && r.hasBtn && !r.pay && /免费预约/.test(r.ct) && !/30 套|常考|¥ ?39|￥39/.test(r.ct), 'T1 考编包：免费预约、无支付、无「30 套/常考/¥39」', JSON.stringify({ ct: (r.ct || r.err || '').replace(/\s+/g, ' ').slice(0, 90), pay: r.pay }));
-    T(r && r.called && /已预约/.test(r.after || ''), 'T1b 点「免费预约」走 /reserve，卡片变「已预约」', JSON.stringify({ called: r.called, after: (r.after || '').replace(/\s+/g, ' ').slice(0, 60) }));
+    T(r && !r.err && !r.hasBtn && !r.pay && !r.ct && !/考编内容包|免费预约/.test(r.t || ''), 'T1 考编包撤下展示卡：无卡片、无「免费预约」、无支付（v70.3 §6.1-2）', JSON.stringify({ ct: (r.ct || r.err || '').slice(0, 60), pay: r.pay, hasBtn: r.hasBtn }));
+    const r1b = await pg.evaluate(`(async()=>{ ${ONLINE} window.PYQ_ENT={vip:false,quota:500,entitlements:[{kind:'pack_kaobian',expires_at:0}]}; window.PYQ_RESV=['pack_kaobian'];
+      openPersonal('rights'); await new Promise(r=>setTimeout(r,200));
+      const pc=document.getElementById('pcenter'); return {t: pc? pc.innerText : '', card: !!(pc && pc.querySelector('.mb-card.pack_kaobian')), rs: !!(pc && pc.querySelector('[data-reserve]'))}; })()`).catch(e => ({ err: e.message }));
+    T(r1b && !r1b.err && /已购考编内容包/.test(r1b.t || '') && !r1b.card && !r1b.rs, 'T1b 已开通的 pack_kaobian 权益照写「已购考编内容包」；已预约的人也不再出卡片（权益与记录保留）', JSON.stringify({ card: r1b.card, rs: r1b.rs, err: r1b.err }));
     T(r && !/后续会员功能上线即享|在线支付即将上线|八场景/.test(r.t || '') && /会员也可在上方直接微信支付/.test(r.t || ''), 'T1c 会员文案只写现有增量、支付提示不自相矛盾', '');
     await pg.close();
   }

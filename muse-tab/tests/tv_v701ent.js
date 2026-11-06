@@ -64,10 +64,11 @@ const CMDS = [
   ['nf:hechang:wuxian', '新建：合唱谱 五线合唱', 'hcpwx wxhc 五线合唱 五线谱合唱', 'type-vocal', { form: 'hechang.wuxian' }],
   ['nf:gongneng:jishu', '新建：功能谱 级数谱', 'gnpjsp jsp 级数谱 功能谱 和弦简谱', 'type-func', { form: 'gongneng.jishu' }],
   ['nf:gongneng:hexian', '新建：功能谱 和弦格', 'gnphxg hxg 和弦格 小节和弦', 'type-func', { form: 'gongneng.hexian' }],
-  ['nf:pacc', '新建：钢琴即兴伴奏', 'gqjxbz jxbz 钢琴即兴伴奏 即兴伴奏 考编 带伴奏 简谱带伴奏 五线谱带伴奏 钢琴谱弹唱', 'type-jg', { scene: 'pacc' }],
-  ['nf:kids', '新建：儿歌弹唱', 'egtc 儿歌弹唱 师范 钢琴谱儿歌弹唱', 'type-kids', { scene: 'kids' }],
-  ['nf:sight', '新建：视唱练耳谱例', 'scle 视唱练耳 艺考 五线谱视唱', 'type-sight', { scene: 'sight' }],
-  ['nf:teach', '新建：教学对照谱', 'jxdzp 教学对照谱 课堂 对照谱 简谱对照谱 五线谱对照谱', 'type-teach', { scene: 'teach' }],
+  /* v70.3 有意迁移（基石方案 §2.3 D9）：四个专题显示名只增进关键词（伴奏专题 / 儿歌专题 / 视唱专题 / 对照专题，同 api/pzq.js） */
+  ['nf:pacc', '新建：钢琴即兴伴奏', 'gqjxbz jxbz 钢琴即兴伴奏 即兴伴奏 考编 带伴奏 简谱带伴奏 五线谱带伴奏 钢琴谱弹唱 伴奏专题', 'type-jg', { scene: 'pacc' }],
+  ['nf:kids', '新建：儿歌弹唱', 'egtc 儿歌弹唱 师范 钢琴谱儿歌弹唱 儿歌专题', 'type-kids', { scene: 'kids' }],
+  ['nf:sight', '新建：视唱练耳谱例', 'scle 视唱练耳 艺考 五线谱视唱 视唱专题', 'type-sight', { scene: 'sight' }],
+  ['nf:teach', '新建：教学对照谱', 'jxdzp 教学对照谱 课堂 对照谱 简谱对照谱 五线谱对照谱 对照专题', 'type-teach', { scene: 'teach' }],
 ];
 const BAN = ['导入', 'midi', '编辑', '模式', '播放', '练习', '四步', '和弦图', '写法', '联排', '配伴奏', '织体'];
 const QREG = ['sc', 'bf', 'hy', 'sd', 'zz', 'qy', 'qb', '打印', '横排', '导入MIDI', '编辑模式', '和弦图', '和弦写法', '联排低音谱号', '联排高音谱号', '音色库', '悬浮条', '起步', '智能', '织体', '配伴奏', '新建', '1=D', '3/4'];
@@ -175,8 +176,9 @@ async function qmInfo(pg, real) {
         && H[0].id === 'nf-qh-cy' && H[1].id === 'nf-qh-pz' && J(H[0].kids) === J(['pacc', 'kids', 'sight', 'teach']) && J(H[1].kids) === J(PZ_ORDER.map(p => 'pz:' + p)),
         '两组 role=group：组名 .nf-qh「常用」「谱种」（role=presentation、非 menuitem、无 data-q / tabindex / title；group 的 aria-labelledby＝组名 id）；常用组＝pacc kids sight teach、谱种组＝7 个谱种', J(H));
       const ci = cur.items.filter(x => /^(pacc|kids|sight|teach)$/.test(x.q));
-      T('Q1', J(ci.map(x => x.tag)) === J(['考编', '师范', '艺考', '课堂']) && J(ci.map(x => x.b)) === J(['钢琴即兴伴奏', '儿歌弹唱', '视唱练耳谱例', '教学对照谱']) && ci.every(x => /^group:nf-qh-cy$/.test(x.grp)),
-        '常用 4 项名字与小标＝钢琴即兴伴奏〔考编〕· 儿歌弹唱〔师范〕· 视唱练耳谱例〔艺考〕· 教学对照谱〔课堂〕（写法同 v70.0 用途项）', J(ci));
+      /* v70.3 有意迁移（基石方案 §2.3 D4 / D19）：常用 4 项＝新建面板常用卡的中性显示名、不画用途小标 */
+      T('Q1', J(ci.map(x => x.tag)) === J(['', '', '', '']) && J(ci.map(x => x.b)) === J(['钢琴伴奏歌谱', '简易弹唱', '单旋律五线谱', '线简对照谱']) && ci.every(x => /^group:nf-qh-cy$/.test(x.grp)),
+        '常用 4 项名字＝钢琴伴奏歌谱 · 简易弹唱 · 单旋律五线谱 · 线简对照谱，无用途小标（v70.3 D4 / D19）', J(ci));
       const pi = cur.items.filter(x => /^pz:/.test(x.q)), pbad = pi.filter(x => { const p = x.q.slice(3); return x.aria !== PZ_ARIA[p] || x.svg !== cur.icons[p] || x.tag || x.sub || x.grp !== 'group:nf-qh-pz'; });
       T('Q1', pi.length === 7 && !pbad.length && J(cur.pzic) === J(PZ_IC) && J(pi.map(x => x.b)) === J(['简谱', '五线谱', '钢琴谱', '吉他谱', '尤克里里', '合唱谱', '功能谱']),
         '谱种 7 项：名＝PQ_KIND.PZ 名、图标＝pqIcon(PZ_IC)（PZ_IC＝规格 §3.2）、读屏名＝「谱种 · 默认形态」（简谱 · 歌曲 … 功能谱 · 级数谱）、无小标', J(pbad.length ? pbad : cur.pzic));
