@@ -22,9 +22,12 @@
      T1 / T2 / T3 / T5 断言不变（固定版宽谱 7 视口显示比例、手动缩放无死区——计划 §5.4 要求在 flow 下补的两条即此）；
      T4「左栏收起自动放大」flow 无对应（左栏 #flw-left 常驻 248、不提供收起，不判；没有 D7 另见 tv_v66a T1f / T2f、tv_trktree T26）；
      T6「排版」走新入口：真实点模式条「排版」→ 右栏「版式」页「标准」预设 → Esc 回书写，断言不变；
-     T7 的「1366 D7 收起+浮层」在 flow 换成「1366 新建谱左栏常驻、不自动收起、无浮层类、不裁」，其余（存量谱 / 观看页 / 手机 / 打印）断言不变 */
+     T7 的「1366 D7 收起+浮层」在 flow 换成「1366 新建谱左栏常驻、不自动收起、无浮层类、不裁」，其余（存量谱 / 观看页 / 手机 / 打印）断言不变
+   v70.1 迁移（规格 docs/spec-2026-11-v701.md §15.2）：新外壳新形态第一步按谱种，「歌谱 · 合唱」卡不在了——wizard() 改 nfpick.nfPick(pg, 'vocal')
+   （卡可见点卡：旧外壳遍 / 窄档 / 手机照旧；否则「简谱」行 → 「歌曲」形态，各自先断言可见），断言不变 */
 const { chromium } = require('playwright');
 const path = require('path');
+const NFP = require('./lib/nfpick');
 const fs = require('fs');
 const URL0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
 
@@ -92,7 +95,7 @@ const withQ = (u, q) => u + (u.includes('?') ? '&' : '?') + q;
   /* 真实 UI 走新建向导 */
   const wizard = async (pg) => {
     await pg.evaluate(() => showNewWizard()); await pg.waitForTimeout(150);
-    await pg.click('.nf-modal [data-scene="vocal"]');   // v67.4 新建面板「歌谱 · 合唱」（原声乐意图卡）
+    await NFP.nfPick(pg, 'vocal');   // v67.4 新建面板「歌谱 · 合唱」；v70.1 卡或「简谱 › 歌曲」（nfpick，先断言可见再点）
     await pg.fill('#nw-title', '快乐的小星星');
     await pg.selectOption('#nw-key', 'B');
     await pg.fill('#nw-tempo', '90');
