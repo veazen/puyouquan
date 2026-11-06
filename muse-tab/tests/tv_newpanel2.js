@@ -18,7 +18,7 @@
    S2  三区可见可用：新建 5 卡 + 全部（点钢琴即兴伴奏 → 面板预选 pacc；全部 → 面板）；导入（徽章 → #b-open 被点；区名 → 面板导入页；拖放框命中区 ≥44）；
        接着写（有自己的谱时最近 ≤3 张、点第 1 张＝切到那一窗口并离台；无时只「我的曲谱」，点它＝我的曲谱）
    S3  启动台无「按上次」卡；Alt+Shift+N 照建（docs+1、谱类＝上次用途）
-   Q1  快速新建首项：图标＝上次用途谱类图标（nw-last 预置 pacc → type-jg）、无 .nf-qk、调拍小标签、Alt+Shift+N 键帽；无「从已有音乐…」；9 用途 + 徽标原样；「新建面板…」照有
+   Q1  快速新建首项：图标＝上次用途谱类图标（nw-last 预置 pacc → type-jg）、无 .nf-qk、调拍小标签、Alt+Shift+N 键帽；无「从已有音乐…」；v70.1 起两组「常用 / 谱种」11 项 ＋ 小标 4（?next=0 照旧 9 用途 ＋ 5 小标）；「新建面板…」照有
    K   本机键集合差为空（被测动作本来就写的 musetab-nw-last / 窗口与谱存档除外）；页面脚本错误 0
    突变实证（报告里列）：① deskNewNx 的 nf-pvmel 改回右栏 → N4 红；② FLOW.spd 不隐藏 #spd-cards → S1 红；③ quickMenuFlowHTML 首项回 tpl-last → Q1 红。
    env：MUSETAB_URL 被测页 · MUSETAB_BASE 基线页（缺省 git show 658d425；inplace_ref.json 有就读它）· ONLY=N1,S2 */
@@ -308,13 +308,19 @@ const shellHTML = pg => pg.evaluate(() => { const s = document.querySelector('.n
         await pg.evaluate(() => { hideStartPad(); NWP.quickMenu(document.getElementById('flw-file')); }); await W(400);
         const r = await pg.evaluate(() => { const m = document.getElementById('nf-qm'); if (!m) return null; const f = m.querySelector('[data-q="last"]');
           return { first: f && f.querySelector('svg').outerHTML.slice(0, 160), qk: !!(f && f.querySelector('.nf-qk')), qv: f && (f.querySelector('.nf-qv') || {}).textContent, kbd: f && (f.querySelector('kbd') || {}).textContent, aria: f && f.getAttribute('aria-label'),
-            imp: !!m.querySelector('[data-q="import"]'), panel: !!m.querySelector('[data-q="panel"]'), sc: [...m.querySelectorAll('[data-q]')].map(e => e.dataset.q).filter(x => !/last|panel|import/.test(x)), tags: [...m.querySelectorAll('.nf-tag')].map(e => e.textContent) }; });
+            imp: !!m.querySelector('[data-q="import"]'), panel: !!m.querySelector('[data-q="panel"]'), sc: [...m.querySelectorAll('[data-q]')].map(e => e.dataset.q).filter(x => !/last|panel|import/.test(x)), tags: [...m.querySelectorAll('.nf-tag')].map(e => e.textContent),
+            qh: [...m.querySelectorAll('.nf-qh')].map(e => e.textContent + (e.getAttribute('role') === 'menuitem' || e.dataset.q != null ? '!' : '')) }; });
         await ctx.close(); return r; };
       const ls = { 'musetab-nw-last': JSON.stringify({ scene: 'pacc', v: { key: 'C', mode: 'major', beats: 4, unit: 4, tempo: 72, acc: 'mel' }, mel: 'J' }) };
       const cur = await q(URL0, ls), old = await q(withQ(URL0, 'next=0'), ls);
       const icJG = await (async () => { const { ctx, pg } = await open(b, URL0, { tag: 'Q1i' }); const h = await pg.evaluate(() => pqIcon('type-jg', 20).slice(0, 160)); await ctx.close(); return h; })();
-      T('Q1', cur && cur.first === icJG && !cur.qk && /1=C/.test(cur.qv) && cur.kbd === 'Alt+Shift+N' && /钢琴即兴伴奏/.test(cur.aria) && !cur.imp && cur.panel && J(cur.sc) === J(old.sc) && J(cur.tags) === J(old.tags) && old.imp && old.qk,
-        '快速新建首项：上次用途谱类图标（type-jg）、谱名只进读屏名、调拍小标签与键帽照留；无「从已有音乐…」；9 用途 + 徽标与 ?next=0 相同；「新建面板…」照有', J({ cur, old }));
+      /* v70.1 P2b（规格 §9.1 / §14.2 Q1）：新形态两组「常用 / 谱种」11 项（常用 4 ＋ 谱种 7）、小标 4（考编 师范 艺考 课堂）；?next=0 照旧 9 用途 ＋ 5 小标 */
+      const SC1 = ['pacc', 'kids', 'sight', 'teach', 'pz:jianpu', 'pz:wuxian', 'pz:gangqin', 'pz:jita', 'pz:uku', 'pz:hechang', 'pz:gongneng'];
+      const SC0 = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst', 'chord'];
+      T('Q1', cur && cur.first === icJG && !cur.qk && /1=C/.test(cur.qv) && cur.kbd === 'Alt+Shift+N' && /钢琴即兴伴奏/.test(cur.aria) && !cur.imp && cur.panel
+        && J(cur.sc) === J(SC1) && J(cur.tags) === J(['考编', '师范', '艺考', '课堂']) && J(cur.qh) === J(['常用', '谱种'])
+        && J(old.sc) === J(SC0) && J(old.tags) === J(['考编', '师范', '课堂', '艺考', '乐队']) && !old.qh.length && old.imp && old.qk,
+        '快速新建首项：上次用途谱类图标（type-jg）、谱名只进读屏名、调拍小标签与键帽照留；无「从已有音乐…」；两组「常用 / 谱种」11 项 ＋ 小标 4（?next=0 照旧 9 用途 ＋ 5 小标、无组名）；「新建面板…」照有', J({ cur, old }));
     }
   } catch (e) { T('X', false, '执行异常', e && e.stack || e); }
   await b.close();
