@@ -45150,7 +45150,7 @@ function srcNorm(v){
   if(!v || typeof v!=='object' || Array.isArray(v)) return null;
   const o={};
   if(typeof v.via==='string' && SRC_VIA.indexOf(v.via)>=0) o.via=v.via;
-  if(typeof v.sw==='string'){ const w=v.sw.replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,40); if(w) o.sw=w; }
+  if(typeof v.sw==='string'){ const w=Array.from(v.sw.replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim()).slice(0,40).join('').trim(); if(w) o.sw=w; }   /* 按字符取前 40 字（不劈开代理对） */
   return (o.via || o.sw)? o : null;
 }
 /* 智能配谱产物（新窗口打开的伴奏谱）：via 'arr'，旋律谱有 sw 就沿用 */
