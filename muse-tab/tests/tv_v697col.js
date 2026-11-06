@@ -20,7 +20,9 @@
        L2 曲库 10 首编辑器页数都不多于 v69.6（e8dc1c8）。
    B   B 组（横向与符号细节）专段：B1 本组类别逐类 0 处 · B2 符杠组符干 ≥2.75（M11 打开）· B3 连音 / 小节号 / 段号与墨迹净空 ≥1.5px ·
        B4 纯简谱 / 六线谱样本离屏谱面与 v69.6 逐字节相同 · B5 几何口径（符干长度、二度错位量、段号「1.」右对齐，简谱段号不变）。
-   env：MUSETAB_URL 被测页（缺省 ../index.html）· V697_REF 基线页（文件或 file:// URL；缺省 git show e8dc1c8，Z1 / B4 用）· ONLY=Z,Z1,G,S,A,B,E 只跑部分。 */
+   W   v70.4 版面组量尺（基石方案 §3.2 F，只报告）：W1 普查加跑编辑器版宽 870 与 840 并列 · W2 曲库 10 首总页数 / 系统数 / 排满率（CI 日志追踪）· W3 版宽 ±3% 稳定性。
+       同版 G 段：C17（圆滑线穿中间音）计入普查、只降不升（≤ C17_MAX＝218）；新类别 C20「震音 × 墨迹」（B 组）随 G / B1 断言 0 处。
+   env：MUSETAB_URL 被测页（缺省 ../index.html）· V697_REF 基线页（文件或 file:// URL；缺省 git show e8dc1c8，Z1 / B4 用）· ONLY=Z,Z1,G,S,A,B,E,W 只跑部分。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
@@ -38,6 +40,7 @@ let pass = 0, total = 0; const fails = [];
 const T = (ok, name, d) => { total++; if (ok) pass++; else fails.push(name.split(' ')[0]); console.log((ok ? '✅' : '❌') + ' ' + name + (d ? '：' + d : '')); };
 const J = x => JSON.stringify(x);
 const SWAN = 'lib-os-lc5100543';
+const C17_MAX = 218;   /* v70.4 C17（圆滑线穿中间音）只降不升的阈值＝v70.3 计数（840 版宽）；降了就把这里改小 */
 
 const HELP = () => {
   window.SF_PLAYWAIT = false;
@@ -131,7 +134,9 @@ const refUrl = () => {
       Object.values(G).forEach(g => {
         const cats = g.cats && Object.keys(g.cats).length ? '｜' + Object.entries(g.cats).sort((p, q) => q[1] - p[1]).map(([k, v]) => k + ' ' + v).join(' · ') : '';
         const ex = g.ex && g.ex.length ? '｜例：' + g.ex.slice(0, 2).join(' ／ ') : '';
-        /* later 组（本版不修：圆滑线避让要等 T3 独立圆滑线字段）与参考度量只打印，不断言——A / B 两组修完后本套件应全绿 */
+        /* later 组（本版不修：圆滑线避让要等 T3 独立圆滑线字段）与参考度量只打印，不断言——A / B 两组修完后本套件应全绿。
+           v70.4（基石方案 §3.2 F / E-1）C17 计入普查、只降不升：阈值取 v70.3 的计数 218（840 版宽，全部样本），独立圆滑线（v71.0）之后归零 */
+        if (g.id === 'C17') { T(g.n <= C17_MAX, 'C17 [later] ' + g.what + '：只降不升（≤' + C17_MAX + '）', g.n + ' 处' + cats + ex); return; }
         if (g.info || g.grp === 'later') { console.log('ℹ️ ' + g.id + ' [' + g.grp + '] ' + g.what + '：' + g.n + ' 处（不断言）' + cats + ex); return; }
         T(g.n === 0, g.id + ' [' + g.grp + '] ' + g.what + '：全部样本 0 处', g.n + ' 处' + cats + ex);
       });
@@ -424,6 +429,45 @@ const refUrl = () => {
         const nowC = await cnt(URL0, 'classic'), refC = await cnt(RU, 'classic');
         console.log('ℹ️ L2 旧外壳页数（不断言）：' + LIBO.map((s, i) => s.name.replace(/（.*/, '') + ' ' + refC[i] + '→' + nowC[i]).join('；'));
       }
+    }
+
+    /* ================= W 版面组量尺（v70.4 基石方案 §3.2 F：只改测试和报告，不改谱面；v70.7 起以 870 为门） =================
+       W1 碰撞普查加跑编辑器版宽 870（离屏 paperW 900 → 版宽 870），与 840（paperW 870，G 段的门）并列报告——不设门；
+       W2 曲库 10 首（lib-os-*）在编辑器版宽 870 下的总页数、系统数、单小节系统数、非末页排满率（每页最后一个系统底到页内容区顶 ÷ 内容区高，内容区＝页高减上 44 下 22）——打进 CI 日志追踪；
+       W3 版宽 ±3%（844 / 870 / 896）稳定性报告：逐首页数、系统数与变化量，标出超过 §1.1 口径（页数变化 >1 或系统数变化 >10%）的——不设门。 */
+    if (want('W')) {
+      const A = await open(b);
+      const R840 = R || await GC.census(A.pg, SAMPLES, { paperW: 870 }), R870 = await GC.census(A.pg, SAMPLES, { paperW: 900 });
+      const G1 = GC.groupCounts(R840), G2 = GC.groupCounts(R870);
+      console.log('—— W1 碰撞普查两种版宽并列（' + R870.per.length + ' 份样本；840＝离屏 paperW 870〔G 段的门〕· 870＝编辑器版宽〔paperW 900，只报告〕）');
+      Object.keys(G1).forEach(k => { const a = G1[k], c = G2[k]; if (!a.n && !c.n) return;
+        console.log('   ' + k + ' [' + a.grp + '] 840：' + a.n + ' · 870：' + c.n + (c.cats && Object.keys(c.cats).length ? '（870：' + Object.entries(c.cats).sort((p, q) => q[1] - p[1]).map(([x, v]) => x + ' ' + v).join(' · ') + '）' : '') + (c.ex && c.ex.length && c.n ? '  例：' + c.ex.slice(0, 2).join(' ／ ') : '')); });
+      console.log('   其余各类两种版宽都是 0（' + Object.keys(G1).filter(k => !G1[k].n && !G2[k].n).join(' ') + '）');
+      const LIBO = LIB.filter(s => /^lib-os-/.test(s.id));
+      const PWS = [874, 900, 926];   /* 版宽 844 / 870 / 896 */
+      const ST = await EV(A.pg, ([L, pws]) => L.map(s => { const o = {};
+        pws.forEach(pw => { const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); document.body.appendChild(svg);
+          let r = null; try { r = renderOffscreen({ song: migrate(JSON.parse(JSON.stringify(s.song))), target: svg, paperW: pw, crop: true }); } finally { svg.remove(); }
+          const g = r.geo || {}, PT = 44, PB = 22, fills = [];
+          for (let pg = 0; pg < r.pages - 1; pg++) { const ys = (r.sysGeo || []).filter((_, i) => r.sysPg[i] === pg).map(x => x.y1); if (!ys.length) continue;
+            const top = pg * (g.pgH + g.gap); fills.push((Math.max(...ys) - top - PT) / (g.pgH - PT - PB)); }
+          o[pw] = { w: r.w, pages: r.pages, sys: r.systems, one: (r.sysMea || []).filter(m => m[0] === m[1]).length, fills }; });
+        return { name: s.name, o }; }), [LIBO, PWS]);
+      if (!Array.isArray(ST)) T(false, 'W2 版面统计运行失败', J(ST));
+      else {
+        const f2 = v => v.toFixed(2), mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN;
+        const E = ST.map(x => x.o[900]), allF = [].concat(...E.map(e => e.fills));
+        console.log('—— W2 曲库 10 首 · 编辑器版宽 ' + (E[0] && E[0].w) + '：总页数 ' + E.reduce((a, e) => a + e.pages, 0) + '、系统数 ' + E.reduce((a, e) => a + e.sys, 0) + '、单小节系统 ' + E.reduce((a, e) => a + e.one, 0)
+          + '、非末页排满率 ' + (allF.length ? f2(Math.min(...allF)) + '–' + f2(Math.max(...allF)) + '（均值 ' + f2(mean(allF)) + '）' : '—'));
+        ST.forEach((x, i) => { const e = E[i]; console.log('   ' + x.name.replace(/（.*/, '').padEnd(6, '　') + ' ' + e.pages + ' 页 · ' + e.sys + ' 系统（单小节 ' + e.one + '）· 非末页排满率 ' + (e.fills.length ? e.fills.map(f2).join(' ') : '—')); });
+        const flag = [];
+        console.log('—— W3 版宽 ±3% 稳定性（844 / 870 / 896，不设门；§1.1 口径：页数变化 ≤1、系统数变化 ≤10%）');
+        ST.forEach(x => { const [a, m, c] = PWS.map(pw => x.o[pw]), dp = Math.max(Math.abs(a.pages - m.pages), Math.abs(c.pages - m.pages)), ds = Math.max(Math.abs(a.sys - m.sys), Math.abs(c.sys - m.sys)) / m.sys;
+          const bad = dp > 1 || ds > 0.1; if (bad) flag.push(x.name.replace(/（.*/, ''));
+          console.log('   ' + (bad ? '✗ ' : '· ') + x.name.replace(/（.*/, '').padEnd(6, '　') + ' 页 ' + a.pages + ' / ' + m.pages + ' / ' + c.pages + ' · 系统 ' + a.sys + ' / ' + m.sys + ' / ' + c.sys + '（最大变化 页 ' + dp + '、系统 ' + Math.round(ds * 100) + '%）'); });
+        console.log('   超出口径：' + (flag.length ? flag.length + ' 首（' + flag.join('、') + '）' : '无'));
+      }
+      allErrs.push(...A.errs); await A.close();
     }
   } catch (e) { T(false, 'ZZ 运行异常', String(e && e.stack || e).slice(0, 600)); }
   T(!allErrs.length, 'ZZ 无页面错误', J(allErrs.slice(0, 5)));
