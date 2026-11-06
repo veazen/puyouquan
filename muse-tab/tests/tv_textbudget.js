@@ -21,6 +21,8 @@
    K 口径与原口径照打印。本版新增验收：
    TBA6 新建面板两屏（newpanel / newpanel-pacc）总字 ≤120 且说明字 0     TBA7 启动台总字 ≤70 且说明字 0
    TBA8 桌面 30 屏屏内同名组（新口径）＝0                                  TBA9 排版 / 输出两屏说明字 0
+   v70.1 集成：TBA8 另放行 quickmenu 屏「快速新建 ▾ 谱种项『简谱』× 悬浮条旋律用『简谱』」这一对（谱种名按方案 §8.1 / 规格 §3.1 · §9.1 必须叫「简谱」，
+   与旋律用简谱同一概念、前者在弹层里），口径在 lib/textaudit/metrics.js exemptPz；TBA8b 纯函数反例守它不外溢到别的屏 / 别的同名对
    env：MUSETAB_URL 被测页（缺省 ../index.html）· ONLY=屏id,… 只跑部分屏（TB3 / TBA2 / TBA5 等全局项只打印）· TB_PHASE=track ·
         UPDATE_REF=1 重写基线（保留已有 allow；TB_REF_COMMIT 写进 commit 字段，缺省 git HEAD）· SHOTS=目录 每屏截图 · TB_RAW=文件 存原始抽取 */
 const { chromium } = require('playwright');
@@ -145,7 +147,16 @@ const J = x => JSON.stringify(x);
     if (sx('startpad')) ACC(sx('startpad').total <= spl && sx('startpad').desc === 0, 'TBA7 启动台总字 ≤' + spl + ' 且说明字 0', sx('startpad').total + '/' + sx('startpad').desc);
     const d30 = Object.keys(S.screens).filter(id => R[id].vp[0] >= 800);
     if (d30.length) ACC(d30.every(id => sx(id).dup === 0), 'TBA8 桌面 ' + d30.length + ' 屏屏内同名组（新口径：命令面板不计、主按钮 × 模式条放行）＝0', d30.filter(id => sx(id).dup).map(id => id + ' ' + J(sx(id)._dups)).join('；') + ' ｜放行（排版，10-24 已定）：' + d30.filter(id => sx(id)._dupsExempt.length).map(id => id + ' ' + J(sx(id)._dupsExempt)).join('；')
-      + ' ｜待追认（主按钮 × 模式条其余同名）：' + (d30.filter(id => (sx(id)._dupsPending || []).length).map(id => id + ' ' + J(sx(id)._dupsPending)).join('；') || '0'));
+      + ' ｜待追认（主按钮 × 模式条其余同名）：' + (d30.filter(id => (sx(id)._dupsPending || []).length).map(id => id + ' ' + J(sx(id)._dupsPending)).join('；') || '0')
+      + ' ｜放行（v70.1 谱种名「简谱」× 旋律用简谱，只 quickmenu 这一对）：' + (d30.filter(id => (sx(id)._dupsPz || []).length).map(id => id + ' ' + J(sx(id)._dupsPz)).join('；') || '0'));
+    /* TBA8b（v70.1 集成）：上面那一对放行不外溢——纯函数构造 5 个反例都照旧计同名（不开浏览器，ONLY 时也判） */
+    { const q = { el: 'button.nf-qi[data-q=pz:jianpu]', region: 'quickmenu', label: '简谱' }, m = { el: 'button[data-fa=sbar:mel][data-v=J]', region: 'sbar', label: '简谱' };
+      const mk = (id, cl) => M.screen({ id, vp: [1440, 900], groups: [], titles: [], whys: [], iconOnly: [], clicks: cl.map((c, i) => Object.assign({ id: i, sub: [], occ: false }, c)) });
+      const cases = { 放行本身: [mk('quickmenu', [q, m]), 0], 别的屏: [mk('write-songbie', [q, m]), 1], 多一个同名: [mk('quickmenu', [q, m, { el: 'button#x', region: 'right:属性', label: '简谱' }]), 1],
+        五线谱这一对: [mk('quickmenu', [Object.assign({}, q, { el: 'button.nf-qi[data-q=pz:wuxian]', label: '五线谱' }), Object.assign({}, m, { el: 'button[data-fa=sbar:mel][data-v=S]', label: '五线谱' })]), 1],
+        换成别的悬浮条按钮: [mk('quickmenu', [q, Object.assign({}, m, { el: 'button#flw-sb-kind[data-fa=sbar:kind]' })]), 1] };
+      const bad = Object.entries(cases).filter(([, [x, n]]) => x.dup !== n).map(([k, [x, n]]) => k + ' 同名 ' + x.dup + '≠' + n);
+      T(!bad.length, 'TBA8b v70.1 放行只认 quickmenu 屏「简谱」谱种项 × 悬浮条旋律用简谱这一对（5 例：放行 0、别的屏 / 多一个同名 / 五线谱 / 别的按钮都计 1）', bad.join('；')); }
     const eo = ['engrave', 'output'].filter(sx);
     if (eo.length) ACC(eo.every(id => sx(id).desc === 0), 'TBA9 排版 / 输出说明字 0', eo.map(id => id + ' ' + sx(id).desc).join(' · '));
     if (w5.length) {

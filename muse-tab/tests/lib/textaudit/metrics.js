@@ -89,7 +89,14 @@ function screen(s) {
   const byLab = {}; cl.forEach(c => { if (c.region === 'menu:cmd') return; const n = norm(c.label); if (!n || /^\d+$/.test(n) || n.length < 2) return; (byLab[n] = byLab[n] || []).push(c); });
   const dupE = Object.entries(byLab).map(([k, v]) => [k, v, new Set(v.map(c => c.region)).size]).filter(x => x[2] >= 2);
   const exempt = v => v.length === 2 && v.some(c => /#flw-sb-go/.test(c.el)) && v.some(c => /data-fa=mode:set/.test(c.el));
-  const dups = dupE.filter(x => !exempt(x[1])).map(([k, , n]) => k + '×' + n).sort();
+  /* v70.1 P2b（集成定口径）：快速新建 ▾ 弹层的谱种项「简谱」（data-q=pz:jianpu）× 底层悬浮条旋律记谱法「简谱」（sbar:mel data-v=J）这一对放行。
+     理由：谱种名必须叫「简谱」（方案 docs/design-2026-11-taxonomy §8.1 谱种表、规格 v70.1 §3.1 名字＝PQ_KIND.PZ[].name、§9.1 谱种项写法），
+     两处指同一个概念（简谱谱种 / 旋律用简谱），且前者在弹层里、点开即遮住操作焦点，不是同一层并排两个同名按钮。
+     只认「恰好这两个元素、这个名字、quickmenu 屏」；其它屏 / 其它同名对照旧判红。放行的另记 _dupsPz（TBA8 单独打印）。 */
+  const exemptPz = (k, v) => s.id === 'quickmenu' && k === '简谱' && v.length === 2 && v.some(c => c.region === 'quickmenu' && /data-q=pz:jianpu\]/.test(c.el))
+    && v.some(c => /data-fa=sbar:mel\]\[data-v=J\]/.test(c.el));
+  const dupsPz = dupE.filter(x => exemptPz(x[0], x[1])).map(([k, , n]) => k + '×' + n).sort();
+  const dups = dupE.filter(x => !exempt(x[1]) && !exemptPz(x[0], x[1])).map(([k, , n]) => k + '×' + n).sort();
   const dupsExempt = dupE.filter(x => exempt(x[1]) && x[0] === '排版').map(([k, , n]) => k + '×' + n).sort();
   const dupsPending = dupE.filter(x => exempt(x[1]) && x[0] !== '排版').map(([k, , n]) => k + '×' + n).sort();
   const titles = s.titles || [];
@@ -103,7 +110,7 @@ function screen(s) {
     p3: p3v.length + p3t.length + p3w.length, dup: dups.length,
     focus: fg ? { total: ['label', 'phrase', 'desc', 'key'].reduce((a, k) => a + fg.filter(g => g.k === k).reduce((x, g) => x + g.n, 0), 0), desc: fg.filter(g => g.k === 'desc').reduce((a, g) => a + g.n, 0),
       items: cl.filter(c => focus.test(c.region) && c.label).length, withSub: cl.filter(c => focus.test(c.region) && c.label && c.sub && c.sub.length).length } : null,
-    _p3: { vis: p3v, title: p3t, why: p3w }, _p3syn: syn, _dups: dups, _dupsExempt: dupsExempt, _dupsPending: dupsPending,
+    _p3: { vis: p3v, title: p3t, why: p3w }, _p3syn: syn, _dups: dups, _dupsExempt: dupsExempt, _dupsPending: dupsPending, _dupsPz: dupsPz,
     _subs: cl.filter(c => c.sub && c.sub.length).map(c => c.label + '｜' + c.sub.join(' / '))
   };
 }

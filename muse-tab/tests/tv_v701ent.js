@@ -222,9 +222,10 @@ async function qmInfo(pg, real) {
       const b4 = rows.filter(r => !(r.q.nl && J(r.q.nl.keys) === J(['scene', 'stack', 'rows', 'mel', 'v', 't']) && r.q.nl.scene === sc(r.pz) && r.q.nl.stack === r.g.pk && !r.q.nl.vkeys.includes('pick')));
       T('Q2', !b4.length, 'musetab-nw-last 随之更新：键集合＝scene stack rows mel v t、scene＝默认形态用途、stack＝面板谱行（格式不变）', J(b4.map(r => ({ pz: r.pz, nl: r.q.nl }))));
       const ta = await TA.runState(b, TA.STATES.find(s => s.id === 'quickmenu'), { base: URL0 }), x = M.screen(ta);
-      T('Q2', !ta.err && x.total <= 160 && x.clickGrp <= 74 && x.hoverChars <= 373 && x.desc === 0 && x.descLines === 0 && x.btnWithSub === 0,
-        'textaudit quickmenu：总字 ' + x.total + ' ≤160、可点控件组 ' + x.clickGrp + ' ≤74、悬停字 ' + x.hoverChars + ' ≤373、说明字 ' + x.desc + '＝0、带副标题 ' + x.btnWithSub + '＝0', J({ err: ta.err }));
-      if (x.dup) NOTE('quickmenu 屏内同名组 ' + x.dup + '：' + J(x._dups) + '（谱种名「简谱」× 悬浮条旋律「简谱」；textbudget_ref quickmenu.dup＝0 → tv_textbudget TB2 / TBA8 红，交集成定口径）');
+      T('Q2', !ta.err && x.total <= 160 && x.clickGrp <= 74 && x.hoverChars <= 373 && x.desc === 0 && x.descLines === 0 && x.btnWithSub === 0 && x.dup === 0,
+        'textaudit quickmenu：总字 ' + x.total + ' ≤160、可点控件组 ' + x.clickGrp + ' ≤74、悬停字 ' + x.hoverChars + ' ≤373、说明字 ' + x.desc + '＝0、带副标题 ' + x.btnWithSub + '＝0、屏内同名 ' + x.dup + '＝0', J({ err: ta.err, dups: x._dups }));
+      /* 集成定口径（v70.1）：谱种项「简谱」× 悬浮条旋律用「简谱」这一对由 metrics exemptPz 窄放行（方案 §8.1 / 规格 §3.1 · §9.1 谱种名必须叫「简谱」），其余同名照旧计 */
+      if ((x._dupsPz || []).length) NOTE('quickmenu 放行的同名对（v70.1 集成口径）：' + J(x._dupsPz));
     };
 
     /* ===== Q3 零差异 ===== */
