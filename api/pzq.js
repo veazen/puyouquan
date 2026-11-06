@@ -62,9 +62,12 @@ const WORDS = {
   '儿歌': { style: 'erge' }, '少儿': { style: 'erge' }, '儿童歌曲': { style: 'erge' },
   '二部': { parts: 2 }, '三部': { parts: 3 }, '四部': { parts: 4 },
   '考编': { zt: 'kaobian' }, '教资': { zt: 'kaobian' }, '面试': { zt: 'kaobian' }, '艺考': { zt: 'yikao' }, '艺考视唱': { zt: 'yikao' }, '艺考视唱练耳': { zt: 'yikao' }, '师范': { zt: 'shifan' }, '幼师': { zt: 'shifan' },
-  '课堂': { zt: 'ketang' }, '音乐课': { zt: 'ketang' }
+  '课堂': { zt: 'ketang' }, '音乐课': { zt: 'ketang' },
+  /* v70.3 定位纠偏（基石方案 docs/plan-2026-11-foundation.md §2.3 D9）：条件块上的显示名也是搜索词，解析回原 zt（只增；「伴奏专题」带 jx：不吃「＋儿歌 → 师范」那条改写） */
+  '伴奏专题': { zt: 'kaobian', jx: 1 }, '视唱专题': { zt: 'yikao' }, '儿歌专题': { zt: 'shifan' }, '对照专题': { zt: 'ketang' }
 };
-const ZT_NAME = { kaobian: '考编即兴伴奏', yikao: '艺考视唱练耳', shifan: '师范儿歌弹唱', ketang: '课堂对照谱' };
+/* 专题显示名（v70.3 D9：key 不变；与编辑器 CC_ZT_NAME、官网 site/index.html ZT_NAME 同文） */
+const ZT_NAME = { kaobian: '伴奏专题', yikao: '视唱专题', shifan: '儿歌专题', ketang: '对照专题' };
 /* 旧谱库按钮 id 别名（§七「旧参数别名」：?cat= 参数、接口参数与老客户端）→ 新筛选 */
 const CAT_ALIAS = {
   guitar: { pz: 'jita', sub: 'tanchang' }, uku: { pz: 'uku' }, solo: { sub: 'zhitan' }, pianoacc: { pz: 'gangqin', sub: 'banzou' }, piano: { pz: 'gangqin', sub: 'duzou' },
@@ -119,7 +122,7 @@ function label(k, v) {
     case 'pz': return '谱种：' + (KIND.PZ.find(p => p.id === v) || {}).name;
     case 'sub': return v.indexOf('.') > 0 ? KIND.pzName(v) : ((KIND.PZ.find(p => p.subs.some(x => x.id === v)) || { subs: [] }).subs.find(x => x.id === v) || {}).name;
     case 'inst': return '乐器：' + (KIND.INST[v] || v);
-    case 'zt': return '专题：' + ZT_NAME[v];
+    case 'zt': return ZT_NAME[v];   /* v70.3 D9：显示名本身带「专题」，不再加「专题：」前缀 */
     case 'acc': return '带伴奏';
     case 'hacc': return v === 'no' ? '无伴奏' : '带伴奏';
     case 'style': return '风格：儿歌';

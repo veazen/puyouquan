@@ -440,8 +440,10 @@ nchk 相关推荐不被非同歌手的最新谱挤掉 'bulk00240xx' "$REL"
 # v62.9 A4 合规：考编包停售改预约（D-01）、举报、管理员核查
 chk 考编包不再接新单 '筹备中' "$(J2 -X POST http://127.0.0.1:3199/api/pay/create -d '{"kind":"pack_kaobian"}')"
 chk 预约须登录 '请先登录' "$(curl -s -X POST -H 'Content-Type: application/json' http://127.0.0.1:3199/api/reserve -d '{"kind":"pack_kaobian"}')"
-chk 预约登记 '"reserved":true' "$(J2 -X POST http://127.0.0.1:3199/api/reserve -d '{"kind":"pack_kaobian"}')"
-chk 预约幂等 '"reserved":true' "$(J2 -X POST http://127.0.0.1:3199/api/reserve -d '{"kind":"pack_kaobian"}')"
+# v70.3 有意迁移（基石方案 §6.1-2「考编内容包撤卡、不再接新预约；已有预约记录保留」）：新预约被拒；库里已有的预约（v70.2 及以前登记的，这里直接写库模拟）照旧回 reserved、照常计数
+chk 考编包不再接新预约 '该内容已停止预约' "$(J2 -X POST http://127.0.0.1:3199/api/reserve -d '{"kind":"pack_kaobian"}')"
+node -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1]);d.prepare('INSERT OR IGNORE INTO reservations(user_id,kind,created_at) VALUES(?,?,?)').run(process.argv[2],'pack_kaobian',Math.floor(Date.now()/1000))" "$DIR/t.db" "$UID2"
+chk 已有预约照旧 '"reserved":true' "$(J2 -X POST http://127.0.0.1:3199/api/reserve -d '{"kind":"pack_kaobian"}')"
 chk 我的预约 '"kind":"pack_kaobian"' "$(J2 http://127.0.0.1:3199/api/me/reserves)"
 chk 非预约品类被拒 '不支持预约' "$(J2 -X POST http://127.0.0.1:3199/api/reserve -d '{"kind":"vip"}')"
 chk 匿名可举报 '"reported":true' "$(curl -s -X POST -H 'Content-Type: application/json' http://127.0.0.1:3199/api/report -d '{"score_id":"bulk00001xx","reason":"copyright","note":"<b>未授权</b>"}')"

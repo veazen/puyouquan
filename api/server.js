@@ -369,6 +369,9 @@ function pubRelatedCached(id, singer) {
 /* v62.9 A4 ⑧：默认昵称不再用手机号后四位（公开署名会泄露号码片段），改随机 4 位字母数字 */
 function randNick() { return '谱友' + crypto.randomBytes(3).toString('hex').slice(0, 4).toUpperCase(); }
 const RESERVE_KINDS = new Set(['pack_kaobian']);
+/* v70.3（基石方案 docs/plan-2026-11-foundation.md §6.1-2，负责人 2026-11-06「按建议推进」）：考编内容包撤下展示卡、不再接新预约。
+   已有预约记录原样保留（再点一次照旧回 reserved，admin.js reserves 照常计数）；pack_kaobian 权益与后台命令不动 */
+const RESERVE_CLOSED = new Set(['pack_kaobian']);
 const REPORT_REASONS = new Set(['copyright', 'wrong', 'spam', 'illegal', 'other']);
 const MINI_TICKET_TTL = 30;   // v62.6 A1c 120→30s：票据只用于「换到即进 web-view」这一跳，窗口越短越难被截获重放
 /* v62.6 A1c 占位号合并确认票：手机号登录时发现微信身份挂在一个**有数据**的占位号上，不静默合并（v60.5 原则），
@@ -1252,6 +1255,10 @@ const routes = [
   ['POST', /^\/api\/reserve$/, true, (m, b, u) => {
     const kind = String(b.kind || '');
     if (!RESERVE_KINDS.has(kind)) throw new ApiError(400, '该内容不支持预约');
+    if (RESERVE_CLOSED.has(kind)) {
+      if (q.reserveMine.all(u.id).some(r => r.kind === kind)) return { reserved: true, kind };
+      throw new ApiError(400, '该内容已停止预约');
+    }
     q.reserveAdd.run(u.id, kind, now());
     return { reserved: true, kind };
   }],
