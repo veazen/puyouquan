@@ -278,8 +278,9 @@ const WORDS = (w, st) => DT(`<words${st ? ' font-style="italic"' : ''}>${w}</wor
       /* v70.3 有意迁移（基石方案 §3.1 B1 / B2）：backup / forward 本身不再计入「其他记号」（时间游标已处理，只计 forward 留下的空拍）——阿特拉斯此前的 2
          是 m51「backup→方向→forward」给方向记号定位的一对，什么也没丢；改为按名点出真丢的：阿特拉斯双音震音 51 对（B2，v70.4 前计「震音」）、
          城市 m35 / m38 跟在 f / pp 后面的 dim. 延续虚线 2 条（文字转标注、虚线丢，B1 台账 dashes） */
-      T(r4.other === 51 && J(r4.otherBy) === J({ '震音': 51 }) && r4b.other === 2 && J(r4b.otherBy) === J({ dashes: 2 }),
-        'X4 拆谱表时保留的 backup / forward 不计入跳过；只按名点出真丢的（阿特拉斯 震音 51 · 城市 延续虚线 2）', J([r4, r4b]));
+      /* v70.4 有意迁移（§3.2 A）：双音震音收进 col.trem2，阿特拉斯不再有跳过（other 0）；城市照旧 */
+      T(r4.other === 0 && J(r4.otherBy) === J({}) && r4b.other === 2 && J(r4b.otherBy) === J({ dashes: 2 }),
+        'X4 拆谱表时保留的 backup / forward 不计入跳过；只按名点出真丢的（阿特拉斯 0——双音震音 v70.4 收进 trem2 · 城市 延续虚线 2）', J([r4, r4b]));
     }
 
     /* ================= M 钢琴音色 ================= */
