@@ -15,7 +15,7 @@
 - 每首必须过 `deploy/build-library.js` 的质量门，否则整个构建失败、不写文件：
   1. 音高：源文件与「导入 → 再导出」逐小节比音高多重集（不含倚音），一个小节都不能差
   2. 时值：`beatErrors()` 为 0（弱起 / 不完整小节由导入标记 `pickup` / `measures[].irr` 豁免）
-  3. 不丢：`skip.parts / voices / notes` 都为 0。v70.3 起扩口径（基石方案 `docs/plan-2026-11-foundation.md` §3.1 B4）：`skip.parts / voices / notes / lyrics / slurs` 与 `skip.other` 按名（`skip.otherBy`，导入台账 `MXL_LED`）逐项与条目的 `skipAllow` 相等——没写的全 0；写了的要有 `why` 与 `signed`（by / date）逐曲签字。计数多了或少了都不过门：导入器改进后白名单跟着改、重新签（双音震音的白名单 v70.4 撤）
+  3. 不丢：`skip.parts / voices / notes` 都为 0。v70.3 起扩口径（基石方案 `docs/plan-2026-11-foundation.md` §3.1 B4）：`skip.parts / voices / notes / lyrics / slurs` 与 `skip.other` 按名（`skip.otherBy`，导入台账 `MXL_LED`）逐项与条目的 `skipAllow` 相等——没写的全 0；写了的要有 `why` 与 `signed`（by / date）逐曲签字。计数多了或少了都不过门：导入器改进后白名单跟着改、重新签（双音震音的白名单 v70.4 已撤：导入收进 `col.trem2`，阿特拉斯不再需要白名单；其余 7 首的条目由验收（v70.3）补签，why 里写了目标版本）
 - 现阶段导入器只保留每谱表第一声部（同谱表双声部是下一版），所以**有同谱表第二声部的曲目暂不收**。
 
 ## 目录

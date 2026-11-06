@@ -35,7 +35,8 @@ const refUrl = () => {
 /* v70.0 集成迁移：种子多了 C 组示例（两只老虎（儿歌弹唱）kids、视唱谱例 C / G / F sight），带 v70.0 新字段 intent——导出 MusicXML 有意多写 pyq-intent（规格 docs/spec-2026-11-v700.md §3.6，
    有 intent 时另写 pyq-instkey），不是老谱；对拍前与 v69.8 新字段一并去掉＝还原成「老谱」 */
 const STRIP698 = s0 => { const s = JSON.parse(JSON.stringify(s0)); ['voxClefOct', 'voxTransp', 'rowNames', 'voxShort', 'intent'].forEach(k => delete s[k]);
-  (s.measures || []).forEach(m => { delete m.tempos; [m.voxes, m.tabs].forEach(R => (R || []).forEach(cs => (cs || []).forEach(c => { if (!c) return; delete c.syl; delete c.tieSlur;
+  /* v70.4 有意迁移：曲库重建后阿特拉斯 / 侏儒带双音震音 col.trem2——同样当新字段去掉（去掉后＝v70.3 的 2:1 连音谱） */
+  (s.measures || []).forEach(m => { delete m.tempos; [m.voxes, m.tabs].forEach(R => (R || []).forEach(cs => (cs || []).forEach(c => { if (!c) return; delete c.syl; delete c.tieSlur; delete c.trem2;
     ['grace', 'graceA'].forEach(k => { if (c[k] && typeof c[k] === 'object') delete c[k].slash; }); }))); });
   return s; };
 
