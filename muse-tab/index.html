@@ -47969,9 +47969,17 @@ const CC_STAFF_TYPE={instr:1, piano:1, pianoacc:1, solo:1};   // 纯五线谱家
 /* v70.0 验收⑦：新外壳谱友圈卡片（nx）——小调谱（接口 mode / 本地 data.mode＝'minor'，按关系大调记谱）五线谱家族写关系小调「a 小调」（此前《致爱丽丝》写成「C 调」）；
    简谱家族照写「1=C」（简谱惯例）；旧外壳卡片不动。与官网 pyq.js MINOR_OF 同一张表 */
 const CC_MINOR={C:'a', G:'e', D:'b', A:'♯f', E:'♯c', B:'♯g', 'F#':'♯d', 'C#':'♯a', F:'d', Bb:'g', Eb:'c', Ab:'f', Db:'♭b', Gb:'♭e', Cb:'♭a'};
+/* v70.1（v70.0 复验遗留 P3，规格 docs/spec-2026-11-v701.md §11.1）：六线谱 / 四线谱（谱种 jita / uku）的调按指法写「C调指法 · 夹2」——与官网 site/pyq.js fkeyText 逐字同口径；
+   卡片的 pz / fx / capo 由 ccPzOf / ccNxCard 带上（不用改数据）。只新外壳谱友圈（ccMetaBits 的 nx）用 */
+function ccFkeyText(pb){
+  const fx=pb && pb.fx;
+  return (fx && fx.fkey && (pb.pz==='jita'||pb.pz==='uku'))? fx.fkey+'调指法'+((+pb.capo||0)>0? ' · 夹'+(+pb.capo) : '') : '';
+}
 function ccMetaBits(pb, nx){
   const b=[], k=String(pb.key||'').slice(0,6), mi=nx && (pb.mode || (pb.data && pb.data.mode))==='minor' && CC_MINOR[k];
-  if(k) b.push(CC_STAFF_TYPE[pb.type]? (mi? CC_MINOR[k]+' 小调' : k+' 调') : '1='+k);
+  const fk=nx? ccFkeyText(pb) : '';   /* 有指法调就不再写调名（同官网 metaBits：if(fk) … else if(k) …）；nx 假（旧外壳 / ?next=0）一字不动 */
+  if(fk) b.push(fk);
+  else if(k) b.push(CC_STAFF_TYPE[pb.type]? (mi? CC_MINOR[k]+' 小调' : k+' 调') : '1='+k);
   if(pb.beats>0 && pb.unit>0) b.push(pb.beats+'/'+pb.unit);
   if(pb.tempo>0) b.push('♩='+pb.tempo);
   if(pb.measures>0) b.push(pb.measures+' 小节');
