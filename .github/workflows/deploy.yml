@@ -49,6 +49,18 @@ jobs:
           sudo apt-get update && sudo apt-get install -y libxml2-utils   # tv_mxl 用 xmllint 校验导出的 MusicXML
           npm install --no-audit --no-fund
           npx playwright install --with-deps chromium
+      # v70.4 E：独立读取器门禁 tv_extread 用 music21 读导出的 MusicXML（逐小节核时值＝拍号 / 声部数 / 音数）。runner 的系统 python 受 PEP 668 限制不能直接 pip 装，
+      # 用 setup-python 装一份独立的 3.12；music21 钉 10.5.2（本机跑通的版本）。这两步 continue-on-error：装不上时其余套件照跑、照出完整报告；
+      # 但浏览器回归那一步设了 EXTREAD_REQUIRE=1——tv_extread 找不到 music21 就记红（X0），run_all 退出非 0，test 失败、deploy 不跑，不会静默跳过
+      - uses: actions/setup-python@v5
+        continue-on-error: true
+        with:
+          python-version: '3.12'
+      - name: 安装独立读取器 music21（tv_extread）
+        continue-on-error: true
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-input music21==10.5.2
+          python3 -c "import music21; print('music21', music21.__version__)"
       # v67.9：tv_shellflow 的 S0 要 git show 默认外壳基线提交来对拍「不带开关零差异」；checkout 默认浅克隆（fetch-depth 1）没有历史，
       # 按 shellflow_ref.json 的完整 SHA 只补取这一个提交（拿不到时 S0 在 CI 判红，不再静默跳过）
       - name: 取对拍基线（tv_shellflow S0 · tv_pgbrk Z / K · tv_parts PAZ · tv_next N0 · tv_preview PV12 · tv_smart SM9 · tv_inplace Z · tv_v698* Z · tv_v697col B4）
@@ -81,6 +93,8 @@ jobs:
           git cat-file -e "$REF7^{commit}"
       - name: 浏览器回归套件（run_all.js 关键集）
         working-directory: muse-tab/tests
+        env:
+          EXTREAD_REQUIRE: '1'   # v70.4：CI 上 tv_extread 必须真读（缺 music21 判红，不跳过）
         run: |
           export CHROMIUM_PATH="$(node -e "console.log(require('playwright').chromium.executablePath())")"
           # v69.1：两个套件同时跑（计时套件仍单独跑，见 run_all.js SOLO），全量约 90 → 55–65 分钟，省 Actions 额度

@@ -175,11 +175,17 @@ const CORE = [
      互通组 tv_mxlsrc——MusicXML 导入台账：曲库 10 份 ＋ fixture ＋ 6 个探针按元素与取值域逐类「保留 / 重算 / 进报告」，静默丢 0、多报 0；震音 188 / 51 对点名；
        倚音第 4 个起 / 六线谱第二声部 / 房子编号 / 琶音探针；质量门 ③ 反例；C1 插入平移跨列引用、C2 null 小节导出（修前 3b9dd7c 红 S1–S4 / C1 / C2）；单跑约 9 秒 */
   'tv_v703fix', 'tv_mxlsrc',
+  /* v70.4 双音震音 ＋ 批量改时值 ＋ 倚音加线 ＋ song.src（方案 docs/plan-2026-11-foundation.md §3.2）：刻版组 A / C / F 的断言加在已在 CORE 的 tv_trem / tv_grace / tv_v697col 里；
+     互通与编辑组 tv_v704io——B 选区批量改时值保住小节总时值（改短补休止 / 改长吸收空白列 / 一步撤销 / 自由编辑不补）· D song.src 导入写入与 pyq-src 往返 · K 导入报告显示名 ·
+       F 六线谱 forward 空拍补休止（34 项，修前 16de944 红 28 项）；单跑约 25 秒
+     互通组 tv_extread——独立读取器门禁：music21 读导出的 MusicXML，逐谱表逐小节核时值＝拍号 / 声部数 / 音数（预设 16 ＋ 曲库种子 29 ＋ 两首震音曲现导入再导出）＋ XN 反例自检；
+       依赖 python3 ＋ music21（CI 在 deploy.yml 里 pip 装、设 EXTREAD_REQUIRE=1：装不上就判红，不静默跳过；本机没有 music21 时跳过并退出 0）；单跑约 60–90 秒 */
+  'tv_v704io', 'tv_extread',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）
    本机 4 核单跑 389–428 秒、CI 约 224 秒（a8c2089 实测 CI/本机 ≈ 0.58）——本机跑全量 run_all 时 300 秒必超时误红；给 600 秒，其余照旧 300 秒 */
-const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000, tv_perf2: 900000, tv_pgbrk: 600000, tv_pgbrk_ui: 450000, tv_parts: 600000, tv_parts_ui: 450000, tv_textbudget: 600000, tv_v688: 300000, tv_smart: 600000, tv_inplace: 600000, tv_v698play: 600000, tv_v700new: 300000, tv_v701new: 600000, tv_v701ent: 450000 };   /* v68.6 tv_parts 本机单跑约 175 秒（PAZ：两套外壳 × 28 份谱 × 基线 / 被测两页 ＋ 手机；收尾加 PA4f 模糊测试与 PA13 两套外壳），留余量；tv_parts_ui 单跑约 80 秒（两页并行） */   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */   /* v70.1：tv_v701new 单跑约 148 秒、负载高时测到 477 秒（超原 450 秒）→ 600 秒；tv_v701ent 两段（新形态 ＋ 回滚副本）→ 450 秒 */
+const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000, tv_perf2: 900000, tv_pgbrk: 600000, tv_pgbrk_ui: 450000, tv_parts: 600000, tv_parts_ui: 450000, tv_textbudget: 600000, tv_v688: 300000, tv_smart: 600000, tv_inplace: 600000, tv_v698play: 600000, tv_v700new: 300000, tv_v701new: 600000, tv_v701ent: 450000, tv_extread: 450000 };   /* v68.6 tv_parts 本机单跑约 175 秒（PAZ：两套外壳 × 28 份谱 × 基线 / 被测两页 ＋ 手机；收尾加 PA4f 模糊测试与 PA13 两套外壳），留余量；tv_parts_ui 单跑约 80 秒（两页并行） */   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */   /* v70.1：tv_v701new 单跑约 148 秒、负载高时测到 477 秒（超原 450 秒）→ 600 秒；tv_v701ent 两段（新形态 ＋ 回滚副本）→ 450 秒 */   /* v70.4：tv_extread 单跑 60–90 秒、以 music21 解析（CPU）为主，并行负载高时会翻几倍 → 450 秒 */
 /* v68.4：tv_perf2 本机单跑 512 秒（含 P6 计时段；PERF=0 时 391 秒）——收尾 PERF-5 拆成三段（见 CORE），每段 900 秒上限（本机前两段合计 601 秒、单段不超过约 6 分钟，留 2.5 倍以上；只防挂死） */
 
 /* v69.1 并行（负责人 2026-10-24：Actions 额度用完，压缩 CI 时长）：
