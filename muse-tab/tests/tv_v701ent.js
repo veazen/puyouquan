@@ -87,10 +87,16 @@ function INIT() {
   window.__eq = (o) => { let st; if (o.link) { const L = NWP.linkParse('?' + o.link); st = NWP.fresh({ clean: true, scene: L.scene, link: L }); } else st = NWP.fresh({ clean: true, scene: o.scene });
     const d0 = docs.length; realCreate(NWP.planOf(st), '', null); return Object.assign(__info(), { d: docs.length - d0 }); };
 }
+/* CI 字体模拟（同 tv_v701new FONT_INIT）：界面字体换 DejaVu Sans（中文落到系统 CJK 字体） */
+function FONT_INIT() {
+  const add = () => { const st = document.createElement('style'); st.id = 'v701-font'; st.textContent = ':root{--font-ui:"DejaVu Sans",sans-serif !important}'; (document.head || document.documentElement).appendChild(st); };
+  if (document.documentElement) add(); else document.addEventListener('DOMContentLoaded', add);
+}
 async function open(b, url, o) {
   o = o || {};
   const ctx = await b.newContext({ viewport: { width: o.w || 1440, height: o.h || 900 }, deviceScaleFactor: 1 });
   await ctx.addInitScript(INIT);
+  if (o.font) await ctx.addInitScript(FONT_INIT);
   const pg = await ctx.newPage(); pg.setDefaultTimeout(6000);
   pg.on('pageerror', e => pageErrs.push((o.tag || '') + ' ' + e.message));
   await pg.goto(url); await W(o.wait || 1500);
@@ -226,6 +232,31 @@ async function qmInfo(pg, real) {
         'textaudit quickmenu：总字 ' + x.total + ' ≤160、可点控件组 ' + x.clickGrp + ' ≤74、悬停字 ' + x.hoverChars + ' ≤373、说明字 ' + x.desc + '＝0、带副标题 ' + x.btnWithSub + '＝0、屏内同名 ' + x.dup + '＝0', J({ err: ta.err, dups: x._dups }));
       /* 集成定口径（v70.1）：谱种项「简谱」× 悬浮条旋律用「简谱」这一对由 metrics exemptPz 窄放行（方案 §8.1 / 规格 §3.1 · §9.1 谱种名必须叫「简谱」），其余同名照旧计 */
       if ((x._dupsPz || []).length) NOTE('quickmenu 放行的同名对（v70.1 集成口径）：' + J(x._dupsPz));
+      /* v70.1 验收修②：小屏几何——真实路径（文件 ▾ → 行尾 ▾）打开新形态菜单（两组 13 项），1366×657 / 1280×650 / 1024×700 / 1100×700 × 默认字体 / DejaVu Sans：
+         菜单不出滚动条；末项「新建面板…」整块在菜单与视口内且中心命中自身；每个 menuitem 高 ≥44（不小于 v70.0）、整块在菜单内、名字不截断。修前红：菜单 660px 高，四个视口都要滚、末项被裁 */
+      const QVP = [[1366, 657], [1280, 650], [1024, 700], [1100, 700]], gq = [], gn = [];
+      await Promise.all([false, true].flatMap(font => QVP.map(async ([w, h]) => {
+        const o = await open(b, URL0, { tag: 'Q2g', w, h, font });
+        await o.pg.evaluate(() => { try { localStorage.removeItem('musetab-nw-last'); } catch (_) {} });
+        await o.pg.click('#flw-file'); await o.pg.waitForSelector('#popmenu [data-fa="r1:newdd"]', { state: 'visible' }); await o.pg.click('#popmenu [data-fa="r1:newdd"]');
+        await o.pg.waitForSelector('#nf-qm', { state: 'visible' }); await W(150);
+        const r = await o.pg.evaluate(() => {
+          const m = document.getElementById('nf-qm'), mr = m.getBoundingClientRect(), it = [...m.querySelectorAll('[role=menuitem]')], L = it[it.length - 1], lr = L.getBoundingClientRect();
+          const c = document.elementFromPoint(lr.left + lr.width / 2, lr.top + lr.height / 2), bad = [];
+          it.forEach(e => { const x = e.getBoundingClientRect(), bb = e.querySelector('b');
+            if (x.height < 44) bad.push(e.dataset.q + ' 高 ' + x.height);
+            if (x.left < mr.left - 0.5 || x.right > mr.right + 0.5) bad.push(e.dataset.q + ' 横向出菜单');
+            if (bb && bb.scrollWidth > bb.clientWidth + 1) bad.push(e.dataset.q + ' 截断'); });
+          return { h: Math.round(mr.height), sh: m.scrollHeight, ch: m.clientHeight, scroll: m.scrollHeight > m.clientHeight + 1, lq: L.dataset.q, lt: Math.round(lr.top), lb: Math.round(lr.bottom), mt: Math.round(mr.top), mb: Math.round(mr.bottom), vh: innerHeight,
+            full: lr.top >= mr.top - 0.5 && lr.bottom <= mr.bottom + 0.5 && lr.bottom <= innerHeight + 0.5, hit: !!c && (c === L || L.contains(c)), bad };
+        });
+        const tag = w + '×' + h + (font ? ' DejaVu' : '');
+        gn.push(tag + ' ' + r.mt + '–' + r.mb + '（' + r.sh + '/' + r.ch + '）');
+        if (r.scroll || r.lq !== 'panel' || !r.full || !r.hit || r.bad.length) gq.push(tag + ' ' + J({ scroll: r.scroll, sh: r.sh, ch: r.ch, last: r.lq, lt: r.lt, lb: r.lb, mb: r.mb, vh: r.vh, full: r.full, hit: r.hit, bad: r.bad.slice(0, 4) }));
+        await o.ctx.close();
+      })));
+      T('Q2', !gq.length, '小屏几何（真实路径 文件 ▾ → ▾；1366×657 / 1280×650 / 1024×700 / 1100×700 × 默认字体 / DejaVu Sans）：菜单不出滚动条、末项「新建面板…」整块可见且命中、每项高 ≥44 不截断', gq.join(' | '));
+      NOTE('快速新建 ▾ 小屏：' + gn.join('，'));
     };
 
     /* ===== Q3 零差异 ===== */
