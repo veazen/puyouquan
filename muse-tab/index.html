@@ -1611,6 +1611,8 @@ i.nf-dot.s-user,i.nf-dot.s-link{background:var(--accent)}i.nf-dot.s-scene{border
 .nf-qi>span{display:flex;flex-direction:column;min-width:0}.nf-qi .nf-tag{margin-left:auto}
 .nf-qm .nf-qlast{background:var(--accent-soft)}.nf-qlast .pqi,.nf-qlast b{color:var(--accent-ink)}
 .nf-qsep{height:1px;background:var(--border);margin:5px 6px}
+/* v70.1 P2b 快速新建 ▾ 组名「常用 / 谱种」（新形态；同 .nf-gl 视觉，不可点） */
+.nf-qm .nf-qh{font-size:12px;font-weight:600;color:var(--muted);padding:7px 10px 2px;letter-spacing:.04em;cursor:default;user-select:none}
 #b-new{display:inline-flex;align-items:center;gap:5px}
 #b-new>span{display:inline-flex}
 #b-newdd{padding-left:5px;padding-right:5px;display:inline-flex;align-items:center;justify-content:center;min-width:32px}
@@ -30171,7 +30173,8 @@ FLOW.r1 = (function(){
     const kn = (song && !sp)? kindOf(song) : '';
     return '<div class="flw-msplit" role="none">'
         +F.mi({a:'r1:new', ic:'act-new', label:'新建…', key:'Alt+N', nw:1})
-        +'<button type="button" class="flw-mi flw-msub" role="menuitem" data-fa="r1:newdd" aria-label="快速新建：按上次 / 按用途一点直接建" title="快速新建（Alt+Shift+N 按上次）">'+F.ic('act-chevron', 14)+'</button></div>'
+        /* v70.1 P2b（规格 §9.1）：新形态读屏名随快速新建的两组改口；title 不变；?next=0 / 回滚（NW_P2B＝0）原文 */
+        +'<button type="button" class="flw-mi flw-msub" role="menuitem" data-fa="r1:newdd" aria-label="'+((F.nxOn() && typeof NWP!=='undefined' && NWP.P2B)? '快速新建：按上次 / 常用 / 谱种' : '快速新建：按上次 / 按用途一点直接建')+'" title="快速新建（Alt+Shift+N 按上次）">'+F.ic('act-chevron', 14)+'</button></div>'
       +F.mi({a:'r1:import', ic:'act-import', label:'从已有音乐…', fmt:'XML GP MID', nw:1})
       +F.mi({old:'b-open', ic:'act-open', label:'打开文件…', key:'Ctrl+O'})   /* v68.3 D2 */
       +F.hr()
@@ -41617,9 +41620,16 @@ var NWP = (function(){
     const fm=a=>'<span class="nf-qfm" aria-hidden="true">'+a.map(x=>'<span class="flw-mfmt">'+x+'</span>').join('')+'</span>';
     /* v69.1 C（方案 ⑥）：新形态首项图标＝上次用途的谱类图标（读不到＝吉他弹唱），谱名只进读屏名；撤「从已有音乐…」（家＝文件 ▾ 同名项 + 启动台「导入」，P4）。?next=0 照旧 */
     const nx=(()=>{ try{ return FLOW.nxOn(); }catch(_){ return false; } })(), lsc=(last && SC[ls.scene])? ls.scene : 'gtr';
+    /* v70.1 P2b（规格 §9.1）：新形态与新建面板第一步同构——两组标题「常用 / 谱种」（.nf-qh 只是组名：非 menuitem、不可点，qmKey 的 ↑↓ 自然跳过）；
+       常用 4 项写法同 sc()；谱种 7 项（PQ_KIND.PZ 顺序）一点建该谱种默认形态（quickCreate('pz:<id>')），读屏名「谱种 · 默认形态」，≤6 字、无副标题、无 title。
+       NW_P2B＝0 / ?next=0：下面原 9 用途一字不动 */
+    const p2=nx && NW_P2B===1;
+    const grp=(k, t, h)=>'<div role="group" aria-labelledby="nf-qh-'+k+'"><div class="nf-qh" id="nf-qh-'+k+'" role="presentation">'+t+'</div>'+h+'</div>';
+    const pz=p=>'<button type="button" role="menuitem" class="nf-qi" data-q="pz:'+p.id+'" aria-label="'+esc2(p.name+' · '+PZ_FORM[PZ_DEF[p.id]].n)+'">'+ic(PZ_IC[p.id],20)+'<b>'+p.name+'</b></button>';
     return '<button type="button" role="menuitem" class="nf-qi nf-qlast" data-q="last" aria-label="'+esc2((last? '按上次：'+SC[ls.scene].n : '按默认：吉他弹唱')+'，'+val)+'">'+ic(nx? SC[lsc].ic : 'tpl-last',20)
         +'<span class="nf-qt"><b>'+(last? '按上次' : '按默认')+'</b>'+(nx? '' : '<span class="nf-qk">'+(last? SC[ls.scene].n : '吉他弹唱')+'</span>')+'<small class="nf-qv">'+vp.map(x=>'<span>'+esc2(x)+'</span>').join(' ')+'</small></span><kbd>Alt+Shift+N</kbd></button>'
-      +'<div class="nf-qsep" role="separator"></div>'+['gtr','pacc','kids','vocal','teach','sight','solo','inst','chord'].map(sc).join('')
+      +'<div class="nf-qsep" role="separator"></div>'+(p2? grp('cy', '常用', ['pacc','kids','sight','teach'].map(sc).join('')) + grp('pz', '谱种', PQ_KIND.PZ.filter(p=>own(PZ_DEF, p.id)).map(pz).join(''))
+        : ['gtr','pacc','kids','vocal','teach','sight','solo','inst','chord'].map(sc).join(''))
       +'<div class="nf-qsep" role="separator"></div>'
       +(nx? '' : '<button type="button" role="menuitem" class="nf-qi" data-q="import" aria-label="从已有音乐…（MusicXML、Guitar Pro、MIDI）">'+ic('act-import',20)+'<b>从已有音乐…</b>'+fm(['XML', 'GP', 'MID'])+'</button>')
       +'<button type="button" role="menuitem" class="nf-qi" data-q="panel">'+ic('act-new',20)+'<b>新建面板…</b><kbd>Alt+N</kbd></button>';
@@ -41642,10 +41652,13 @@ var NWP = (function(){
     qm.querySelectorAll('[role=menuitem]').forEach((x,k)=>x.tabIndex = k? -1 : 0);
     const f=qm.querySelector('[role=menuitem]'); if(f) f.focus({preventScroll:true});
   }
-  /* 'last'＝按上次（读不到回默认吉他弹唱）；用途 id＝该用途默认值（不带上次的参数） */
+  /* 'last'＝按上次（读不到回默认吉他弹唱）；用途 id＝该用途默认值（不带上次的参数）；
+     v70.1 P2b 'pz:<谱种>'＝该谱种默认形态（PZ_DEF，同面板「点谱种 → 创建」；不认识的谱种＝开面板兜底）。埋点 via='menu'、from＝用途（格式不变） */
   function quickCreate(id){
     if(isMobileNew()){ showNewWizard(); return; }
-    const s2 = id==='last'? fresh({}) : fresh({scene:id, clean:true});
+    const pzk = String(id).slice(0,3)==='pz:'? String(id).slice(3) : null;
+    if(pzk!=null && !own(PZ_DEF, pzk)){ showNewWizard(); return; }
+    const s2 = id==='last'? fresh({}) : pzk!=null? fresh({clean:true, form:PZ_DEF[pzk]}) : fresh({scene:id, clean:true});
     const P=planOf(s2);
     if(!own(NWB.STACKS, P.stack)){ showNewWizard(); return; }
     const ev={via:id==='last'? 'last' : 'menu', from:P.scene, first:!lastLoad()};   /* v67.6 create_stack：▾ 里点用途＝menu；按上次（▾ / Alt+Shift+N / 启动台）＝last */
