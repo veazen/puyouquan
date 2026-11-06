@@ -46,7 +46,10 @@ const F0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../in
    flow 没有谱型条：v68.3 起它的内容（谱类 ▾ · 记谱法 · 起步或常用工具）在谱面上方的悬浮条 #flw-sbar（FLOW.sbar；音轨区谱类芯片 #flw-kchip 照留，同一张换谱类菜单），
    专门的套件是 tv_sbar（SB1–SB21）；tv_trktree T24 / T25、tv_modes M20 另有覆盖。
    L1 / L2 / L3 的「落地即有」在本套件末尾的 flow 段 L1f / L2f / L3f 原地改读悬浮条（谱名 / 图标 / 记谱法 / 起步步骤 / 主按钮动作与经典同口径；
-   起步到最后一步时悬浮条换成常用工具、最后一步的主按钮成为强调的工具） */
+   起步到最后一步时悬浮条换成常用工具、最后一步的主按钮成为强调的工具）
+   v70.1 迁移（规格 docs/spec-2026-11-v701.md §15.2）：新外壳新形态第一步按谱种，「吉他弹唱」卡不在了——L3f 改 nfpick.nfPick(fp, 'gtr')
+   （卡可见点卡；否则「吉他谱」行 → 「弹唱」形态，各自先断言可见，点不到抛错进 L3f 执行异常），⋯「从哪写起」照旧在弹层；旧外壳段 :159 / :546 / :667 不动 */
+const NFP = require('./lib/nfpick');
 const F = F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic';
 const FF = F0;
 
@@ -1028,7 +1031,7 @@ const HELP = `(()=>{
     try {
       await FE(() => { try { closeModal(); } catch (_) {} try { localStorage.removeItem('musetab-nw-last'); } catch (_) {} });
       await FC2('#dt-add'); await fp.waitForTimeout(250);
-      await FC2('[data-scene="gtr"]'); await fp.waitForTimeout(120);
+      await NFP.nfPick(fp, 'gtr'); await fp.waitForTimeout(120);
       /* v69.1 C 迁移：新形态「从哪写起」在 ⋯ 弹层（先开 ⋯） */
       if (await FE(() => !!document.querySelector('.nf-modal.nf-nx #nf-more'))) { await FC2('#nf-more'); await fp.waitForTimeout(120); }
       await FC2('[data-act="var"][data-k="pen"][data-v="J"]'); await fp.waitForTimeout(120);
