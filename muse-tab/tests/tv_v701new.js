@@ -280,20 +280,20 @@ const VK = ['instKey', 'inst', 'acc', 'tacc', 'ftype', 'pen', 'parts', 'clef', '
     /* ===== F3 验收③ 零差异与回滚 ===== */
     if (want('F3') && FX.nx) await guard('F3', async () => {
       const cmp = (a, z) => Object.keys(z || {}).filter(k => (a || {})[k] !== z[k]);
-      const RB = NFP.rollbackUrl(URL0);
+      let RB = null, rbErr = ''; try { RB = NFP.rollbackUrl(URL0); } catch (e) { rbErr = e.message; }   /* 被测页没有开关（如指向基线副本）：回滚段判红，零差异段照跑 */
       /* 五份快照互不相干：并行跑（结果按原顺序出） */
       const [n0, cl, rb, ks, cur] = await Promise.all([
         NFP.snapShell(b, withQ(URL0, 'next=0'), ['sc'], { errs: pageErrs, tag: 'F3 next=0' }),
         NFP.snapShell(b, withQ(URL0, 'shell=classic'), ['sc'], { errs: pageErrs, tag: 'F3 shell=classic' }),
-        NFP.snapShell(b, RB, ['sc', 'spd'], { errs: pageErrs, tag: 'F3 回滚' }),
-        NFP.keySeq(b, RB),
+        RB ? NFP.snapShell(b, RB, ['sc', 'spd'], { errs: pageErrs, tag: 'F3 回滚' }) : { sc: null, spd: null },
+        RB ? NFP.keySeq(b, RB) : [],
         NFP.snapShell(b, URL0, ['sc'], { errs: pageErrs, tag: 'F3 当前' })]);
       for (const [q, key, c] of [['next=0', 'n0', n0], ['shell=classic', 'classic', cl]]) {
         const d = cmp(NFP.hashSc(c.sc), FX[key].sc);
         T('F3', !d.length && Object.keys(FX[key].sc).length === 11, '?' + q + '：11 个用途 .nf-shell（去预览框）与 fixture ' + key + '.sc（' + BASE_COMMIT.slice(0, 7) + '）逐字节相同', '不同：' + d.join(' '));
       }
       const d1 = cmp(NFP.hashSc(rb.sc), FX.nx.sc);
-      T('F3', !d1.length && NFP.sha(rb.spd) === FX.nx.spd, '回滚副本（NW_P2B＝0）新形态：11 个用途 .nf-shell 与 #spd-nx 与 fixture nx.* 逐字节相同', J({ sc: d1, spd: NFP.sha(rb.spd) === FX.nx.spd }));
+      T('F3', !!RB && !d1.length && NFP.sha(rb.spd) === FX.nx.spd, '回滚副本（NW_P2B＝0）新形态：11 个用途 .nf-shell 与 #spd-nx 与 fixture nx.* 逐字节相同', rbErr || J({ sc: d1, spd: NFP.sha(rb.spd) === FX.nx.spd }));
       const kz = FX.nx.keys || [];
       const kd = ks.map((x, i) => x === kz[i] ? null : [i, x, kz[i]]).filter(Boolean);
       T('F3', !kd.length && ks.length === kz.length && ks.length >= 20, '回滚副本 Alt+N 后键序列 ' + ks.length + ' 步与 fixture nx.keys 逐步相同', J(kd.slice(0, 3)));
