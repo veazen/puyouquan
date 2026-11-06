@@ -672,8 +672,13 @@ const BAD_COURSE = {
   /* ===== v61.7 收录工程（站点侧）：四垂类收进功能页场景区块 + 首页静态目录内链 ===== */
   {
     const ft7 = read('features.html');
-    T(ft7.includes('专属场景') && LAND.every(n => ft7.includes(n + '.html')),
-      'S v61.7 功能页场景区块内链四垂类落地页');
+    /* v70.3 有意迁移（基石方案 §2.3 D13）：「专属场景」挪到页尾、小标题改「更多用法」，4 个内链保留；lead 不再写「八种曲谱场景」「考试标准伴奏织体」 */
+    const mU = ft7.indexOf('更多用法'), mK = ft7.indexOf('曲谱类型');
+    T(mU > 0 && mK > 0 && mU > mK && !ft7.includes('专属场景') && LAND.every(n => ft7.indexOf(n + '.html', mU) > mU) && !/八种曲谱场景|考试标准伴奏织体/.test(ft7),
+      'S v61.7 功能页场景区块内链四垂类落地页（v70.3：挪页尾「更多用法」）');
+    /* v70.3 D17：四个落地页 URL / canonical 不动、页头归属一句；sitemap 优先级 0.5 */
+    T(LAND.every(n => read(n + '.html').includes('谱友圈 · 出版级专业曲谱平台') && new RegExp('/' + n + '\\.html</loc><changefreq>monthly</changefreq><priority>0\\.5</priority>').test(sm)),
+      'S v70.3 落地页页头归属一句、sitemap 优先级 0.5（URL 与条目保留）');
     /* 首页卡片是 JS 渲染、爬虫拿不到 /pub/ 链接——静态 HTML 里必须有一条到谱库目录页的可爬内链 */
     const ix7 = read('index.html');
     T(ix7.includes('puku.puyouquan.com/pub/') && ix7.includes('曲谱目录'),

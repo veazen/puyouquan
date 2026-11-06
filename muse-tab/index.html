@@ -32964,9 +32964,9 @@ FLOW.cmd = (function(){
 FLOW.spd = (function(){
   const F = FLOW, $ = F.$, E = s=>F.esc(s);
   /* v70.3 定位纠偏（基石方案 §2.3 D2 / D3 / D19）：新建 5 卡＝按谱种的专业预设，不带用途小标——吉他弹唱 · 钢琴伴奏歌谱 · 合唱谱 · 器乐独奏 · 指弹。
-     data-sp 仍是 sc:<用途>（点击走 #start-pad 原分派，?new= 不变）；合唱谱带 data-form（面板落 合唱谱 › 简谱合唱，不落独唱歌曲） */
+     data-sp 仍是 sc:<用途>（点击走 #start-pad 原分派，?new= 不变）；合唱谱 / 器乐独奏带 data-form（面板落 合唱谱 › 简谱合唱、五线谱 › 器乐，名实相符：不落独唱歌曲 / 钢琴独奏） */
   const SCS = ['gtr', 'pacc', 'vocal', 'inst', 'solo'];
-  const SCN = {gtr:'吉他弹唱', pacc:'钢琴伴奏歌谱', vocal:'合唱谱', inst:'器乐独奏', solo:'指弹'}, SCF = {vocal:'hechang.jianpu'};
+  const SCN = {gtr:'吉他弹唱', pacc:'钢琴伴奏歌谱', vocal:'合唱谱', inst:'器乐独奏', solo:'指弹'}, SCF = {vocal:'hechang.jianpu', inst:'wuxian.qiyue'};
   let RC = [], TH = 0;
   const on = ()=>F.active && F.nxOn() && !document.body.classList.contains('flw-m') && !document.body.classList.contains('nw-mob');
   /* v70.3 D2 / D3 / D19：启动台静态 HTML 两种外壳共用（tv_shellflow S0 对拍 body.innerHTML），新外壳新形态（含窄档 / 手机）只用 JS 改写：
@@ -41720,8 +41720,8 @@ var NWP = (function(){
   }
   function quickMenuHTML(){
     if(flowOn()) return quickMenuFlowHTML();   /* v68.7 S1：新外壳分支（旧外壳下面这段逐字节不动） */
-    const last=lastLoad(), ls=fresh({});
-    const sc=id=>'<button type="button" role="menuitem" class="nf-qi" data-q="'+id+'">'+ic(SC[id].ic,20)+'<b>'+SC[id].n+'</b>'+(SC[id].tag? '<em class="nf-tag">'+SC[id].tag+'</em>' : '')+'</button>';
+    const last=lastLoad(), ls=fresh({}), nt=flowNxAll();   /* v70.3 D4：新外壳 ≤820 窄档（手机子段不动 flowOn()，走到这里）不画用途小标；旧外壳 nt 为假、逐字节照旧 */
+    const sc=id=>'<button type="button" role="menuitem" class="nf-qi" data-q="'+id+'">'+ic(SC[id].ic,20)+'<b>'+SC[id].n+'</b>'+(SC[id].tag && !nt? '<em class="nf-tag">'+SC[id].tag+'</em>' : '')+'</button>';
     return '<button type="button" role="menuitem" class="nf-qi nf-qlast" data-q="last">'+ic('tpl-last',20)+'<span><b>'+(last? '按上次：'+SC[ls.scene].n : '按默认：吉他弹唱')+'</b><small>'+esc2(lastDesc())+'</small></span><kbd>Alt+Shift+N</kbd></button>'
       +'<div class="nf-qsep" role="separator"></div>'+['gtr','pacc','kids','vocal','teach','sight','solo','inst','chord'].map(sc).join('')
       +'<div class="nf-qsep" role="separator"></div>'
