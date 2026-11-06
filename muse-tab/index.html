@@ -48385,6 +48385,7 @@ function openCircleNx(){
       fv.classList.toggle('on',on); fv.textContent=on?'♥':'♡'; fv.title=on?'取消收藏':'收藏';
       if(s.favOnly) renderCircleNxGrid(); return; }
     const b=e.target.closest('button,a'), d=b? b.dataset : {};
+    if(b && d.zt!==undefined && (e.ctrlKey||e.metaKey||e.shiftKey)) return;   /* v70.2 验收：Ctrl / ⌘ / Shift＋点击交给浏览器（href＝www/?zt=，新标签打开官网同一筛选） */
     if(b && d.zt!==undefined){ e.preventDefault();   /* v70.2 专题＝站内谱单：清一级 / 二级 / 开关，按 zt 筛 */
       s.zt=d.zt; s.ztPg=d.zp||d.zt; s.pz=''; s.sub=''; s.inst=''; s.hacc=''; s.x.acc=false; s.x.chord=false; s.favOnly=false; ccNxChanged('zt', d.zt); return; }
     if(b && d.rmzt!==undefined){ s.zt=''; ccNxChanged(); return; }

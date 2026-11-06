@@ -373,7 +373,8 @@
   document.querySelector('.home-hero').addEventListener('click', function(e){
     var b=e.target.closest('button,a'); if(!b) return;
     var ds=b.dataset;
-    if(ds.zt!==undefined){ track('zt', ds.zt); e.preventDefault();
+    if(ds.zt!==undefined){ if(e.ctrlKey||e.metaKey||e.shiftKey) return;   /* v70.2 验收：Ctrl / ⌘ / Shift＋点击交给浏览器开新标签（href 本身就是 ?zt=） */
+      track('zt', ds.zt); e.preventDefault();
       if(ds.zt==='ketang'){ st.pz=''; st.sub='duizhao'; st.inst=''; st.zt=''; st.mInst=false; changed(); }
       else if(own(ZT_NAME, ds.zt)){ st.pz=''; st.sub=''; st.inst=''; st.hacc=''; st.x.acc=false; st.x.chord=false; st.favOnly=false; st.mInst=false; st.zt=ds.zt; st.ztPg=ds.zp||ds.zt; changed(); }
       return; }

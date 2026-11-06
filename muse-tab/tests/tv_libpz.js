@@ -22,6 +22,9 @@
    Z2d / Z2e 筛选抽屉（编制 / 能用来 / 风格 / 调拍速，吉他谱按「G调指法 · 夹2」）· 原稿不满 6 首自动展开可转
    修前红：LIBPZ_ROOT 指向 115bca4 的仓库副本（git archive 115bca4 api muse-tab/site muse-tab/index.html）复跑。env：LIBPZ_ROOT、CHROMIUM_PATH、SHOTS（截图目录） */
 'use strict';
+
+/* v70.2 验收：并发跑时页面 / context 已关而路由里还有请求未回，route.fulfill 抛「has been disposed」等——只吞这一类，其余照旧让进程失败 */
+process.on('unhandledRejection', e => { const m = String((e && e.message) || e); if (/has been disposed|Target page, context or browser has been closed|Route is already handled/.test(m)) return; console.error(e); process.exit(1); });
 const { chromium } = require('playwright');
 const path = require('path'), fs = require('fs'), os = require('os'), http = require('http');
 const { spawn, spawnSync } = require('child_process');
