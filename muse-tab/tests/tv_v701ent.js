@@ -15,6 +15,7 @@
    C2  命令执行：19 条逐条 FLOW.cmd.run(id) → 面板打开、st.pick＝该形态 / 常用卡、回车建成的 song 与等价计划（深链 / 用途）逐字节同、与在面板里点同一目标逐字节同（接缝 ①，依赖 A 组面板）；
        ui_cmd＝cmd:go:<id> 过 FLOW.track 格式、最近用过记 id；启动台上也能执行（sp:1）
    C3  搜索：「简谱合唱」首条 nf:hechang:jianpu、「简谱 带伴奏」「带伴奏」nf:pacc、「尤克里里」nf:uku:tanchang、「钢琴独奏」nf:gangqin:duzou、「合唱 钢琴」「合唱伴奏」「合唱带伴奏」nf:hechang:jianpu（v70.1 验收修③）；回归 24 个既有查询首条与回滚副本相同；
+       v70.2 分词兜底：「钢琴 合唱」「伴奏 合唱」「合唱钢琴伴奏」首条 nf:hechang:jianpu；24 个 ＋ tv_modes M13 / M25 的查询首条＝兜底前 fixture 且不走兜底；
        真实路径 Ctrl+/ 输入「简谱合唱」→ 首行 → Enter → 面板落合唱谱 › 简谱合唱
    K1  谱友圈指法调：新外壳谱友圈（离线本地示例 ＋ 同一卡片数据造的接口卡片）吉他 / 尤克里里卡片写「X调指法」（有夹位加「 · 夹N」），与对同一卡片数据跑官网 PYQ_PZ.fkeyText 逐字同；
        简谱 / 五线谱 / 钢琴卡片照旧（1=C / C 调 / a 小调）；?shell=classic / ?next=0 谱友圈卡片不写指法调、调名照旧（同 tv_libpz Z13 口径）
@@ -73,6 +74,10 @@ const QREG = ['sc', 'bf', 'hy', 'sd', 'zz', 'qy', 'qb', '打印', '横排', '导
 const QNEW = [['简谱合唱', 'nf:hechang:jianpu'], ['简谱 带伴奏', 'nf:pacc'], ['带伴奏', 'nf:pacc'], ['尤克里里', 'nf:uku:tanchang'], ['钢琴独奏', 'nf:gangqin:duzou'],
   /* v70.1 验收修③：合唱 ＋ 钢琴伴奏的三种搜法（修前 0 条）首条＝新建：合唱谱 简谱合唱 */
   ['合唱 钢琴', 'nf:hechang:jianpu'], ['合唱伴奏', 'nf:hechang:jianpu'], ['合唱带伴奏', 'nf:hechang:jianpu']];
+/* v70.2 分词兜底（整串 0 条时才走）：这三种修前 0 条，首条＝新建：合唱谱 简谱合唱；回归＝QREG ＋ tv_modes M13 / M25 用到的查询首条＝兜底前（fixtures/v702_cmdtop.json，c4f2fc1）且没走兜底 */
+const QSPLIT = [['钢琴 合唱', ['钢琴', '合唱']], ['伴奏 合唱', ['伴奏', '合唱']], ['合唱钢琴伴奏', ['合唱', '钢琴', '伴奏']]];
+const QMOD = ['ych', '预设', 'pb', '锁定此行', '并入上一行'];
+const FIX702 = path.join(__dirname, 'fixtures', 'v702_cmdtop.json');
 const goldOf = id => NFP.GOLD.find(g => g.id === id);
 
 function INIT() {
@@ -367,6 +372,16 @@ async function qmInfo(pg, real) {
       T('C3', !nb.length, QNEW.map(([q, id]) => '「' + q + '」→ ' + id).join('；'), J(nb.map(([q]) => q + '→' + cur[q])));
       const rg = QREG.filter(q => cur[q] !== rb[q]);
       T('C3', !rg.length, '回归：' + QREG.length + ' 个既有查询（' + QREG.join(' ') + '）首条与回滚副本相同', J(rg.map(q => q + ' cur=' + cur[q] + ' rb=' + rb[q])));
+      /* v70.2 分词兜底 */
+      { const { ctx, pg } = await open(b, URL0, { tag: 'C3 split' });
+        const r = await pg.evaluate(Q => Object.fromEntries(Q.map(q => { const x = FLOW.cmd.search(q), h = (x.hits || [])[0]; return [q, { id: h ? h.id : '', t: h ? h.t : '', split: x.split || null }]; })), QSPLIT.map(x => x[0]).concat(QREG, QMOD));
+        await ctx.close();
+        let F = null; try { F = JSON.parse(fs.readFileSync(FIX702, 'utf8')).top; } catch (_) {}
+        const sb = QSPLIT.filter(([q, ws]) => !(r[q].id === 'nf:hechang:jianpu' && r[q].t === '新建：合唱谱 简谱合唱' && J(r[q].split) === J(ws)));
+        T('C3', !sb.length, '分词兜底：「钢琴 合唱」「伴奏 合唱」「合唱钢琴伴奏」（修前 0 条）首条＝新建：合唱谱 简谱合唱（按空白 / 常见连写拆词、每个词都命中）', J(sb.map(([q]) => q + '→' + J(r[q]))));
+        const kb = F ? QREG.concat(QMOD).filter(q => r[q].id !== F[q] || r[q].split) : ['fixture 缺'];
+        T('C3', !kb.length, '分词兜底不碰有结果的查询：' + (QREG.length + QMOD.length) + ' 个（QREG ＋ tv_modes ' + QMOD.join(' ') + '）首条＝兜底前（' + path.basename(FIX702) + '）且没走兜底', J(kb.map(q => q + ' cur=' + J(r[q]) + ' was=' + (F && F[q]))));
+      }
       /* 真实路径：Ctrl+/ → 输入 → 首行 → Enter → 面板 */
       const { ctx, pg } = await open(b, URL0, { tag: 'C3 ui' });
       await pg.evaluate(() => { try { localStorage.removeItem('musetab-nw-last'); } catch (_) {} document.body.focus(); });

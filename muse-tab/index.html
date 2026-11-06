@@ -32582,7 +32582,7 @@ FLOW.cmd = (function(){
   const whereOf = c=>typeof c.w==='function'? c.w() : c.w;
   const okOf = c=>{ if(!c.run && !c.ok) return '即将推出'; let r=''; try{ r=c.ok? (c.ok()||'') : ''; }catch(_){ r='当前用不了'; }
     let sp=false; try{ sp=startPadOn(); }catch(_){} if(!r && sp && !c.sp) r='先新建或打开一份谱'; return r; };
-  function score(c, q){
+  function score(c, q, tk){   /* tk：只看标题与关键词（分词兜底用，不比「在哪」） */
     if(!c._n){ c._n=norm(c.t); c._k=String(c.k||'').split(/\s+/).map(norm).filter(Boolean); }
     if(c._n===q) return 100;
     if(c._k.indexOf(q)>=0) return 90;
@@ -32590,8 +32590,20 @@ FLOW.cmd = (function(){
     if(c._k.some(k=>k.indexOf(q)===0)) return 70;
     if(c._n.indexOf(q)>=0) return 60;
     if(q.length>=2 && c._k.some(k=>k.indexOf(q)>=0)) return 50;
-    if(q.length>=2 && norm(whereOf(c)).indexOf(q)>=0) return 30;
+    if(!tk && q.length>=2 && norm(whereOf(c)).indexOf(q)>=0) return 30;
     return 0;
+  }
+  /* v70.2 分词兜底（只在整串 0 条时走，现有有结果的查询首条与排序逐字节不变）：按空白拆，每段再按常见连写拆（最长优先，「合唱钢琴伴奏」→ 合唱 / 钢琴 / 伴奏），
+     拆出 ≥2 个词才兜；每个词都命中标题或关键词才算命中，按各词得分之和排（同分照旧：可用 → 常用度 → 表序） */
+  const SEGW = ['尤克里里','五线谱','钢琴','合唱','伴奏','简谱','五线','吉他','弹唱','指弹','独奏','儿歌','视唱','练耳','和弦','级数','歌曲','器乐','对照','新建','即兴','歌词','谱号','拍号','速度','移调','声部','乐器','音色','导出','打印'];
+  function splitQ(raw){
+    let t=String(raw||''); try{ t=t.normalize('NFKC'); }catch(_){} t=t.toLowerCase();
+    const out=[];
+    t.split(/\s+/).filter(Boolean).forEach(ch=>{ let i=0, rest='';
+      while(i<ch.length){ const w=SEGW.find(x=>ch.startsWith(x, i));
+        if(w){ if(rest){ out.push(rest); rest=''; } out.push(w); i+=w.length; } else { rest+=ch[i]; i++; } }
+      if(rest) out.push(rest); });
+    return out;
   }
   const POP = ['mode:engrave','mode:output','out:print','r1:pub','r1:new','sign:fermata','sign:dyn-mf','tx:chord','tx:lyr','sm:arrange','st:loop','trk:mix','acct:prefs'];
   const PREF = new Set(POP.concat(['mode:write', 'st:play', 'st:tempo', 'lay:A4']));
@@ -32603,7 +32615,7 @@ FLOW.cmd = (function(){
   PREF.forEach(id=>{ if(FREQ[id]==null) FREQ[id]=5; });
   const freqOf = (id, rec)=>{ const r=rec.indexOf(id); return (r>=0? 100-r*10 : 0)+(FREQ[id]||0); };
   function search(q){
-    const L=list().filter(c=>!(c.hide && c.hide()));
+    const L=list().filter(c=>!(c.hide && c.hide())), raw=q;
     q=norm(q);
     if(!q){
       const by={}; L.forEach(c=>{ by[c.id]=c; });
@@ -32614,9 +32626,16 @@ FLOW.cmd = (function(){
     /* v68.1 收尾 PN-9：拼音首字母撞码同分时（sc 输出 / 深色、bf 播放 / 八分音符、hy 混音 / 和音、sd 速度 / 锁定此行、zz A4 / A5），
        三步模式条目与常用表（POP）以及播放、速度、A4 排在前面；其余照旧按表序 */
     const rec=recentGet();
-    const hits=L.map((c, i)=>({c, s:score(c, q), i})).filter(x=>x.s>0)
-      .map(x=>Object.assign(x, {na: okOf(x.c)? 1 : 0, fr: freqOf(x.c.id, rec)}))
+    const rank=a=>a.filter(x=>x.s>0).map(x=>Object.assign(x, {na: okOf(x.c)? 1 : 0, fr: freqOf(x.c.id, rec)}))
       .sort((a, b)=>b.s-a.s || a.na-b.na || b.fr-a.fr || a.i-b.i).slice(0, 40).map(x=>x.c);
+    const hits=rank(L.map((c, i)=>({c, s:score(c, q), i})));
+    if(!hits.length){
+      const ws=splitQ(raw).map(norm).filter(Boolean);
+      if(ws.length>=2){
+        const h2=rank(L.map((c, i)=>{ let s=0; for(const w of ws){ const v=score(c, w, true); if(!v) return {c, s:0, i}; s+=v; } return {c, s, i}; }));
+        if(h2.length) return {rec:null, pop:null, hits:h2, split:ws};
+      }
+    }
     return {rec:null, pop:null, hits};
   }
 
