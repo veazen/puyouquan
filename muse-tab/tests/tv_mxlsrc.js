@@ -115,7 +115,9 @@ function censusFn(x) {
       if (NL.indexOf(tg) < 0) { if (!half(c)) k(cls, 'rep', tg); return; }
       if (tg === 'accidental') { if (['cautionary', 'editorial', 'parentheses', 'bracket'].some(a => c.getAttribute(a) === 'yes')) k(cls + '[提醒]', 'rep', 'accidental'); else k(cls, 'derive'); return; }
       if (tg === 'notehead') { const v = c.textContent.trim(), xh = tab && /x/i.test(v), ok = (v === 'normal' || xh) && c.getAttribute('parentheses') !== 'yes' && c.getAttribute('filled') !== 'no';
-        if (ok) k(cls + (xh ? '[x]' : ''), xh ? 'keep' : 'derive'); else k(cls + '[' + v + (c.getAttribute('parentheses') === 'yes' ? ' 括号' : '') + (c.getAttribute('filled') === 'no' ? ' 空心' : '') + ']', 'rep', 'notehead'); return; }
+        /* v70.4 验收修③ 分名：括号符头 notehead-paren 优先；异形符头按值 notehead-x（旋律行）/ -diamond / -slash；其余（空心等）notehead */
+        const nhK = c.getAttribute('parentheses') === 'yes' ? 'notehead-paren' : (v === 'normal' || xh) ? 'notehead' : ({ x: 'notehead-x', diamond: 'notehead-diamond', slash: 'notehead-slash' })[v] || 'notehead';
+        if (ok) k(cls + (xh ? '[x]' : ''), xh ? 'keep' : 'derive'); else k(cls + '[' + v + (c.getAttribute('parentheses') === 'yes' ? ' 括号' : '') + (c.getAttribute('filled') === 'no' ? ' 空心' : '') + ']', 'rep', nhK); return; }
       if (tg === 'lyric') { const kids = [...c.children], has = kids.some(t => t.tagName === 'text' && t.textContent.trim());
         if (kind !== 'main') { if (has) k(cls + '[' + kind + ']', 'rep', 'lyric'); return; }
         if (!kids.some(t => t.tagName === 'text') && kids.some(t => t.tagName === 'extend')) { k(cls + '[拖腔]', 'keep'); return; }
@@ -313,7 +315,7 @@ function censusFn(x) {
   { const r = pr('volta'); T(r.OB['房子编号'] === 2 && r.skip.other === 2, 'S3③ number="1, 2" 与 "3" 的房子各计 1（房子编号 2）、单个 1 / 2 不计', J(r.skip)); }
   { const r = pr('arp'); T(r.OB['琶音'] === 2 && r.skip.other === 2, 'S3④ 琶音按列计：和弦每音带 <arpeggiate> 计 1、<non-arpeggiate> 计 1', J(r.skip)); }
   { const r = pr('gchord'); T(r.skip.notes === 1 && r.grace0 && (r.grace0.notes || []).length === 1, 'S3⑤ 和弦倚音（<grace> 带 <chord>）计 skip.notes、第一个倚音照收', J([r.skip, r.grace0])); }
-  { const r = pr('misc'), want = ['caesura', 'wavy-line', 'notehead', 'up-bow', 'pedal', 'bracket', 'dashes', 'lyric', 'dynamics', 'bar-style', 'fermata', 'cue'];
+  { const r = pr('misc'), want = ['caesura', 'wavy-line', 'notehead-diamond', 'up-bow', 'pedal', 'bracket', 'dashes', 'lyric', 'dynamics', 'bar-style', 'fermata', 'cue'];
     T(want.every(n => r.OB[n] >= 1) && !r.silent, 'S3⑥ 杂项按名进报告：' + want.join(' / '), J(r.OB)); }
 
   /* S4 白名单与文案 */
@@ -333,7 +335,7 @@ function censusFn(x) {
     catch (e) { code = e.status; msg = (e.stdout || '') + (e.stderr || ''); }
     try { fs.unlinkSync(tmp); } catch (_) {}
     /* v70.4 有意迁移：震音不再计数——侏儒去掉白名单后剩下的延续虚线 3 / 括号符头 9 不过门；阿特拉斯白名单写了已经不计的「震音」50 对（实际 0）且没签字也不过门 */
-    T(code === 1 && /未过质量门/.test(msg) && /lc6838113[^\n]*其他「dashes」3（白名单 0）/.test(msg) && /lc6838113[^\n]*其他「notehead」9（白名单 0）/.test(msg) && !/lc6838113[^\n]*震音/.test(msg)
+    T(code === 1 && /未过质量门/.test(msg) && /lc6838113[^\n]*其他「dashes」3（白名单 0）/.test(msg) && /lc6838113[^\n]*其他「notehead-paren」9（白名单 0）/.test(msg) && !/lc6838113[^\n]*震音/.test(msg)
       && /lc4985985[^\n]*白名单缺签字[^\n]*其他「震音」0（白名单 50）/.test(msg),
       'S5 质量门③：去掉白名单的侏儒（虚线 3 / 符头 9，不再有震音）、白名单与实际不符且没签字的阿特拉斯都不过门，逐曲点名', msg.trim().slice(0, 900)); }
 

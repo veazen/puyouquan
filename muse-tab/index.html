@@ -44353,7 +44353,7 @@ const MXL_LED = {
 /* 导入报告里的显示名（没有的照 MusicXML 名显示） */
 /* v70.4（v70.3 验收 minor）显示名专业化：mordent（带竖线）＝逆波音、inverted-mordent＝顺波音；slide 滑音与 glissando 刮奏分开；
    caesura 停顿号、up-bow / down-bow 上弓 / 下弓、bracket 括线、cue 提示音符、strong-accent 强重音、staccatissimo 短跳音（楔形）、other-dynamics 自定义力度、bar-style 小节线样式 */
-const SKIP_LBL = {accent:'重音', staccato:'跳音', staccatissimo:'短跳音（楔形）', tenuto:'保持音', 'strong-accent':'强重音', 'detached-legato':'半断奏', notehead:'符头样式', accidental:'提醒变音',
+const SKIP_LBL = {accent:'重音', staccato:'跳音', staccatissimo:'短跳音（楔形）', tenuto:'保持音', 'strong-accent':'强重音', 'detached-legato':'半断奏', notehead:'符头样式', 'notehead-paren':'括号符头', 'notehead-x':'叉形符头', 'notehead-diamond':'菱形符头', 'notehead-slash':'斜线符头', accidental:'提醒变音',
   'trill-mark':'颤音', mordent:'逆波音', 'inverted-mordent':'顺波音', turn:'回音', 'accidental-mark':'装饰音变音', 'wavy-line':'颤音线', dashes:'延续虚线', fingering:'指法',
   fermata:'延长号', slur:'圆滑线', slide:'滑音', glissando:'刮奏', pedal:'踏板', 'other-dynamics':'自定义力度', lyric:'歌词', 'octave-shift':'八度记号', 'bar-style':'小节线样式', words:'文字', dynamics:'力度', wedge:'渐强渐弱', metronome:'速度',
   caesura:'停顿号', 'up-bow':'上弓', 'down-bow':'下弓', bracket:'括线', cue:'提示音符'};
@@ -45338,8 +45338,11 @@ function importMusicXML(xmlStr){
   const LED_BOX = ['articulations','ornaments','technical'];
   const ledKids = (el, list)=>[...el.children].forEach(c=>{ if(list.indexOf(c.tagName)>=0 || ledHalf(c)) return;
     if(LED_BOX.indexOf(c.tagName)>=0) [...c.children].forEach(g=>{ if(!ledHalf(g)) skO(g.tagName); }); else skO(c.tagName); });
+  /* v70.4 验收修③ 符头分名：括号符头（parentheses="yes"）计 notehead-paren，异形符头按值分 notehead-x / -diamond / -slash（六线谱 x＝切音照收），其余（含空心 filled="no"）仍计 notehead「符头样式」；一个符头只计一次 */
   const ledHead = (el, tab)=>{ const nh=q(el,'notehead'); if(!nh) return; const v=nh.textContent.trim();
-    if(!(tab? (v==='normal' || /x/i.test(v)) : v==='normal') || nh.getAttribute('parentheses')==='yes' || nh.getAttribute('filled')==='no') skO('notehead'); };
+    if(nh.getAttribute('parentheses')==='yes'){ skO('notehead-paren'); return; }
+    if(tab? (v==='normal' || /x/i.test(v)) : v==='normal'){ if(nh.getAttribute('filled')==='no') skO('notehead'); return; }
+    skO(v==='x'? 'notehead-x' : v==='diamond'? 'notehead-diamond' : v==='slash'? 'notehead-slash' : 'notehead'); };
   const ledAcc = el=>{ const a=q(el,'accidental'); if(a && ['cautionary','editorial','parentheses','bracket'].some(k=>a.getAttribute(k)==='yes')) skO('accidental'); };
   /* 和音附加音上的记号：本列主音 <note> 上已有同名记号＝重复写法（MusicXML 常见），不算丢 */
   const ledDup = (mainEl, path)=>!!(mainEl && mainEl.querySelector(':scope > notations > '+path));

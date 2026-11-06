@@ -15,6 +15,7 @@
       D3 MIDI / GP 导入弹窗 → via 'midi' / 'gp' · D4 智能配谱弹窗新窗口产物 via 'arr'（沿用旋律谱的 sw）· D5 清洗：normalizeSongFields / sanitizeUntrusted / 服务端 scoreDataDanger
       D6 坏值规整（srcNorm）：未知 via、非字符串、空串不留
    K  导入报告显示名专业化：SKIP_LBL 14 个名 · 第 4 个起的倚音单列（附首处小节号）· 房子编号逐号点名（按第几房导入、首处小节）且不在「其他记号」里重复
+      K5 验收修③ 符头分名：notehead-paren 括号符头 / notehead-x 叉形符头 / notehead-diamond 菱形符头 / notehead-slash 斜线符头，其余仍 notehead 符头样式（修前红：全计 notehead）
    F  六线谱第一声部 <forward> 留下的空拍按时值补普通休止（小节中间 / 小节末 / 附点时值），导入报告写「六线谱 forward 空拍 N 处补成休止」，不再计「空拍」
    E  页面脚本错误 0
    修前红：MUSETAB_URL 指向 git show 16de944:muse-tab/index.html 复跑 6/34——B1 B2/B3 B5 B6 B7 B10（两外壳）、B4〔旧外壳〕（提示）、B11b、B12 · D1 D2 D3 D4 D5 D6 · K1–K4 · F1–F3 红；
@@ -91,6 +92,9 @@ const PROBE = {
     `<measure number="3"><barline location="left"><ending number="3" type="start"/></barline>${NT('E', 5, 8, 'whole')}<barline location="right"><ending number="3" type="discontinue"/></barline></measure>` +
     `<measure number="4"><barline location="left"><ending number="3" type="start"/></barline>${NT('F', 5, 8, 'whole')}<barline location="right"><ending number="3" type="stop"/></barline></measure>`),
   voltaMix: HEAD('X', `<measure number="1">${ATT()}<barline location="left"><ending number="3" type="start"/></barline>${NT('C', 5, 8, 'whole', '<notations><articulations><caesura/></articulations></notations>')}<barline location="right"><ending number="3" type="stop"/></barline></measure>`),
+  /* K5 验收修③ 符头分名：括号 ×2 + 括号叉形 ×1（括号优先）、叉形、菱形、斜线、空心、三角各 1 */
+  heads: HEAD('X', `<measure number="1">${ATT()}${NT('C', 5, 2, 'quarter', '<notehead parentheses="yes">normal</notehead>')}${NT('D', 5, 2, 'quarter', '<notehead parentheses="yes">normal</notehead>')}${NT('E', 5, 2, 'quarter', '<notehead parentheses="yes">x</notehead>')}${NT('F', 5, 2, 'quarter', '<notehead>x</notehead>')}</measure>` +
+    `<measure number="2">${NT('C', 5, 2, 'quarter', '<notehead>diamond</notehead>')}${NT('D', 5, 2, 'quarter', '<notehead>slash</notehead>')}${NT('E', 5, 2, 'quarter', '<notehead filled="no">normal</notehead>')}${NT('F', 5, 2, 'quarter', '<notehead>triangle</notehead>')}</measure>`),
   tabMid: HEAD('X', `<measure number="1">${TABATT}${TN(1, 0, 2, 'quarter')}${FW(2)}${TN(1, 1, 2, 'quarter')}${TN(1, 3, 2, 'quarter')}</measure>`),
   tabEnd: HEAD('X', `<measure number="1">${TABATT}${TN(1, 0, 2, 'quarter')}${TN(1, 1, 2, 'quarter')}${TN(1, 3, 2, 'quarter')}${FW(2)}</measure>`),
   tabDot: HEAD('X', `<measure number="1">${TABATT}${FW(3)}${TN(1, 0, 1, 'eighth')}${TN(1, 1, 4, 'half')}</measure>`),
@@ -291,13 +295,18 @@ const pack = o => (o && typeof o.setup === 'function') ? Object.assign({}, o, { 
         return Object.keys(W).filter(k => SKIP_LBL[k] !== W[k]).map(k => k + '=' + SKIP_LBL[k]); });
       T(Array.isArray(k1) && !k1.length, 'K1 SKIP_LBL：逆波音 / 顺波音、滑音 / 刮奏、停顿号、上弓 / 下弓、括线、提示音符、强重音、短跳音（楔形）、自定义力度、小节线样式', J(k1));
       const k = await EV(pg, P => ({ g: __imp(P.grace5), v: __imp(P.volta), m: __imp(P.voltaMix),
-        t6: skipText({ other: 6, otherBy: { mordent: 2, 'inverted-mordent': 1, glissando: 1, slide: 1, 'up-bow': 1 } }) }), PROBE);
+        t6: skipText({ other: 6, otherBy: { mordent: 2, 'inverted-mordent': 1, glissando: 1, slide: 1, 'up-bow': 1 } }),
+        h: __imp(P.heads), t9: skipText({ other: 9, otherBy: { 'notehead-paren': 9 } }) }), PROBE);
       T(k.g.skip.notes === 2 && /第 4 个起的倚音 2 个（第 2 小节）/.test(k.g.txt) && !/音符 2 个/.test(k.g.txt),
         'K2 同组第 4 个起的倚音单列「第 4 个起的倚音 2 个（第 2 小节）」（skip.notes 仍是 2，质量门口径不变）', J([k.g.skip, k.g.txt]));
       T(k.v.skip.other === 3 && k.v.skip.otherBy['房子编号'] === 3 && /「1, 2」房 1 处（按第 1 房导入；第 2 小节）/.test(k.v.txt) && /第 3 房 2 处（按第 2 房导入；首处第 3 小节）/.test(k.v.txt) && !/其他记号/.test(k.v.txt),
         'K3 房子编号逐号点名：「「1, 2」房 1 处（按第 1 房导入；第 2 小节）」「第 3 房 2 处（按第 2 房导入；首处第 3 小节）」；计数仍在 skip.other（3），「其他记号」不重复', J([k.v.skip, k.v.txt]));
       T(/第 3 房 1 处/.test(k.m.txt) && /其他记号 1 处（停顿号 1）/.test(k.m.txt) && /其他记号 6 处（逆波音 2、顺波音 1、刮奏 1、滑音 1、上弓 1 等）|其他记号 6 处（逆波音 2、(顺波音|刮奏|滑音|上弓) 1、/.test(k.t6),
         'K4 房子与别的记号并存：「其他记号」只计别的（停顿号 1）；显示名进报告（逆波音 / 顺波音 / 刮奏 / 滑音 / 上弓）', J([k.m.txt, k.t6]));
+      { const ob = (k.h.skip || {}).otherBy || {};
+        T(J(ob) === J({ 'notehead-paren': 3, 'notehead-x': 1, 'notehead-diamond': 1, 'notehead-slash': 1, notehead: 2 }) && k.h.skip.other === 8
+          && /括号符头 3/.test(k.h.txt) && /叉形符头 1/.test(k.h.txt) && /菱形符头 1/.test(k.h.txt) && /斜线符头 1/.test(k.h.txt) && /符头样式 2/.test(k.h.txt) && /其他记号 9 处（括号符头 9）$/.test(k.t9),
+          'K5 验收修③ 符头分名：括号符头（parentheses="yes"，括号优先）/ 叉形 / 菱形 / 斜线各自点名，空心与其他异形仍归「符头样式」；《侏儒》式 9 个括号符头报「括号符头 9」', J([ob, k.h.skip.other, k.h.txt, k.t9])); }
       allErrs.push(...A.errs); await A.ctx.close();
     }
 
