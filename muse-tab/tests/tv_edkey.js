@@ -10,9 +10,12 @@
    —— v60.55 追加（产品指示：右上角变调功能删除，弹窗改由谱面上的调号点击打开、配色跟随谱面浅色）：
    T7 谱面 1=X 真实点击开弹窗（顶栏 key-step 已撤下 / 不再产生调名平铺 popmenu / 就地锚在调号下方 / 再点收起）
    T8 弹窗底色 = --panel 浅色（观看页 #key-pop 仍深色，作对照护栏）
-   file:// 直载。 */
+   file:// 直载。
+   v70.1 迁移（规格 docs/spec-2026-11-v701.md §15.2）：新外壳新形态第一步按谱种，「歌谱 · 合唱」卡不在了——T6 注入 nfpick 的 PAGE_INIT，
+   改用页内 __nfPick('vocal')（卡可见点卡，否则「简谱」行 → 「歌曲」形态，各自先断言可见），点不到就抛错 */
 const { chromium } = require('playwright');
 const path = require('path');
+const NFP = require('./lib/nfpick');
 const F = 'file://' + path.resolve(__dirname, '../index.html');
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
@@ -21,6 +24,7 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   const pg = await b.newPage({ viewport: { width: 1280, height: 950 } });
   const errs = []; pg.on('pageerror', e => errs.push(e.message));
   await pg.goto(F); await pg.waitForTimeout(900);
+  await pg.evaluate(NFP.PAGE_INIT);
   await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; });
 
   // 统一测试谱：净弹唱谱，M0=C 柱式伴奏列+单音旋律列，M1=Am 分解两列
@@ -124,7 +128,7 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   r = await pg.evaluate(`(()=>{
     document.body.click();
     showNewWizard();
-    document.querySelector('.nf-modal [data-scene="vocal"]').click();   /* v67.4 新建面板「歌谱 · 合唱」（原声乐意图卡） */
+    if(!__nfPick('vocal')) throw new Error('新建面板点不到「歌谱 · 合唱」：'+JSON.stringify(window.__nfPicked));   /* v67.4 新建面板「歌谱 · 合唱」；v70.1 卡或「简谱 › 歌曲」（nfpick） */
     document.getElementById('nw-create').click();
     document.getElementById('k-val').click();
     const capoRows=[...document.querySelectorAll('#ekey-pop .kp-capo')];
