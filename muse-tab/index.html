@@ -32523,7 +32523,49 @@ FLOW.cmd = (function(){
   }
   /* v68.2（验收遗留：拼音撞码排序）记号条目补的首字母别名——「前倚音」qyy 之外也认 qy（全音符 / 切音 / 前倚音同码，按常用度排，见 FREQ） */
   const XK = {'sign:grace-pre':'qy'};
-  function list(){ if(!LIST){ LIST=hand().concat(signs()); LIST.forEach(c=>{ if(XK[c.id]) c.k=String(c.k||'')+' '+XK[c.id]; }); } return LIST; }
+  /* v70.1 P2b（规格 §10）「新建：<谱种> <形态>」：按归属去重——15 个归属形态各一条 ＋ 常用 4 卡各一条＝19 条；非归属形态的名字写进它归属那条的关键词
+     （搜「简谱合唱」得合唱谱 简谱合唱、「简谱带伴奏」得钢琴即兴伴奏）。追加在表尾（同分排最后，不改任何既有查询的首条）；关键词不用 2 个字母的整词（避开 sc / bf / hy / sd / zz / qy / qb 撞码）。
+     执行＝打开新建面板并预选（同启动台用途卡，回车才建）；sp:1 启动台上也能用；埋点照旧 cmd:go:<id>。名字 / 图标从 PQ_KIND.PZ、NWP.PZ_FORMS / PZ_IC / SC 现取。
+     ?next=0（NXC 假）与回滚（NWP.P2B 假）一条不出。NWP 是 var（在它之前求值也不抛 TDZ）；list() 惰性，开机后第一次调用时 NWP 已就位 */
+  function nfCmds(){
+    if(!NXC || typeof NWP==='undefined' || !NWP || !NWP.P2B) return [];
+    const FM = [
+      ['jianpu.gequ', 'xjjpgq jpgq 简谱歌曲 简谱歌谱 新建简谱'],
+      ['jianpu.qiyue', 'jpqiyue 简谱器乐 民乐简谱 二胡简谱 葫芦丝 萨克斯简谱'],
+      ['jianpu.shichang', 'jpshichang 简谱视唱'],
+      ['wuxian.gequ', 'xjwxgq wxpgq 五线谱歌曲 五线谱歌谱 新建五线谱'],
+      ['wuxian.qiyue', 'wxqiyue 五线谱器乐 器乐独奏 小提琴谱'],
+      ['gangqin.duzou', 'gqpdz gqdz 钢琴独奏 钢琴谱'],
+      ['gangqin.chunban', 'gqcbz 纯伴奏 钢琴伴奏谱'],
+      ['jita.tanchang', 'jtptc jttc 吉他弹唱 吉他谱'],
+      ['jita.zhitan', 'jtpzt jtzt 吉他指弹 吉他独奏'],
+      ['uku.tanchang', 'ykll ykltc 尤克里里弹唱 乌克丽丽 尤克里里 ukulele'],
+      ['uku.zhitan', 'yklzt 尤克里里指弹 尤克里里独奏'],
+      ['hechang.jianpu', 'hcpjp jphc 简谱合唱 合唱谱 简谱四部合唱'],
+      ['hechang.wuxian', 'hcpwx wxhc 五线合唱 五线谱合唱'],
+      ['gongneng.jishu', 'gnpjsp jsp 级数谱 功能谱 和弦简谱'],
+      ['gongneng.hexian', 'gnphxg hxg 和弦格 小节和弦']
+    ];
+    const CY = [
+      ['pacc', 'gqjxbz jxbz 钢琴即兴伴奏 即兴伴奏 考编 简谱带伴奏 五线谱带伴奏 钢琴谱弹唱'],
+      ['kids', 'egtc 儿歌弹唱 师范 钢琴谱儿歌弹唱'],
+      ['sight', 'scle 视唱练耳 艺考 五线谱视唱'],
+      ['teach', 'jxdzp 教学对照谱 课堂 对照谱 简谱对照谱 五线谱对照谱']
+    ];
+    const L=[];
+    try{
+      FM.forEach(([id, k])=>{
+        const f=(NWP.PZ_FORMS||[]).find(x=>x.id===id), p=f && PQ_KIND.PZ.find(x=>x.id===f.pz); if(!f || !p) return;
+        L.push(C('nf:'+id.replace('.', ':'), '新建：'+p.name+' '+f.n, k, '新建面板', ()=>showNewWizard({form:id}), {ic:NWP.PZ_IC[f.pz], sp:1}));
+      });
+      CY.forEach(([sc, k])=>{
+        const s=NWP.SC && NWP.SC[sc]; if(!s) return;
+        L.push(C('nf:'+sc, '新建：'+s.n, k, '新建面板', ()=>showNewWizard({scene:sc}), {ic:s.ic, sp:1}));
+      });
+    }catch(e){ console.error('flow 命令表「新建：」条目异常', e); }
+    return L;
+  }
+  function list(){ if(!LIST){ LIST=hand().concat(signs(), nfCmds()); LIST.forEach(c=>{ if(XK[c.id]) c.k=String(c.k||'')+' '+XK[c.id]; }); } return LIST; }
   /* —— 匹配 —— */
   const norm = s=>{ s=String(s||''); try{ s=s.normalize('NFKC'); }catch(_){} return s.toLowerCase().replace(/\s+/g, ''); };
   const whereOf = c=>typeof c.w==='function'? c.w() : c.w;
