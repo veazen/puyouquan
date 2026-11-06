@@ -4713,6 +4713,9 @@ body.flow.startpad:not(.flw-nx0):not(.flw-m) #editbar,body.flow.startpad:not(.fl
 .nf-modal.nf-nx .nf-forms button{flex:none;padding:0 14px}
 .nf-modal.nf-nx .nf-pwrap{position:relative}
 .nf-modal.nf-nx .nf-pwrap>.nf-moreb2{top:calc(100% + 6px);right:0;width:min(420px,100%)}
+/* v70.1 验收修①：弹层限高到底栏上沿（--nf-mbh 由 moreFit 按面板实测写在 .nf-modal 上），放不下时弹层自己滚动、滚到头不带动中栏 */
+.nf-modal.nf-nx .nf-pwrap>.nf-moreb2{max-height:var(--nf-mbh,none);overflow:auto;overscroll-behavior:contain}
+.nf-modal.nf-nx .nf-pwrap>.nf-moreb2>*{flex-shrink:0}
 @media (max-width:1100px){ .nf-modal.nf-nx .nf-body2{grid-template-columns:220px minmax(0,1fr) 96px} .nf-modal.nf-nx .nf-pzg .nf-pz{padding:0 4px;gap:5px} }
 /* 命令面板值行：不可用原因灰字（≤16 字） */
 body.flow #popmenu.flw-cmd .flw-cmdv .flw-cmdw{margin-left:auto;padding-left:12px;font-size:12px;color:var(--muted);white-space:nowrap}
@@ -40457,6 +40460,7 @@ var NWP = (function(){
     const mask=document.getElementById('modal-mask'); mask.classList.add('nf-mask');
     modal=mask.querySelector('.modal'); modal.classList.add('nf-modal');
     if(NXP()) modal.classList.add('nf-nx');   /* v69.1 C 合稿版式 */
+    if(p2b() && window.ResizeObserver) new ResizeObserver(()=>moreFit()).observe(modal);   /* v70.1 验收修①：窗口缩放后 ⋯ 弹层重新限高 */
     /* v69.1 C：⋯ 弹层开着时点面板别处＝收起（不吞这次点击） */
     modal.addEventListener('pointerdown', e=>{ if(st && st.more && NXP() && st.tab==='new' && !(e.target.closest && e.target.closest('#nf-moreb,#nf-more'))){ syncFromDom(); st.more=false; draw(); } }, true);
     modal.setAttribute('aria-label','新建曲谱');
@@ -40523,10 +40527,24 @@ var NWP = (function(){
     }
     const tmp=document.createElement('div'); tmp.innerHTML=desktop();
     morphKids(shell, tmp);
+    moreFit();
     if(fid && !(document.activeElement && shell.contains(document.activeElement))){
       const e=shell.querySelector(fid); if(e){ e.focus({preventScroll:true}); if(ss!=null && e.setSelectionRange) try{ e.setSelectionRange(ss,ss); }catch(_){} }
     }
     pvSync();
+  }
+  /* v70.1 验收修①：⋯ 弹层挂在参数行下沿（P2b，.nf-pwrap）后，吉他谱 › 弹唱一类的长弹层（≈464px）在 1024×700 / 1280×720 / 1024×768 越过底栏、末几个开关被盖——
+     弹层限高到底栏上沿（留 8px），放不下时弹层自己滚动（CSS overflow:auto）；顶仍在参数行下沿，不压 ⋯ 钮与参数行第二行。
+     高度写成 .nf-modal 上的 --nf-mbh（面板本身不参与最小差异重画，弹层内的滚动位置随重画保留）；面板尺寸变（窗口缩放）时 ResizeObserver 再量一次。
+     只 P2b 新形态有 .nf-pwrap：NW_P2B===0 / 旧外壳 / ?next=0 不进来，DOM 不变 */
+  function moreFit(){
+    if(!live() || !p2b()) return;
+    const mb=modal.querySelector('.nf-pwrap>#nf-moreb'), ft=modal.querySelector('.nf-ft2');
+    let v='';
+    if(mb && ft){ const room=Math.floor(ft.getBoundingClientRect().top - mb.getBoundingClientRect().top - 8);
+      if(mb.scrollHeight + 2 > room) v=Math.max(room, 120)+'px'; }
+    if(v) modal.style.setProperty('--nf-mbh', v);
+    else if(modal.style.getPropertyValue('--nf-mbh')) modal.style.removeProperty('--nf-mbh');
   }
 
   /* ---- 桌面版式 ---- */

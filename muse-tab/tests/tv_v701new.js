@@ -384,6 +384,60 @@ const VK = ['instKey', 'inst', 'acc', 'tacc', 'ftype', 'pen', 'parts', 'clef', '
         });
         T('F1', !gbad.length, '几何（' + (font ? 'DejaVu Sans' : '默认字体') + '，6 个视口）：左栏 13 项高 ≥44、可见 / 命中 / 在视口与面板内、名字不截断、左栏不滚动；24 个形态的 chip 高 ≥44 且整组可见；⋯ 弹层顶 ≥ ⋯ 底＋4 且不压参数行', gbad.slice(0, 8).join(' | '));
       }
+      /* v70.1 验收修①：⋯ 弹层挂到参数行下沿后不越过底栏——弹层底 ≤ .nf-ft2 顶、顶不压 ⋯ 钮与参数行；弹层里每个开关只滚弹层自己（不滚中栏 / 面板体）就能滚到并命中，
+         末一个开关真实鼠标点中（状态翻转）。5 个视口 × 吉他谱 › 弹唱 / 合唱谱＋钢琴 / 简谱 › 歌曲 × 两种字体。修前红：1024×700 / 1280×720 / 1024×768 吉他谱弹层（≈464px）压到底栏 */
+      const VPM = [[1024, 700], [1280, 720], [1024, 768], [1280, 800], [1440, 900]];
+      const MCASE = [['吉他谱 › 弹唱', 'jita', false], ['合唱谱＋钢琴', 'hechang', true], ['简谱 › 歌曲', 'jianpu', false]];
+      for (const font of fonts) {
+        const mbad = [], mgot = [];
+        await par(VPM, async ([w, h]) => {
+          const o = await open(b, URL0, { tag: 'F1m', w, h, font });
+          for (const [nm, pz, acc] of MCASE) {
+            const tag = w + '×' + h + ' ' + nm;
+            await o.pg.evaluate(() => { try { localStorage.removeItem('musetab-nw-last'); } catch (_) {} __panel(); }); await W(220);
+            await o.pg.click('.nf-modal [data-pz="' + pz + '"]'); await W(80);
+            if (acc) { await o.pg.click('.nf-modal #nf-params [data-act="var"][data-k="tacc"][data-v="with"]'); await W(80); }
+            await o.pg.click('.nf-modal #nf-more'); await W(150);
+            const r = await o.pg.evaluate(() => {
+              const q = s => document.querySelector('.nf-modal ' + s), mb = q('#nf-moreb');
+              if (!mb) return { err: '弹层没开' };
+              const R = e => e.getBoundingClientRect(), a = R(mb), f = R(q('.nf-ft2')), m = R(q('#nf-more')), p = R(q('#nf-params'));
+              const sc = [q('.nf-mid2'), q('.nf-body2')].map(x => x.scrollTop);
+              const ctl = [...mb.querySelectorAll('button,select,input')], miss = [];
+              const nm = c => c.id || (c.dataset.k ? c.dataset.k + '=' + c.dataset.v : c.dataset.row) || c.tagName;
+              for (const c of ctl) {
+                const cr = R(c), br = R(mb);
+                if (cr.top < br.top + 1) mb.scrollTop -= br.top - cr.top + 6; else if (cr.bottom > br.bottom - 1) mb.scrollTop += cr.bottom - br.bottom + 6;
+                if (!__ok(c)) miss.push(nm(c));
+              }
+              const sc2 = [q('.nf-mid2'), q('.nf-body2')].map(x => x.scrollTop);
+              const last = ctl[ctl.length - 1], lr = R(last);
+              return { top: Math.round(a.top), bot: Math.round(a.bottom), ft: Math.round(f.top), mo: Math.round(m.bottom), pb: Math.round(p.bottom), n: ctl.length, miss, moved: J(sc) !== J(sc2),
+                sh: mb.scrollHeight, ch: mb.clientHeight, last: last && last.dataset.row ? last.dataset.row : '', x: lr.left + lr.width / 2, y: lr.top + lr.height / 2 };
+            });
+            if (r.err) { mbad.push(tag + ' ' + r.err); continue; }
+            let clk = '';
+            if (r.last) {   /* 真实鼠标点在末项中心：捕获阶段记下这一下落到哪个开关（不看状态——有的组合点了只出提示） */
+              await o.pg.evaluate(() => { window.__clk = null; document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('button,select,input'); window.__clk = t ? (t.dataset.row || t.id || t.tagName) : String(e.target.className || e.target.tagName); }, { capture: true, once: true }); });
+              await o.pg.mouse.click(r.x, r.y); await W(150);
+              const got = await o.pg.evaluate(() => window.__clk);
+              if (got !== r.last) clk = '末项 ' + r.last + ' 没点中（点到 ' + got + '）';
+            }
+            const e = [];
+            if (r.bot > r.ft + 0.5) e.push('弹层底 ' + r.bot + ' > 底栏顶 ' + r.ft);
+            if (r.top < r.mo + 4 || r.top < r.pb) e.push('弹层顶 ' + r.top + ' 压到 ⋯（底 ' + r.mo + '）/ 参数行（底 ' + r.pb + '）');
+            if (r.miss.length) e.push('只滚弹层够不着 ' + r.miss.join(' '));
+            if (r.moved) e.push('中栏 / 面板体被滚动');
+            if (clk) e.push(clk);
+            if (e.length) mbad.push(tag + ' ' + e.join('；') + ' ' + J({ sh: r.sh, ch: r.ch, n: r.n }));
+            mgot.push(tag + ' ' + r.top + '–' + r.bot + '/' + r.ft + (r.sh > r.ch + 1 ? ' 滚' : ''));
+            await o.pg.keyboard.press('Escape'); await W(60);
+          }
+          await o.ctx.close();
+        });
+        T('F1', !mbad.length, '⋯ 弹层不越过底栏（' + (font ? 'DejaVu Sans' : '默认字体') + '，1024×700 / 1280×720 / 1024×768 / 1280×800 / 1440×900 × 吉他谱 › 弹唱 / 合唱谱＋钢琴 / 简谱 › 歌曲）：弹层底 ≤ 底栏顶、顶不压 ⋯ 与参数行；每个开关只滚弹层就能命中、末项真实点中', mbad.slice(0, 8).join(' | '));
+        NOTE('F1 ⋯ 弹层（' + (font ? 'DejaVu' : '默认') + '）：' + mgot.join('，'));
+      }
     });
 
     /* ===== F2 验收② 36 行真实点击 ↔ 等价深链 ===== */
