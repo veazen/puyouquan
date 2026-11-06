@@ -40107,6 +40107,8 @@ var NWP = (function(){
   const fmRow = st=>{ const p=String((st && st.pick)||''); return (p.slice(0,3)==='fm:' && own(PZ_FORM, p.slice(3)))? PZ_FORM[p.slice(3)] : null; };
   /* 规格 §6.1：用户点的那个目标只要还对得上当前计划就保留；对不上（1–5 键离开、撤销回别的用途、打开时）才落归属。deskNewNx 开头调（只 p2b()） */
   function fmSync(st){ if(!st.pick || !fmMatch(st.pick, st)) st.pick=fmHome(st); }
+  /* 规格 §5：本形态下不再画的控件（键名同 VARS ＋ 'mel'）；不是 p2b() 或没选形态＝[] */
+  const fmHid = st=>{ const F=p2b() && fmRow(st); return F? F.hid : []; };
   const ROWBTN =[['J','简谱','nota-jianpu'],['S','五线谱','nota-staff'],['T','六线谱','nota-tab6'],['G','大谱表','nota-grand'],['C','和弦','nota-chord']];
   const ROWN = {J:'简谱', S:'五线谱', T:'六线谱', G:'钢琴大谱表', C:'和弦'};
   const SRCN = {scene:'场景惯例', last:'沿用上次', user:'你改的', link:'按链接', default:'默认值'};   /* v67.6 link＝深链 ?new= 带来的值 */
@@ -40142,6 +40144,8 @@ var NWP = (function(){
   const melSitu = st=> st.scene==='sight'? 'sight' : (st.scene==='inst' && famOf(st.v.instKey)==='staff')? 'inst-staff' : '';
   function melSync(st){
     if(!nwP2A()) return;
+    /* v70.1 P2b（规格 §6.3）：形态定死旋律记谱法时不自动改（简谱 › 器乐 选小提琴＝小提琴谱（简谱）；五线谱 › 器乐 选二胡＝二胡谱（五线谱）） */
+    const F = NW_P2B===1 && /^fm:/.test(st.pick||'') && own(PZ_FORM, st.pick.slice(3)) && PZ_FORM[st.pick.slice(3)]; if(F && F.mel){ st.melK=melSitu(st); return; }
     const K=melSitu(st), K0=st.melK||'';
     if(K===K0) return;
     st.melK=K;
@@ -40569,14 +40573,14 @@ var NWP = (function(){
     const forms = fpz? '<div class="nf-seg nf-forms" id="nf-forms" role="radiogroup" aria-label="'+esc2((PQ_KIND.PZ.find(p=>p.id===fpz)||{}).name||'')+'">'
       + PZ_FORMS.filter(f=>f.pz===fpz).map(f=>{ const on=st.pick==='fm:'+f.id;
         return '<button type="button" role="radio" id="nf-fm-'+f.id.replace('.','-')+'" data-act="form" data-form="'+f.id+'" data-v="'+f.id+'" aria-checked="'+on+'" tabindex="'+(on? 0 : -1)+'">'+f.n+'</button>'; }).join('')+'</div>' : '';
-    /* 参数行 */
+    /* 参数行（v70.1 P2b 规格 §5：形态定下的维度不再另给控件——hid 里的键不画，值由形态写定、仍进计划） */
     let mv='';
-    const mk=MAINV[id];
+    const mk=MAINV[id], hid=fmHid(st);
     if(mk==='#inst'){
-      const IG=nwP2A()? IGRP2 : IGRP, IL=instsShown();   /* v70.0 P2a：新形态 5 组（含 6 种新乐器）；空组不出 */
+      const IG=(F0 && F0.ik && IGRP3[F0.ik])? IGRP3[F0.ik] : nwP2A()? IGRP2 : IGRP, IL=instsShown();   /* v70.0 P2a：新形态 5 组（含 6 种新乐器）；空组不出。v70.1 P2b：按形态的乐器族（IGRP3，§3.5） */
       mv='<span class="nf-pc nf-pcv">'+ic(((VARS.instKey.opts.find(x=>x[0]===v.instKey)||[])[2])||'inst-other',18)+'<select id="nf-inst" aria-label="乐器">'+IG.map(([g,f])=>{ const xs=IL.filter(f); return xs.length? '<optgroup label="'+g+'">'+xs.sort((a,b)=>(a.k==='bass')-(b.k==='bass')).map(x=>'<option value="'+x.k+'"'+(v.instKey===x.k? ' selected' : '')+'>'+x.name+'</option>').join('')+'</optgroup>' : ''; }).join('')+'</select></span>'; }
-    else if(mk && varsShown(st).includes(mk)){ const d=VARS[mk]; mv='<span class="nf-pc nf-pcv">'+seg(d.lab, mk, d.opts, v[mk])+'</span>'; }
-    const mk2=MAINV2(st);
+    else if(mk && varsShown(st).includes(mk) && !hid.includes(mk)){ const d=VARS[mk]; mv='<span class="nf-pc nf-pcv">'+seg(d.lab, mk, (mk==='parts' && F0 && F0.pc===2)? d.opts.filter(([x])=>+x>=2) : d.opts, v[mk])+'</span>'; }   /* 合唱形态的声部只列 二 · 三 · 四部 */
+    const mk2=(m=> m && !hid.includes(m)? m : '')(MAINV2(st));
     if(mk2){ const d=VARS[mk2]; mv+='<span class="nf-pc nf-pcv nf-pcacc"><i aria-hidden="true">钢琴</i>'+seg(d.lab, mk2, d.opts, v[mk2])+'</span>'; }
     const prow='<div class="nf-params" id="nf-params" role="group" aria-label="参数">'
       +'<span class="nf-pc nf-pct">'+(st.src.title==='link'? dot('title') : '')+'<input id="nw-title" type="text" value="'+esc2(v.title)+'" placeholder="曲名" aria-label="曲名" autocomplete="off" maxlength="80"></span>'
@@ -40595,7 +40599,7 @@ var NWP = (function(){
     /* 预览左上：记谱法唯一一处 */
     let pm;
     if(id==='custom') pm='<div class="nf-rows nf-pvrows" role="group" aria-label="要哪几种谱">'+ROWBTN.map(([r,n,i],x)=>'<button type="button" class="nf-row" data-row="'+r+'" aria-pressed="'+rows.includes(r)+'" aria-keyshortcuts="'+(x+1)+'" aria-label="'+n+'" title="'+n+'（'+(x+1)+'）">'+ic(i,18)+'</button>').join('')+'</div>';
-    else if(melLive(id, v, nwP2A())){ const D=rows.includes('J') && rows.includes('S');
+    else if(melLive(id, v, nwP2A()) && !hid.includes('mel')){ const D=rows.includes('J') && rows.includes('S');   /* v70.1 P2b：形态定死旋律记谱法时改画只读读数（同固定用途） */
       pm='<div class="nf-seg nf-pvmel" id="nf-pvmel" role="radiogroup" aria-label="旋律记谱法"><span class="nf-pvl" aria-hidden="true">旋律</span>'
         +[['J','简谱','旋律用简谱'],['S','五线','旋律用五线谱'],['D','对照','五线谱加简谱对照']].map(([m,t,al])=>{ const on= m==='D'? D : (!D && st.mel===m);
           return '<button type="button" role="radio" data-act="mel" data-v="'+m+'" aria-checked="'+on+'" tabindex="'+(on? 0 : -1)+'" aria-label="'+al+'">'+t+'</button>'; }).join('')+'</div>'; }
@@ -40610,7 +40614,7 @@ var NWP = (function(){
       if(lyrShown(st,k)) more+='<div class="nf-f"><label class="nw-lab" for="nf-lyr">歌词</label><select id="nf-lyr">'+[0,1,2,3,4].map(n=>'<option value="'+n+'"'+((+v.lyr|0)===n? ' selected' : '')+'>'+(n? n+' 段' : '不要')+'</option>').join('')+'</select></div>';
       if(['T','JT','ST'].includes(k) && o.inst!=='uku') more+='<div class="nf-f"><label class="nw-lab" for="nf-tuning">定弦</label><select id="nf-tuning">'+Object.keys(TUNINGS).map(t=>'<option value="'+t+'"'+(v.tuning===t? ' selected' : '')+'>'+TUNINGS[t].label+'</option>').join('')+'</select></div>';
       if(['T','JT'].includes(k)) more+='<div class="nf-f"><label class="nw-lab" for="nf-capo">变调夹</label><select id="nf-capo">'+[0,1,2,3,4,5,6,7].map(n=>'<option value="'+n+'"'+((+v.capo|0)===n? ' selected' : '')+'>'+(n? n+' 品' : '不夹')+'</option>').join('')+'</select></div>';
-      varsShown(st).filter(vk=>vk!==mk && vk!==mk2 && vk!=='instKey').forEach(vk=>{ const d=VARS[vk]; more+='<div class="nf-f"><span class="nw-lab">'+d.lab+'</span>'+seg(d.lab, vk, d.opts, v[vk])+'</div>'; });
+      varsShown(st).filter(vk=>vk!==mk && vk!==mk2 && vk!=='instKey' && !hid.includes(vk)).forEach(vk=>{ const d=VARS[vk]; more+='<div class="nf-f"><span class="nw-lab">'+d.lab+'</span>'+seg(d.lab, vk, d.opts, v[vk])+'</div>'; });
       if(id!=='custom') more+='<div class="nf-f"><span class="nw-lab" id="nf-rbl">谱</span><div class="nf-rows" role="group" aria-labelledby="nf-rbl">'
         + ROWBTN.map(([r,n,i],x)=>'<button type="button" class="nf-row" data-row="'+r+'" aria-pressed="'+rows.includes(r)+'" aria-keyshortcuts="'+(x+1)+'" title="'+n+'（'+(x+1)+'）">'+ic(i,20)+'<span>'+n+'</span></button>').join('')+'</div></div>';
       more+='<p class="nf-rowhint">'+esc2(st.hint||'')+'</p></div>';
