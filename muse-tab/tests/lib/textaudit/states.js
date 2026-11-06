@@ -36,7 +36,9 @@ const STATES = [
   { id: 'write-inst', name: '书写 · 钢琴独奏', go: async pg => { await pg.evaluate(() => __scn('inst')); await W(1500); }, focus: null },
   { id: 'write-func', name: '书写 · 功能谱（旋律＋级数）', go: async pg => {
       await pg.evaluate(() => { window.guardReplace = p => p(); try { hideStartPad(); } catch (_) {} showNewWizard({ scene: 'chord' }); }); await W(900);
-      await pg.click('.nf-modal [data-act="var"][data-k="ftype"][data-v="CJ"]'); await W(400); await pg.click('#nw-create'); await W(1200);
+      /* v70.1 P2b：新形态「功能谱」的谱式由形态定（chip「级数谱」，参数行不再有「谱式」）——参数行有谱式 chip 就点它（旧外壳 / ?next=0 / 回滚），否则点形态 chip；建成同一份 CJ */
+      const ftCJ = '.nf-modal [data-act="var"][data-k="ftype"][data-v="CJ"]';
+      await pg.click(await pg.$(ftCJ) ? ftCJ : '.nf-modal [data-form="gongneng.jishu"]'); await W(400); await pg.click('#nw-create'); await W(1200);
       await pg.evaluate(() => { window.__createToast = (document.getElementById('toast') || {}).textContent || ''; try { closeDocAt(0); } catch (_) {} render(); try { document.activeElement.blur(); } catch (_) {} }); await W(800); }, focus: null },
   { id: 'write-songbie', name: '书写 · 送别（有内容的预设谱）', go: async pg => { await pg.evaluate(() => __scn('songbie')); await W(1200); }, focus: null },
   { id: 'engrave', name: '排版模式', go: async pg => { await pg.evaluate(() => __scn('songbie')); await W(800); await pg.click('#flw-mode-engrave'); await W(1800); }, focus: null },
