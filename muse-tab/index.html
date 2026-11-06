@@ -32967,6 +32967,9 @@ FLOW.spd = (function(){
      data-sp 仍是 sc:<用途>（点击走 #start-pad 原分派，?new= 不变）；合唱谱 / 器乐独奏带 data-form（面板落 合唱谱 › 简谱合唱、五线谱 › 器乐，名实相符：不落独唱歌曲 / 钢琴独奏） */
   const SCS = ['gtr', 'pacc', 'vocal', 'inst', 'solo'];
   const SCN = {gtr:'吉他弹唱', pacc:'钢琴伴奏歌谱', vocal:'合唱谱', inst:'器乐独奏', solo:'指弹'}, SCF = {vocal:'hechang.jianpu', inst:'wuxian.qiyue'};
+  /* 新形态桌面的这组预设随 v70.1 回滚开关（NW_P2B＝0 时 #spd-nx 与常用 chip 行回到 v70.0 原样：tv_v701new F3 对拍 fixture）；手机 / 窄档主卡副文案不读它 */
+  const SCS0 = ['gtr', 'pacc', 'teach', 'sight', 'kids'];
+  const p2b = ()=>{ try{ return NW_P2B===1; }catch(_){ return true; } };
   let RC = [], TH = 0;
   const on = ()=>F.active && F.nxOn() && !document.body.classList.contains('flw-m') && !document.body.classList.contains('nw-mob');
   /* v70.3 D2 / D3 / D19：启动台静态 HTML 两种外壳共用（tv_shellflow S0 对拍 body.innerHTML），新外壳新形态（含窄档 / 手机）只用 JS 改写：
@@ -32976,6 +32979,7 @@ FLOW.spd = (function(){
     if(!flowNxAll()) return;
     const t1=sp.querySelector('#spd-cards [data-sp="mstart"] > span:last-child'), t2=sp.querySelector('#spd-cards [data-sp="new"] > span:last-child');
     if(t1 && !t1.classList.contains('ic')) t1.textContent=MOB_T;
+    if(!p2b()) return;
     if(t2 && !t2.classList.contains('ic')) t2.textContent=DESK_T;
     const ch=sp.querySelector('#spd-cards .spd-chips:not(.spd-sub)');
     if(ch && ch.dataset.nx!=='1'){ const SC=NWP.SC; ch.dataset.nx='1'; ch.setAttribute('aria-label', '常用');
@@ -32991,7 +32995,8 @@ FLOW.spd = (function(){
     const SC=NWP.SC;
     RC=[]; try{ RC=NWP.recentList().slice(0, 3); }catch(_){ RC=[]; }
     w.innerHTML='<section class="spd-sec" aria-labelledby="spd-h-new"><h2 class="spd-h" id="spd-h-new">新建</h2><div class="spd-grid">'
-      + SCS.map(k=>'<button type="button" class="spd-k" data-sp="sc:'+k+'"'+(SCF[k]? ' data-form="'+SCF[k]+'"' : '')+'>'+F.ic(SC[k].ic, 28)+'<b>'+E(SCN[k])+'</b></button>').join('')
+      + (p2b()? SCS.map(k=>'<button type="button" class="spd-k" data-sp="sc:'+k+'"'+(SCF[k]? ' data-form="'+SCF[k]+'"' : '')+'>'+F.ic(SC[k].ic, 28)+'<b>'+E(SCN[k])+'</b></button>').join('')
+        : SCS0.map(k=>'<button type="button" class="spd-k" data-sp="sc:'+k+'">'+F.ic(SC[k].ic, 28)+'<b>'+E(SC[k].n)+'</b>'+(SC[k].tag? '<em class="nf-tag">'+E(SC[k].tag)+'</em>' : '')+'</button>').join(''))
       +'<button type="button" class="spd-k spd-all" data-sp="new" aria-label="全部用途">'+F.ic('act-new', 28)+'<b>全部</b></button></div></section>'
       +'<section class="spd-sec" aria-label="导入"><h2 class="spd-h"><button type="button" class="spd-hb" data-sp="imp">导入</button></h2><div class="spd-imp">'
       +'<button type="button" class="spd-fmt" data-sp="open" aria-label="打开文件：MusicXML、Guitar Pro、MIDI、谱友圈文件"><span>XML</span><span>GP</span><span>MID</span><span>MTAB</span></button>'
