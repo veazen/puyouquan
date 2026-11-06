@@ -14,6 +14,8 @@
           ⑥ 杂项（caesura / cue / 菱形符头 / 颤音线 / 持续音踏板 / 跟 rit. 的延续虚线 / 休止上的歌词…）全部按名进报告
    S4 白名单 MXL_LED 在、skipText 按名点出前 5 类（多于 5 类写「等」）
    S5 B4 曲库质量门 ③ 扩口径（deploy/build-library.js skipAllow 逐曲签字白名单）：反例清单（侏儒去掉白名单、阿特拉斯白名单少 1 对且没签字）不过门、逐曲点名
+   C  §3.1 编辑纠错（同版互通组一并验收）：C1 普通插入 / 前插（不顶替时）平移跨列引用 dynTo / ottTo / tk，数据断言插入前后指向同一个列对象、撤销回原 JSON；
+      C2 measures 含 null 时 exportMusicXML 不抛错、按空小节导出、存储不改、导出提示点名小节号
    E  页面脚本错误 0
    env：MUSETAB_URL 被测页（缺省 ../index.html；修前副本跑红用；S5 走 build-library.js 自己的编辑器路径）。单跑约 30 秒 */
 const { chromium } = require('playwright');
@@ -327,6 +329,52 @@ function censusFn(x) {
     try { fs.unlinkSync(tmp); } catch (_) {}
     T(code === 1 && /未过质量门/.test(msg) && /lc6838113[^\n]*其他「震音」188（白名单 0）/.test(msg) && /lc4985985[^\n]*白名单缺签字[^\n]*其他「震音」51（白名单 50）/.test(msg),
       'S5 质量门③：没写白名单的震音 188 对、白名单少 1 对且没签字的阿特拉斯都不过门，逐曲点名', msg.trim().slice(0, 900)); }
+
+  /* ===== C 编辑纠错（§3.1 C） ===== */
+  const c1 = await pg.evaluate(() => { const R = {};
+    const V = (deg, dur, o) => Object.assign({ dur, dotted: false, deg, acc: '', oct: 0, lyrics: [], tie: false }, o || {});
+    const ld = (s, o) => { o = o || {}; window.guardReplace = p => p(); loadSong(s); undoStack.length = 0; redoStack.length = 0;
+      sel = { mi: o.mi || 0, row: o.row || 'vox', vi: 0, ci: o.ci || 0, si: o.si || 1 }; lastEnt = null; selRange = null; noteSel = []; render(); };
+    const base = (k, o) => createSong(k || 'vox', Object.assign({ title: 't', key: 'C', beats: 4, unit: 4, nMea: 2, nVox: 1, lyr: 1 }, o || {}));
+    /* ① 普通插入（后插）：同小节渐强终点、跨小节渐强终点（终点在下一小节）都随之后移 */
+    { const s = base(); s.measures[0].voxes[0] = [V(1, 4, { dyn: '<', dynTo: { mi: 0, ci: 3 } }), V(2, 4), V(3, 4), V(4, 4, { dyn: '>', dynTo: { mi: 1, ci: 2 } })];
+      s.measures[1].voxes[0] = [V(5, 4), V(6, 4), V(7, 4), V(1, 4, { oct: 1 })];
+      const s0 = JSON.stringify(s);
+      ld(JSON.parse(s0), { ci: 1 }); const j0 = JSON.stringify(song.measures);
+      const tgt0 = song.measures[0].voxes[0][3], tgt1 = song.measures[1].voxes[0][2];
+      insertNote(false); const c0 = song.measures[0].voxes[0], a = c0[0].dynTo, b = c0[4].dynTo;
+      R.after = { n: c0.length, a, same: c0[a.ci] === tgt0, b, same2: song.measures[b.mi].voxes[0][b.ci] === tgt1 };
+      undo(); R.undo = JSON.stringify(song.measures) === j0;
+      ld(JSON.parse(s0), { mi: 1, ci: 0 }); const tgt2 = song.measures[1].voxes[0][2]; insertNote(true); const b2 = song.measures[0].voxes[0][3].dynTo;
+      R.before = { b2, same: song.measures[1].voxes[0][b2.ci] === tgt2 }; }
+    /* ② 前插：五线谱 8va 终点 ottTo 随之后移 */
+    { const s = base(); s.voxNotations = ['staff']; s.measures[0].voxes[0] = [V(5, 4, { ott: '8va', ottTo: { mi: 0, ci: 3 } }), V(6, 4, { ott: '8va' }), V(7, 4, { ott: '8va' }), V(1, 4, { ott: '8va', oct: 1 })];
+      ld(s, { ci: 2 }); const tgt = song.measures[0].voxes[0][3]; insertNote(true); const c = song.measures[0].voxes[0], t = c[0].ottTo;
+      R.ott = { t, same: c[t.ci] === tgt, deg: c[t.ci] && c[t.ci].deg }; }
+    /* ③ 六线谱：击弦 tk 落点随之后移（插在起点之后、落点之前） */
+    { const s = base('solo', { nVox: 0 }); const c0 = s.measures[0].tabs[0]; c0[0].notes = [{ s: 3, f: 5, tech: 'h', tk: { mi: 0, ci: 2, si: 3 } }]; c0[2].notes = [{ s: 3, f: 7 }];
+      ld(s, { row: 'tab', ci: 0, si: 3 }); const tgt = song.measures[0].tabs[0][2]; insertNote(false); const c = song.measures[0].tabs[0], t = c[0].notes[0].tk;
+      R.tab = { t, same: c[t.ci] === tgt, f: c[t.ci] && (c[t.ci].notes || [])[0] && c[t.ci].notes[0].f }; }
+    /* ④ 插入点在终点之后：引用不动 */
+    { const s = base(); s.measures[0].voxes[0] = [V(1, 4, { dyn: '<', dynTo: { mi: 0, ci: 1 } }), V(2, 4), V(3, 4), V(4, 4)];
+      ld(s, { ci: 2 }); insertNote(false); const c = song.measures[0].voxes[0]; R.stay = { t: c[0].dynTo, deg: c[c[0].dynTo.ci].deg }; }
+    return R; });
+  T(c1.after.n === 5 && c1.after.same && c1.after.a.ci === 4 && c1.after.same2 && c1.after.b.mi === 1 && c1.after.b.ci === 2 && c1.before.same && c1.before.b2.ci === 3 && c1.undo
+    && c1.ott.same && c1.ott.t.ci === 4 && c1.ott.deg === 1 && c1.tab.same && c1.tab.t.ci === 3 && c1.tab.f === 7 && c1.stay.t.ci === 1 && c1.stay.deg === 2,
+    'C1 普通插入 / 前插（不顶替时）平移跨列引用：渐强终点（同小节 / 跨小节）、8va 终点、六线谱击弦落点插入后仍指着原来的音；插在终点之后的不动；一步撤销回原 JSON', J(c1));
+  const c2 = await pg.evaluate(() => { const s = createSong('vox', { title: 'n', key: 'C', beats: 3, unit: 4, nMea: 4, nVox: 1, lyr: 0 });
+    s.measures[1].beats = 2; s.measures[1].unit = 4; s.measures[2] = null; const j0 = JSON.stringify(s.measures);
+    let xml = null, err = ''; try { xml = exportMusicXML(s); } catch (e) { err = String(e && e.message || e); }
+    const nm = (exportMusicXML.nullMeas || []).slice();
+    let im = null; try { im = xml && importMusicXML(xml); } catch (e) { err = err || String(e.message); }
+    const m3 = im && im.song && im.song.measures[2];
+    let toastTxt = ''; const t0 = window.toast; window.toast = t => { toastTxt = String(t); };
+    const o0 = song, U = URL.createObjectURL, A = HTMLAnchorElement.prototype.click; URL.createObjectURL = () => 'blob:x'; HTMLAnchorElement.prototype.click = function () {};
+    try { song = s; downloadMusicXML(); } catch (e) { err = err || String(e.message); } finally { song = o0; window.toast = t0; URL.createObjectURL = U; HTMLAnchorElement.prototype.click = A; }
+    return { err, ok: !!xml, nm, kept: JSON.stringify(s.measures) === j0, n: im && im.song ? im.song.measures.length : 0,
+      m3: m3 ? m3.voxes[0].map(c => c.deg + '/' + c.dur).join(' ') : '', q3: m3 ? m3.voxes[0].reduce((a, c) => a + (c.deg ? 99 : beatsOf(c, 4)), 0) : -1, toastTxt }; });
+  T(!c2.err && c2.ok && J(c2.nm) === '[3]' && c2.kept && c2.n === 4 && c2.q3 === 2 && /第 3 小节数据缺失，按空小节导出/.test(c2.toastTxt),
+    'C2 measures 里有 null：exportMusicXML 不抛错、按空小节导出（沿用前面的 2/4）、存储不改；导出提示点名「第 3 小节数据缺失」', J(c2));
 
   T(!errs.length, 'E 页面脚本错误 0', errs.slice(0, 5).join(' | '));
   console.log((pass === total ? 'PASS ' : 'FAIL ') + pass + '/' + total + (fails.length ? '  红：' + fails.join(' ') : '') + '  ' + ((Date.now() - t0) / 1000).toFixed(1) + 's');

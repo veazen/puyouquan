@@ -18943,6 +18943,9 @@ function insertNote(before){
         if(j>=at && !x.tup && !tg.has(j) && restBlank(x, sel.row) && (!same || Math.abs(beatsOf(x, unit)-q)<1e-4)) j0=j; } if(j0>=0) break; } }
     cols.splice(at, 0, c);
     if(j0>=0){ const x=cols[j0+1]; cols.splice(j0+1, 1); colRefShift(sel.mi, sel.row, sel.vi, at, 1); colRefShift(sel.mi, sel.row, sel.vi, j0+2, -1); left=eat.filter(y=>y!==x); }
+    /* v70.3 C1（基石方案 §3.1；PROJECT.md 待修 P3）普通插入 / 前插（不顶替时）：指向插入点及其后的跨列引用（dynTo / ottTo / TAB tk）一起后移一格——
+       此前只有顶替路径平移，渐强渐弱 / 8va 终点、h·p·S 落点在插入后错指前一个音 */
+    else colRefShift(sel.mi, sel.row, sel.vi, at, 1);
     sel.ci = at;
   });
   /* 连按：t（四分改 16 分补出 3 格）后 v68.7 要按 3 下插入——顶替过一格且还剩补出的格时，标记接力给下一下插入（光标＝这次插入的格） */
@@ -43567,6 +43570,15 @@ function svgPngDownload(xml, vb, k, name, cuts){
 function xesc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function exportMusicXML(s){
   s = s || song;
+  /* v70.3 C2（基石方案 §3.1；PROJECT.md 待修 P3）measures 里有 null / 非对象（坏数据）时此前抛「reading 'coda'」：导出用的浅拷贝把它换成空小节
+     （按前面最近一次变拍的拍号补休止；声部数照谱），存储里的谱不改；exportMusicXML.nullMeas＝换掉的小节号（从 1 起），导出提示里点名 */
+  exportMusicXML.nullMeas = [];
+  if(s && Array.isArray(s.measures) && s.measures.some(m=>!m || typeof m!=='object')){
+    let b=s.beats||4, u=s.unit||4;
+    const ms=s.measures.map((m,mi)=>{ if(m && typeof m==='object'){ if(m.beats) b=m.beats; if(m.unit) u=m.unit; return m; }
+      exportMusicXML.nullMeas.push(mi+1);
+      return {tabs:(s.tabVoices||[]).map(()=>blankTabCols(b, u)), voxes:(s.voxVoices||[]).map(()=>blankVoxCols(b, u)), repeatStart:false, repeatEnd:false}; });
+    s = Object.assign({}, s, {measures:ms}); }
   const o0=song; song=s;
   if(!(s.voxVoices||[]).length && !(s.tabVoices||[]).length){ song=o0; return null; }   // 空谱不导
   let K = staffKeyInfo();   /* v64.9 B2b 逐小节换 K（见 measures 循环） */
@@ -44096,7 +44108,8 @@ function downloadMusicXML(){
   const a=document.createElement('a'); a.href=URL.createObjectURL(b);
   a.download=(song.title||'曲谱')+'.musicxml'; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-  toast('已导出 MusicXML（可在 MuseScore / Finale / Sibelius 打开）');
+  const nm=exportMusicXML.nullMeas||[];   /* v70.3 C2 */
+  toast('已导出 MusicXML（可在 MuseScore / Finale / Sibelius 打开）'+(nm.length? '；第 '+nm.slice(0,5).join('、')+(nm.length>5? ' 等' : '')+' 小节数据缺失，按空小节导出' : ''));
 }
 /* ===== MusicXML 导入（P0-B）=====
    score-partwise → 合法 song v3（过 migrate() 补默认）。解析不了的元素跳过并计数，
