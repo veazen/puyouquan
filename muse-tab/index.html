@@ -48184,7 +48184,7 @@ let ccNx=null;
 const CC_PZ_IC={jianpu:'nota-jianpu', wuxian:'nota-staff', gangqin:'type-piano', jita:'type-guitar', uku:'type-uku', hechang:'type-vocal', gongneng:'type-func'};
 const CC_TYPE_PZ={guitar:['jita','tanchang'], uku:['uku','tanchang'], solo:['jita','zhitan'], pianoacc:['gangqin','banzou'], piano:['gangqin','duzou'],
   vocal:['jianpu','gequ'], vox:['jianpu','gequ'], teach:['wuxian','duizhao',['jianpu.duizhao']], instr:['wuxian','qiyue'], staff:['wuxian','qiyue'], func:['gongneng','jishu'], chord:['gongneng','hexian']};
-const CC_FOCUS={'gangqin.tanchang':1, 'jianpu.erge':1, 'wuxian.shichang':1, 'jianpu.duizhao':1, 'wuxian.duizhao':1};
+/* v70.3（基石方案 §2.6：分类方案 §4.1「主攻垂类」二级 0 首也显示的例外取消）：二级一律只露有谱的（或已选的），原 CC_FOCUS 表删 */
 /* 钢琴谱两个二级的悬停（方案 §4.2：「弹唱」取虫虫钢琴的叫法＝旋律＋歌词＋钢琴；「伴奏」只装纯伴奏与给合唱 / 器乐的伴奏）；≤12 字，与官网 site/index.html SUB_TIP 同文 */
 const CC_SUB_TIP={'gangqin.tanchang':'旋律＋歌词＋钢琴', 'gangqin.banzou':'纯伴奏 · 合唱器乐伴奏'};
 /* v70.3 定位纠偏（基石方案 §2.3 D8）：谱种行末的专题链接（儿歌弹唱 › / 艺考视唱 › / 即兴伴奏 ›）撤了，专题改由搜索词与 ?zt= 承接；
@@ -48246,7 +48246,7 @@ function renderCircleNx(){
   if(p){
     const cs=(C.pz[s.pz]||{sub:{}}).sub;
     p.subs.forEach(x=>{ const tip=CC_SUB_TIP[s.pz+'.'+x.id];
-      if((cs[x.id]||0)>0 || CC_FOCUS[s.pz+'.'+x.id] || s.sub===x.id || (x.id==='qiyue' && s.inst)) h+=ccNxChip(`data-sub="${x.id}"${tip? ` title="${tip}"` : ''}`, x.name, s.sub===x.id || (x.id==='qiyue' && !!s.inst)); });
+      if((cs[x.id]||0)>0 || s.sub===x.id || (x.id==='qiyue' && s.inst)) h+=ccNxChip(`data-sub="${x.id}"${tip? ` title="${tip}"` : ''}`, x.name, s.sub===x.id || (x.id==='qiyue' && !!s.inst)); });
     if(s.pz==='jianpu') h+=ccNxChip('data-tg="acc"', '带伴奏', s.x.acc, 'tg')+ccNxChip('data-tg="chord"', '已配和弦', s.x.chord, 'tg');
     else if(s.pz==='wuxian') h+=ccNxChip('data-tg="acc"', '带伴奏', s.x.acc, 'tg');
     else if(s.pz==='hechang') h+='<span class="cc-rl">伴奏</span>'+ccNxChip('data-hacc=""', '全部', !s.hacc, 'tg')+ccNxChip('data-hacc="yes"', '带伴奏', s.hacc==='yes', 'tg')+ccNxChip('data-hacc="no"', '无伴奏', s.hacc==='no', 'tg');

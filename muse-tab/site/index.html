@@ -123,7 +123,7 @@
   function counts(){ return cats || Z.cats(pool()); }
 
   /* ---- 一级 / 二级 / 乐器 ---- */
-  var FOCUS={'gangqin.tanchang':1, 'jianpu.erge':1, 'wuxian.shichang':1, 'jianpu.duizhao':1, 'wuxian.duizhao':1};
+  /* v70.3（基石方案 §2.6：分类方案 §4.1「主攻垂类」二级 0 首也显示的例外取消）：二级一律只露有谱的（或已选的），原 FOCUS 表删 */
   /* 钢琴谱两个二级的悬停（方案 §4.2）：弹唱＝旋律＋歌词＋钢琴；伴奏＝纯伴奏与给合唱 / 器乐的伴奏（与编辑器新外壳谱友圈 CC_SUB_TIP 同文） */
   var SUB_TIP={'gangqin.tanchang':'旋律＋歌词＋钢琴', 'gangqin.banzou':'纯伴奏 · 合唱器乐伴奏'};
   function chip(attr, label, on, extraCls){ return '<button type="button" class="fchip lg'+(extraCls?' '+extraCls:'')+(on?' on':'')+'" '+attr+'>'+label+'</button>'; }
@@ -134,7 +134,7 @@
     var C=counts(), cs=(C.pz[st.pz]||{sub:{}}).sub, h='';
     p.subs.forEach(function(x){
       var n=cs[x.id]||0;
-      if(!(n>0 || FOCUS[st.pz+'.'+x.id] || st.sub===x.id || (x.id==='qiyue' && st.inst))) return;
+      if(!(n>0 || st.sub===x.id || (x.id==='qiyue' && st.inst))) return;
       var tip=SUB_TIP[st.pz+'.'+x.id];
       h+=chip('data-sub="'+x.id+'"'+(tip? ' title="'+tip+'"' : ''), x.name, st.sub===x.id || (x.id==='qiyue' && !!st.inst));
       if(x.id==='qiyue' && (st.pz==='jianpu' || st.pz==='wuxian') && isMobile()){   /* 手机：「器乐」后直接露该一级数量前 3 的乐器（T5）；电脑有常显的乐器行 */
