@@ -115,11 +115,13 @@ try { MANI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../docs/desi
   const after = await EV(() => ({ tabs: [...document.querySelectorAll('#doc-tabs .dtab svg.pqi')].map(s => s.dataset.pq + '@' + s.getAttribute('width')),
     add: (document.querySelector('#dt-add svg.pqi') || { dataset: {} }).dataset.pq, addTxt: document.getElementById('dt-add').textContent.trim(),
     toast: (document.querySelector('#toast svg.pqi') || { dataset: {} }).dataset.pq, txt: document.querySelectorAll('#doc-tabs svg text, #toast svg text, #spd-cards svg text').length }));
+  /* v70.1 P2b（规格 docs/spec-2026-11-v701.md §15.2）：新形态左栏＝常用 4 卡 ＋ 谱种 7 行 ＋ 空白谱 · 自选，13 枚、均 24（谱种行用谱友圈同一套谱种图标） */
+  const P2B_SC = 'type-jg type-kids type-sight type-teach nota-jianpu nota-staff type-piano type-guitar type-uku type-vocal type-func type-blank type-custom'.split(' ').map(x => x + '@24').join(' ');
   T(!pad.err && pad.cards.includes('act-new@28') && pad.cards.includes('tpl-last@28') && pad.cards.includes('act-import@28') && pad.cards.includes('type-jg@18')
     && menu.length >= 11 && (menu.includes('tpl-last@20') || menu[0] === 'type-guitar@20') && menu.includes('type-kids@20')   /* v69.1 C：新形态快速新建首项用上次用途的谱类图标（首访＝吉他弹唱）、撤「从已有音乐…」（12→11 枚） */
-    && panel.sc.length === 11 && panel.sc.every(x => /^type-.*@24$/.test(x)) && panel.rows.join() === 'nota-jianpu@20,nota-staff@20,nota-tab6@20,nota-grand@20,nota-chord@20' && panel.text === 0 && panel.dd === 'act-chevron'
+    && panel.sc.join(' ') === P2B_SC && panel.rows.join() === 'nota-jianpu@20,nota-staff@20,nota-tab6@20,nota-grand@20,nota-chord@20' && panel.text === 0 && panel.dd === 'act-chevron'
     && after.tabs.every(x => /^type16-.*@16$/.test(x)) && after.tabs.includes('type16-teach@16') && after.add === 'act-add' && after.addTxt === '' && after.toast === 'type-teach' && after.txt === 0,
-    'T5 新建流程各位置用最终图标集：启动台 28/18、新建▾ 20、面板用途 24 / 谱开关 20、页签 16 微缩母版、页签条 ＋、新建 ▾（flow：文件 ▾ 新建行尾 ▾）、建成提示 20，均无 <text>', JSON.stringify({ pad, menu: menu.slice(0, 4), panel, after }));
+    'T5 新建流程各位置用最终图标集：启动台 28/18、新建▾ 20、面板左栏 13 枚 24（常用 4 · 谱种 7 · 空白 / 自选）/ 谱开关 20、页签 16 微缩母版、页签条 ＋、新建 ▾（flow：文件 ▾ 新建行尾 ▾）、建成提示 20，均无 <text>', JSON.stringify({ pad, menu: menu.slice(0, 4), panel, after }));
   } catch (e) { T(false, 'T5 新建流程各位置用最终图标集', 'EXC: ' + String(e.message || e).split('\n')[0]); }
 
   /* T6 页签谱类图标一图一义 */

@@ -1611,6 +1611,8 @@ i.nf-dot.s-user,i.nf-dot.s-link{background:var(--accent)}i.nf-dot.s-scene{border
 .nf-qi>span{display:flex;flex-direction:column;min-width:0}.nf-qi .nf-tag{margin-left:auto}
 .nf-qm .nf-qlast{background:var(--accent-soft)}.nf-qlast .pqi,.nf-qlast b{color:var(--accent-ink)}
 .nf-qsep{height:1px;background:var(--border);margin:5px 6px}
+/* v70.1 P2b 快速新建 ▾ 组名「常用 / 谱种」（新形态；同 .nf-gl 视觉，不可点） */
+.nf-qm .nf-qh{font-size:12px;font-weight:600;color:var(--muted);padding:7px 10px 2px;letter-spacing:.04em;cursor:default;user-select:none}
 #b-new{display:inline-flex;align-items:center;gap:5px}
 #b-new>span{display:inline-flex}
 #b-newdd{padding-left:5px;padding-right:5px;display:inline-flex;align-items:center;justify-content:center;min-width:32px}
@@ -30171,7 +30173,8 @@ FLOW.r1 = (function(){
     const kn = (song && !sp)? kindOf(song) : '';
     return '<div class="flw-msplit" role="none">'
         +F.mi({a:'r1:new', ic:'act-new', label:'新建…', key:'Alt+N', nw:1})
-        +'<button type="button" class="flw-mi flw-msub" role="menuitem" data-fa="r1:newdd" aria-label="快速新建：按上次 / 按用途一点直接建" title="快速新建（Alt+Shift+N 按上次）">'+F.ic('act-chevron', 14)+'</button></div>'
+        /* v70.1 P2b（规格 §9.1）：新形态读屏名随快速新建的两组改口；title 不变；?next=0 / 回滚（NW_P2B＝0）原文 */
+        +'<button type="button" class="flw-mi flw-msub" role="menuitem" data-fa="r1:newdd" aria-label="'+((F.nxOn() && typeof NWP!=='undefined' && NWP.P2B)? '快速新建：按上次 / 常用 / 谱种' : '快速新建：按上次 / 按用途一点直接建')+'" title="快速新建（Alt+Shift+N 按上次）">'+F.ic('act-chevron', 14)+'</button></div>'
       +F.mi({a:'r1:import', ic:'act-import', label:'从已有音乐…', fmt:'XML GP MID', nw:1})
       +F.mi({old:'b-open', ic:'act-open', label:'打开文件…', key:'Ctrl+O'})   /* v68.3 D2 */
       +F.hr()
@@ -32520,7 +32523,49 @@ FLOW.cmd = (function(){
   }
   /* v68.2（验收遗留：拼音撞码排序）记号条目补的首字母别名——「前倚音」qyy 之外也认 qy（全音符 / 切音 / 前倚音同码，按常用度排，见 FREQ） */
   const XK = {'sign:grace-pre':'qy'};
-  function list(){ if(!LIST){ LIST=hand().concat(signs()); LIST.forEach(c=>{ if(XK[c.id]) c.k=String(c.k||'')+' '+XK[c.id]; }); } return LIST; }
+  /* v70.1 P2b（规格 §10）「新建：<谱种> <形态>」：按归属去重——15 个归属形态各一条 ＋ 常用 4 卡各一条＝19 条；非归属形态的名字写进它归属那条的关键词
+     （搜「简谱合唱」得合唱谱 简谱合唱、「简谱带伴奏」得钢琴即兴伴奏）。追加在表尾（同分排最后，不改任何既有查询的首条）；关键词不用 2 个字母的整词（避开 sc / bf / hy / sd / zz / qy / qb 撞码）。
+     执行＝打开新建面板并预选（同启动台用途卡，回车才建）；sp:1 启动台上也能用；埋点照旧 cmd:go:<id>。名字 / 图标从 PQ_KIND.PZ、NWP.PZ_FORMS / PZ_IC / SC 现取。
+     ?next=0（NXC 假）与回滚（NWP.P2B 假）一条不出。NWP 是 var（在它之前求值也不抛 TDZ）；list() 惰性，开机后第一次调用时 NWP 已就位 */
+  function nfCmds(){
+    if(!NXC || typeof NWP==='undefined' || !NWP || !NWP.P2B) return [];
+    const FM = [
+      ['jianpu.gequ', 'xjjpgq jpgq 简谱歌曲 简谱歌谱 新建简谱'],
+      ['jianpu.qiyue', 'jpqiyue 简谱器乐 民乐简谱 二胡简谱 葫芦丝 萨克斯简谱'],
+      ['jianpu.shichang', 'jpshichang 简谱视唱'],
+      ['wuxian.gequ', 'xjwxgq wxpgq 五线谱歌曲 五线谱歌谱 新建五线谱'],
+      ['wuxian.qiyue', 'wxqiyue 五线谱器乐 器乐独奏 小提琴谱'],
+      ['gangqin.duzou', 'gqpdz gqdz 钢琴独奏 钢琴谱'],
+      ['gangqin.chunban', 'gqcbz 纯伴奏 钢琴伴奏谱'],
+      ['jita.tanchang', 'jtptc jttc 吉他弹唱 吉他谱'],
+      ['jita.zhitan', 'jtpzt jtzt 吉他指弹 吉他独奏'],
+      ['uku.tanchang', 'ykll ykltc 尤克里里弹唱 乌克丽丽 尤克里里 ukulele'],
+      ['uku.zhitan', 'yklzt 尤克里里指弹 尤克里里独奏'],
+      ['hechang.jianpu', 'hcpjp jphc 简谱合唱 合唱谱 简谱四部合唱'],
+      ['hechang.wuxian', 'hcpwx wxhc 五线合唱 五线谱合唱'],
+      ['gongneng.jishu', 'gnpjsp jsp 级数谱 功能谱 和弦简谱'],
+      ['gongneng.hexian', 'gnphxg hxg 和弦格 小节和弦']
+    ];
+    const CY = [
+      ['pacc', 'gqjxbz jxbz 钢琴即兴伴奏 即兴伴奏 考编 简谱带伴奏 五线谱带伴奏 钢琴谱弹唱'],
+      ['kids', 'egtc 儿歌弹唱 师范 钢琴谱儿歌弹唱'],
+      ['sight', 'scle 视唱练耳 艺考 五线谱视唱'],
+      ['teach', 'jxdzp 教学对照谱 课堂 对照谱 简谱对照谱 五线谱对照谱']
+    ];
+    const L=[];
+    try{
+      FM.forEach(([id, k])=>{
+        const f=(NWP.PZ_FORMS||[]).find(x=>x.id===id), p=f && PQ_KIND.PZ.find(x=>x.id===f.pz); if(!f || !p) return;
+        L.push(C('nf:'+id.replace('.', ':'), '新建：'+p.name+' '+f.n, k, '新建面板', ()=>showNewWizard({form:id}), {ic:NWP.PZ_IC[f.pz], sp:1}));
+      });
+      CY.forEach(([sc, k])=>{
+        const s=NWP.SC && NWP.SC[sc]; if(!s) return;
+        L.push(C('nf:'+sc, '新建：'+s.n, k, '新建面板', ()=>showNewWizard({scene:sc}), {ic:s.ic, sp:1}));
+      });
+    }catch(e){ console.error('flow 命令表「新建：」条目异常', e); }
+    return L;
+  }
+  function list(){ if(!LIST){ LIST=hand().concat(signs(), nfCmds()); LIST.forEach(c=>{ if(XK[c.id]) c.k=String(c.k||'')+' '+XK[c.id]; }); } return LIST; }
   /* —— 匹配 —— */
   const norm = s=>{ s=String(s||''); try{ s=s.normalize('NFKC'); }catch(_){} return s.toLowerCase().replace(/\s+/g, ''); };
   const whereOf = c=>typeof c.w==='function'? c.w() : c.w;
@@ -41617,9 +41662,16 @@ var NWP = (function(){
     const fm=a=>'<span class="nf-qfm" aria-hidden="true">'+a.map(x=>'<span class="flw-mfmt">'+x+'</span>').join('')+'</span>';
     /* v69.1 C（方案 ⑥）：新形态首项图标＝上次用途的谱类图标（读不到＝吉他弹唱），谱名只进读屏名；撤「从已有音乐…」（家＝文件 ▾ 同名项 + 启动台「导入」，P4）。?next=0 照旧 */
     const nx=(()=>{ try{ return FLOW.nxOn(); }catch(_){ return false; } })(), lsc=(last && SC[ls.scene])? ls.scene : 'gtr';
+    /* v70.1 P2b（规格 §9.1）：新形态与新建面板第一步同构——两组标题「常用 / 谱种」（.nf-qh 只是组名：非 menuitem、不可点，qmKey 的 ↑↓ 自然跳过）；
+       常用 4 项写法同 sc()；谱种 7 项（PQ_KIND.PZ 顺序）一点建该谱种默认形态（quickCreate('pz:<id>')），读屏名「谱种 · 默认形态」，≤6 字、无副标题、无 title。
+       NW_P2B＝0 / ?next=0：下面原 9 用途一字不动 */
+    const p2=nx && NW_P2B===1;
+    const grp=(k, t, h)=>'<div role="group" aria-labelledby="nf-qh-'+k+'"><div class="nf-qh" id="nf-qh-'+k+'" role="presentation">'+t+'</div>'+h+'</div>';
+    const pz=p=>'<button type="button" role="menuitem" class="nf-qi" data-q="pz:'+p.id+'" aria-label="'+esc2(p.name+' · '+PZ_FORM[PZ_DEF[p.id]].n)+'">'+ic(PZ_IC[p.id],20)+'<b>'+p.name+'</b></button>';
     return '<button type="button" role="menuitem" class="nf-qi nf-qlast" data-q="last" aria-label="'+esc2((last? '按上次：'+SC[ls.scene].n : '按默认：吉他弹唱')+'，'+val)+'">'+ic(nx? SC[lsc].ic : 'tpl-last',20)
         +'<span class="nf-qt"><b>'+(last? '按上次' : '按默认')+'</b>'+(nx? '' : '<span class="nf-qk">'+(last? SC[ls.scene].n : '吉他弹唱')+'</span>')+'<small class="nf-qv">'+vp.map(x=>'<span>'+esc2(x)+'</span>').join(' ')+'</small></span><kbd>Alt+Shift+N</kbd></button>'
-      +'<div class="nf-qsep" role="separator"></div>'+['gtr','pacc','kids','vocal','teach','sight','solo','inst','chord'].map(sc).join('')
+      +'<div class="nf-qsep" role="separator"></div>'+(p2? grp('cy', '常用', ['pacc','kids','sight','teach'].map(sc).join('')) + grp('pz', '谱种', PQ_KIND.PZ.filter(p=>own(PZ_DEF, p.id)).map(pz).join(''))
+        : ['gtr','pacc','kids','vocal','teach','sight','solo','inst','chord'].map(sc).join(''))
       +'<div class="nf-qsep" role="separator"></div>'
       +(nx? '' : '<button type="button" role="menuitem" class="nf-qi" data-q="import" aria-label="从已有音乐…（MusicXML、Guitar Pro、MIDI）">'+ic('act-import',20)+'<b>从已有音乐…</b>'+fm(['XML', 'GP', 'MID'])+'</button>')
       +'<button type="button" role="menuitem" class="nf-qi" data-q="panel">'+ic('act-new',20)+'<b>新建面板…</b><kbd>Alt+N</kbd></button>';
@@ -41642,10 +41694,13 @@ var NWP = (function(){
     qm.querySelectorAll('[role=menuitem]').forEach((x,k)=>x.tabIndex = k? -1 : 0);
     const f=qm.querySelector('[role=menuitem]'); if(f) f.focus({preventScroll:true});
   }
-  /* 'last'＝按上次（读不到回默认吉他弹唱）；用途 id＝该用途默认值（不带上次的参数） */
+  /* 'last'＝按上次（读不到回默认吉他弹唱）；用途 id＝该用途默认值（不带上次的参数）；
+     v70.1 P2b 'pz:<谱种>'＝该谱种默认形态（PZ_DEF，同面板「点谱种 → 创建」；不认识的谱种＝开面板兜底）。埋点 via='menu'、from＝用途（格式不变） */
   function quickCreate(id){
     if(isMobileNew()){ showNewWizard(); return; }
-    const s2 = id==='last'? fresh({}) : fresh({scene:id, clean:true});
+    const pzk = String(id).slice(0,3)==='pz:'? String(id).slice(3) : null;
+    if(pzk!=null && !own(PZ_DEF, pzk)){ showNewWizard(); return; }
+    const s2 = id==='last'? fresh({}) : pzk!=null? fresh({clean:true, form:PZ_DEF[pzk]}) : fresh({scene:id, clean:true});
     const P=planOf(s2);
     if(!own(NWB.STACKS, P.stack)){ showNewWizard(); return; }
     const ev={via:id==='last'? 'last' : 'menu', from:P.scene, first:!lastLoad()};   /* v67.6 create_stack：▾ 里点用途＝menu；按上次（▾ / Alt+Shift+N / 启动台）＝last */
@@ -47914,9 +47969,17 @@ const CC_STAFF_TYPE={instr:1, piano:1, pianoacc:1, solo:1};   // 纯五线谱家
 /* v70.0 验收⑦：新外壳谱友圈卡片（nx）——小调谱（接口 mode / 本地 data.mode＝'minor'，按关系大调记谱）五线谱家族写关系小调「a 小调」（此前《致爱丽丝》写成「C 调」）；
    简谱家族照写「1=C」（简谱惯例）；旧外壳卡片不动。与官网 pyq.js MINOR_OF 同一张表 */
 const CC_MINOR={C:'a', G:'e', D:'b', A:'♯f', E:'♯c', B:'♯g', 'F#':'♯d', 'C#':'♯a', F:'d', Bb:'g', Eb:'c', Ab:'f', Db:'♭b', Gb:'♭e', Cb:'♭a'};
+/* v70.1（v70.0 复验遗留 P3，规格 docs/spec-2026-11-v701.md §11.1）：六线谱 / 四线谱（谱种 jita / uku）的调按指法写「C调指法 · 夹2」——与官网 site/pyq.js fkeyText 逐字同口径；
+   卡片的 pz / fx / capo 由 ccPzOf / ccNxCard 带上（不用改数据）。只新外壳谱友圈（ccMetaBits 的 nx）用 */
+function ccFkeyText(pb){
+  const fx=pb && pb.fx;
+  return (fx && fx.fkey && (pb.pz==='jita'||pb.pz==='uku'))? fx.fkey+'调指法'+((+pb.capo||0)>0? ' · 夹'+(+pb.capo) : '') : '';
+}
 function ccMetaBits(pb, nx){
   const b=[], k=String(pb.key||'').slice(0,6), mi=nx && (pb.mode || (pb.data && pb.data.mode))==='minor' && CC_MINOR[k];
-  if(k) b.push(CC_STAFF_TYPE[pb.type]? (mi? CC_MINOR[k]+' 小调' : k+' 调') : '1='+k);
+  const fk=nx? ccFkeyText(pb) : '';   /* 有指法调就不再写调名（同官网 metaBits：if(fk) … else if(k) …）；nx 假（旧外壳 / ?next=0）一字不动 */
+  if(fk) b.push(fk);
+  else if(k) b.push(CC_STAFF_TYPE[pb.type]? (mi? CC_MINOR[k]+' 小调' : k+' 调') : '1='+k);
   if(pb.beats>0 && pb.unit>0) b.push(pb.beats+'/'+pb.unit);
   if(pb.tempo>0) b.push('♩='+pb.tempo);
   if(pb.measures>0) b.push(pb.measures+' 小节');
