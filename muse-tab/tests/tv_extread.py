@@ -5,7 +5,9 @@
 #   依赖：music21（pip install music21；本机开发可用 PYTHONPATH 指到装好的目录）。
 #   输出：{文件名: {"parts": [{"id", "name", "measures": [{"n" 小节号, "bar" 拍号小节长（四分音符为 1）, "voices" [每个声部的时值和],
 #           "fm" [这一声部是否只有一个整小节休止], "hi" 最后一个元素的结束点, "notes" 有音高的非倚音音头数（和弦逐音计，和弦名 ChordSymbol 不计）,
-#           "nv" 声部数}]}]} 或 {"err": "…"}
+#           "nv" 声部数, "ev" [每个声部（按 voice 号）：{"id", "ev" [[小节内起点, 时值, 是休止, 是整小节休止]…], "end" 最后一个元素的终点}]}]}]} 或 {"err": "…"}
+# v70.5 B 组（规格 §7.7、§10.4）：先滤掉没有可读内容（非倚音、非和弦名的 GeneralNote）的 Voice 再报声部——单谱表 part 里只有 <forward> 的声部
+#   music21 也会建一个空 Voice（同谱表第二声部全是隐形休止时）；逐个报每个声部的 (offset, 时值)，交给 tv_extread.js 比对（层末尾是 forward 时声部终点小于拍号）
 import json
 import sys
 
@@ -27,12 +29,25 @@ def measure_info(m):
         bar = q(m.barDuration.quarterLength)
     except Exception:
         bar = None
-    voices = list(m.voices) if m.hasVoices() else [m]
-    durs, fms = [], []
+    def readable(v):
+        return [el for el in v.getElementsByClass(note.GeneralNote)
+                if not el.duration.isGrace and not isinstance(el, harmony.ChordSymbol)]
+    if m.hasVoices():
+        voices = [v for v in m.voices if readable(v)]
+        def vkey(v):
+            try:
+                return (0, float(v.id))
+            except Exception:
+                return (1, str(v.id))
+        voices.sort(key=vkey)
+    else:
+        voices = [m]
+    durs, fms, evs = [], [], []
     for v in voices:
         tot = 0.0
-        els = [el for el in v.getElementsByClass(note.GeneralNote)
-               if not el.duration.isGrace and not isinstance(el, harmony.ChordSymbol)]
+        els = readable(v)
+        ev = [[q(el.offset), q(el.duration.quarterLength), isinstance(el, note.Rest), bool(getattr(el, 'fullMeasure', False) is True)] for el in els]
+        evs.append({"id": str(getattr(v, 'id', '')) if v is not m else None, "ev": ev, "end": max([e[0] + e[1] for e in ev], default=0)})
         for el in els:
             tot += float(el.duration.quarterLength)
         durs.append(q(tot))
@@ -51,7 +66,7 @@ def measure_info(m):
         hi = q(m.highestTime)
     except Exception:
         hi = None
-    return {"n": m.number, "bar": bar, "voices": durs, "fm": fms, "hi": hi, "notes": n, "nv": len(voices)}
+    return {"n": m.number, "bar": bar, "voices": durs, "fm": fms, "hi": hi, "notes": n, "nv": len(voices), "ev": evs}
 
 
 def read(path):

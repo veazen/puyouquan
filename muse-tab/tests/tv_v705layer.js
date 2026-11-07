@@ -8,6 +8,8 @@
       两遍截断（D-20）、编号约定按 part 判（D-21）、曲中谱号 / 八度线 / 和弦名按时间；I0 层不变式（谱表属性、mixer、简称、名字）、I0b 每行 hid 总时值守恒
    Q  导入报告：skipText 四个分项（vBy）、GP / 旧数据照旧；新建面板依据行（同谱表第二声部 N 张谱表、跨谱表的音）
    K  分类接缝（需 A 组分类入口接谱表视图，规格 §2.3）：分层钢琴＝钢琴独奏谱、女高女低同谱表＝合唱谱 3 声部、单件乐器带层 parts＝1
+   X  MusicXML 导出（§7；规格 §10.3 记作 E 段）：没有层 / hid 的谱与 c9882a4 逐字节相同；分层谱一个 score-part、voice 1 / 2 / 5 / 6、backup 守卫、层对上的 hid 写 forward、
+      层对以外 / 连音里的 hid 写 print-object 休止、part 数＝删层后的 part 数、出→入逐声部相等、hid 一列一个 forward、过 XSD、层段记号编号 (stN||1)+2
    E  页面脚本错误 0
    修前红：MUSETAB_URL 指向 git show a73fecc:muse-tab/index.html 的副本复跑——见各段头注。
    env：MUSETAB_URL 被测页（缺省 ../index.html）· V705_REF 基线页（缺省 git show c9882a4，v70.4 行为）· ONLY=N,I 只跑部分段 */
@@ -224,6 +226,58 @@ const X_TAB = HEAD(['P1'], `<part id="P1"><measure number="1">${TABATT}${TN(1, 0
         'K1 F07 / F21 分层钢琴：谱类 G、docType piano、钢琴独奏谱（器乐层在分类上折叠）', J(r));
       T(Array.isArray(r) && r[1].choir && r[1].parts === 3 && /合唱/.test(r[1].nm), 'K2 F06 女高 / 女低同谱表＋男声：合唱谱、facets.parts＝3（声乐层照独立声部算）', J(r && r[1]));
       T(Array.isArray(r) && r[2].parts === 1, 'K3 F01 单件乐器带层：facets.parts＝1（不变成重奏）', J(r && r[2]));
+    }
+    /* ================= X：MusicXML 导出（规格 §7、§10.3「E」；段名 X 避开页面脚本错误 E） =================
+       修前红（a73fecc）：X2–X6（v70.4 不建层、不写 hid / voice 5 / 6 / forward）；X1 是「老谱逐字节不变」守卫 */
+    if (want('X')) {
+      { const ru = refUrl(); if (!ru) T(false, 'X1 基线页取不到');
+        else { const R = await open(b, ru), bad = [];
+          const ex = p => EV(p, () => PRESETS.map(pr => { const o0 = song; try { return exportMusicXML(pr.make()); } finally { song = o0; } }));
+          const a = await ex(pg), z = await ex(R.pg); await R.ctx.close();
+          if (!Array.isArray(a) || !Array.isArray(z) || a.length !== z.length) bad.push('取导出失败');
+          else a.forEach((x, i) => { if (x !== z[i]) bad.push('预设 ' + (i + 1)); });
+          T(!bad.length, 'X1 没有层、没有 hid 的谱（16 份预设，含钢琴大谱表）MusicXML 导出与 c9882a4 逐字节相同（总开关：LR 为 null 且无 hid → 原写法）', bad.join(' | ')); } }
+      const XS = await EV(pg, xs => { const one = x => { const s = importMusicXML(x).song; const o0 = song; let X; try { X = exportMusicXML(s); } finally { song = o0; } return { s, X }; };
+        const out = {}; Object.keys(xs).forEach(k => { const { s, X } = one(xs[k]); const s2 = importMusicXML(X).song;
+          const sig = t => JSON.stringify({ vv: t.voxVoices, vl: t.voxLayer || null, sh: t.voxShort || null, m: t.measures.map(m => m.voxes.map(r => r.map(c => [c.deg, c.acc || '', c.oct || 0, c.dur, c.dotted || false, c.hid || 0, c.tup || 0, !!c.tie, (c.lyrics || []).join('|')]))) });
+          const ms = X.match(/<measure [\s\S]*?<\/measure>/g) || [];
+          out[k] = { X, same: sig(s) === sig(s2), a: sig(s).slice(0, 600), b: sig(s2).slice(0, 600), nParts: (X.match(/<score-part /g) || []).length,
+            voices: [...new Set((X.match(/<voice>\d+<\/voice>/g) || []))].sort().join(' '), bk0: /<backup><duration>0<\/duration>/.test(X),
+            bk: ms.map(m => (m.match(/<backup>/g) || []).length), fwd: (X.match(/<forward>/g) || []).length, po: (X.match(/<note print-object="no">/g) || []).length,
+            layHid: s.measures.reduce((a, m) => a + (m.voxes || []).reduce((b2, r, vi) => b2 + ((s.voxLayer || [])[vi] === 1 || (s.voxLayer || [])[vi + 1] === 1 ? r.filter(c => c.hid === 1 && !c.deg && !c.tup).length : 0), 0), 0),
+            names: (X.match(/pyq-voice-names">([^<]*)</) || [])[1] || '', rows: s.voxVoices.length, nLay: (s.voxLayer || []).filter(v => v === 1).length }; });
+        return out; }, { F01: FX('F01'), F06: FX('F06'), F07: FX('F07'), F10: FX('F10'), F14: FX('F14'), F17: FX('F17'), F21: FX('F21'), F25: FX('F25'), F26: FX('F26'), F12: FX('F12'), F23: FX('F23'), F27: FX('F27') });
+      if (XS.err) T(false, 'X 导出取样', XS.err);
+      else {
+        { const r = XS.F07; T(r.nParts === 1 && r.voices === '<voice>1</voice> <voice>2</voice> <voice>5</voice> <voice>6</voice>' && J(r.bk) === '[3,3]' && !r.bk0 && /<forward><duration>192<\/duration><voice>6<\/voice><staff>2<\/staff><\/forward>/.test(r.X),
+            'X2 分层钢琴 F07：一个 score-part、voice 1 / 2 / 5 / 6、每小节 backup 数＝段数−1、没有 <backup><duration>0、层对上的 hid 写 forward（带 voice / staff）', J({ v: r.voices, bk: r.bk, n: r.nParts })); }
+        { const r = XS.F21, f = XS.F01; T(r.voices === '<voice>1</voice> <voice>5</voice> <voice>6</voice>' && r.nParts === 1 && J(r.bk) === '[2]' && f.voices === '<voice>1</voice> <voice>2</voice>' && J(f.bk) === '[1]',
+            'X2b 只有左手带层 → 1@1、5@2、6@2（两段 backup）；单谱表带层 → voice 1 / 2、一个 backup', J({ F21: [r.voices, r.bk], F01: [f.voices, f.bk] })); }
+        { const a = XS.F10, c = XS.F25; T(a.po === 2 && a.fwd === 0 && c.po === 1 && /<note print-object="no"><rest\/><duration>\d+<\/duration><voice>2<\/voice><type>eighth<\/type><time-modification>/.test(c.X),
+            'X3 层对以外的 hid（单声部 F10）写 print-object="no" 的休止、不写 forward；连音里的 hid（F25）写带 time-modification 的隐形休止', J({ F10: [a.po, a.fwd], F25: c.po })); }
+        { const parts = Object.keys(XS).map(k => k + ':' + XS[k].nParts).join(' ');
+          T(XS.F06.nParts === 2 && XS.F06.rows === 3 && XS.F14.nParts === 8 && XS.F14.rows === 15 && XS.F17.nParts === 1 && XS.F17.rows === 4 && XS.F01.nParts === 1 && XS.F01.rows === 2,
+            'X4 导出的 part 数＝删掉层行后的 part 数（层行从不单独成 part：F06 3 行 2 part、F14 15 行 8 part、F17 4 行 1 part、F01 2 行 1 part）', parts); }
+        { const bad = Object.keys(XS).filter(k => !XS[k].same).map(k => k + ' ' + XS[k].a + ' ≠ ' + XS[k].b);
+          T(!bad.length && XS.F07.nLay === 2 && XS.F26.nLay === 1, 'X5 出 → 入：每个声部的音序、时值、连音线、歌词、hid、voxLayer、名字、简称都相等（12 份分层夹具）', bad.join(' | ')); }
+        { const r = XS.F26, q7 = XS.F07; const f2 = (r.X.match(/<forward><duration>\d+<\/duration><voice>2<\/voice><\/forward>/g) || []).length, f7 = (q7.X.match(/<forward>/g) || []).length;
+          T(f2 === r.layHid && f7 === q7.layHid && /\[null,\[&quot;Violin·2&quot;,null\]\]/.test(r.names), 'X6 生效层对上的 hid 一列一个 forward（F26 全是 forward 的层、F07）；pyq-voice-names 写层行 [名, 简称]', J({ f2, h26: r.layHid, f7, h7: q7.layHid, names: r.names })); }
+        { const lint = (() => { try { execFileSync('xmllint', ['--version'], { stdio: 'ignore' }); return true; } catch (_) { return false; } })(), bad = [];
+          if (lint) for (const k of Object.keys(XS)) { const f = path.join(os.tmpdir(), 'v705x_' + k + '.musicxml'); fs.writeFileSync(f, XS[k].X);
+            try { execFileSync('xmllint', ['--noout', '--schema', path.join(__dirname, 'fixtures', 'xsd', 'musicxml.xsd'), f], { stdio: ['ignore', 'pipe', 'pipe'] }); } catch (e) { bad.push(k + ' ' + String(e.stderr || '').split('\n').find(l => /error/i.test(l))); } }
+          T(lint && !bad.length, 'X7 分层导出过 MusicXML 4.0 XSD（xmllint，同 tv_xsd）', lint ? bad.join(' | ') : '没有 xmllint'); }
+      }
+      /* 层段里的楔形 / 文字渐变虚线 / 滑音 / 圆滑线编号＝(stN||1)+2，宿主段照旧（同一 part 里两个声部的记号时间重叠时不撞号，§15 I-6） */
+      { const r = await EV(pg, x => { const s = importMusicXML(x).song, M = s.measures[0].voxes, H = s.measures[1].voxes;
+          Object.assign(M[1][0], { dyn: '<', dynTo: { mi: 0, ci: 1 }, tie: true, gliss: true }); Object.assign(M[1][1], {});
+          Object.assign(M[3][1], { dyn: 'cresc.', dynTo: { mi: 1, ci: 0 } });
+          Object.assign(M[0][0], { dyn: '<', dynTo: { mi: 0, ci: 1 }, tie: true });
+          const o0 = song; let X; try { X = exportMusicXML(s); } finally { song = o0; }
+          const segs = (X.match(/<measure number="1"[\s\S]*?<\/measure>/) || [''])[0].split('<backup>');
+          return { s0: segs[0], s1: segs[1] || '', s3: segs[3] || '', H: H.length }; }, FX('F07'));
+        T(!r.err && /<wedge type="crescendo"\/>/.test(r.s0) && /<slur type="start" number="1"\/>/.test(r.s0) && /<wedge type="crescendo" number="3"\/>/.test(r.s1) && /<wedge type="stop" number="3"\/>/.test(r.s1)
+          && /<slur type="start" number="3"\/>/.test(r.s1) && /<slide type="start" number="3"\/>/.test(r.s1) && /<dashes type="start" number="4"\/>/.test(r.s3) && /<voice>2<\/voice><staff>1<\/staff><\/direction>/.test(r.s1) && /<voice>6<\/voice><staff>2<\/staff><\/direction>/.test(r.s3),
+          'X8 层段的楔形 / 圆滑线 / 滑音编号 3（上谱表）、虚线编号 4（下谱表），方向记号写 <voice>；宿主段照旧（楔形不写 number、圆滑线 1）', J(r).slice(0, 1500)); }
     }
   } catch (e) { console.log('❌ 运行异常 ' + (e.stack || e)); total++; fails.push('异常'); }
   allErrs.push(...A.errs); await A.ctx.close();

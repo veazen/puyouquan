@@ -6,6 +6,12 @@
         打印处数；要让 music21 也读对，得给这类休止写 <type>（改曲库导出字节，v700data_base 要前移，另议）
      X2 声部数：music21 读出的谱表数＝谱面的旋律行＋六线谱行数；每小节每谱表的声部数＝1（同谱表第二声部 v70.5 起再改期望）
      X3 音数：每小节每谱表有音高的非倚音音头数（和弦逐音计）＝谱面数据（简谱 / 五线谱列 deg≠0 计 1＋附加音，六线谱列计 notes 数）
+   v70.5 B 组 有意迁移（规格 §7.7、§10.4；music21 10.5.2 实测口径）：谱表＝物理谱表（宿主行与同谱表第二声部＝层合成一张，PQ_KIND.layerRows），X2 谱表数＝物理谱表＋六线谱；
+     tv_extread.py 先滤掉没有可读内容的 Voice（只有 forward 的层 music21 也建空 Voice）；每小节声部数＝本谱表这一小节有可读内容（非 hid 列，或导出成 print-object 休止的 hid）的行数；
+     X1 改为逐个比 (offset, 时值)：期望＝本行非 hid 列，加上写成 print-object="no" 休止的 hid（连音里的、层对以外的；music21 读成 Rest、计时值），按小节内起点排列；
+     不再核「声部终点＝拍号」（层末尾是 forward 时 music21 的声部终点小于拍号），没有 hid 的行照旧核「时值和＝拍号」；X3 按谱表把宿主与层的音数相加。
+     样本加「分层」：夹具 F01 / F06 / F07 / F10 / F21 / F25 / F26 现导入再导出。XN 加两个反例（分层样本）：层的一个音 duration ×2、删掉层前面的 backup（靠 offset 比对抓到）；
+     「同谱表塞进第二声部」反例保留（对无层样本仍报 X2）
    样本：内置预设 PRESETS（16 首）· 曲库种子 api/seed-library.json 全部（OpenScore 10 首＋示例 / 公版小品）· 两首震音曲《阿特拉斯》《侏儒》从源谱
          deploy/library/openscore/ 现导入再导出（震音 trem2 落地后走的就是它）。每份样本一条断言（X1–X3 合在一起，失败时列出前 6 处）。
    XN 门禁自检（反例）：同一份样本的导出改坏三处——一个音 duration ×2 / 删掉一个有音高的音 / 同谱表塞进第二声部，比对必须各自报出 X1 / X3 / X2。
@@ -38,29 +44,37 @@ console.log('music21 ' + probe.stdout.trim() + '（' + PY + '）');
 const SEEDS = JSON.parse(fs.readFileSync(path.join(ROOT, 'api', 'seed-library.json'), 'utf8'));
 const MAN = JSON.parse(fs.readFileSync(path.join(ROOT, 'deploy', 'library', 'manifest.json'), 'utf8'));
 const TREM = MAN.items.filter(it => /阿特拉斯|侏儒/.test(it.title)).map(it => ({ title: it.title, x: fs.readFileSync(path.join(ROOT, 'deploy', 'library', it.file), 'utf8') }));
+const LAY = ['F01', 'F06', 'F07', 'F10', 'F21', 'F25', 'F26'].map(n => ({ title: n, x: fs.readFileSync(path.join(__dirname, 'fixtures', 'v705', n + '.musicxml'), 'utf8') }));   /* v70.5 B 组 分层样本 */
 
 /* 页内：导出 MusicXML＋按谱表、按小节的期望（谱面数据） */
 function pageExport(arg) {
   const out = [];
-  const rows = s => [...(s.voxVoices || []).map((_, vi) => ({ k: 'vox', vi })), ...(s.tabVoices || []).map((_, vi) => ({ k: 'tab', vi }))];
+  /* v70.5 B 组 物理谱表：旋律行按 PQ_KIND.layerRows(s) 合成谱表（宿主＋层），六线谱每行一张 */
+  const rows = s => { const LR = PQ_KIND.layerRows(s); return [...(LR ? LR.rows : (s.voxVoices || []).map((_, vi) => [vi])).map(vs => ({ k: 'vox', vs })), ...(s.tabVoices || []).map((_, vi) => ({ k: 'tab', vs: [vi] }))]; };
   const one = (name, s0) => {
     try {
       const s = migrate(JSON.parse(JSON.stringify(s0)));
       const o0 = song; song = s; let x;
       try { x = exportMusicXML(s); } finally { song = o0; }
       if (!x) { out.push({ name, err: '导出为空' }); return; }
-      const R = rows(s).map(r => ({ k: r.k, vi: r.vi, nm: (r.k === 'vox' ? s.voxVoices : s.tabVoices)[r.vi], m: (s.measures || []).map((m, mi) => {
-        const cols = ((r.k === 'vox' ? m.voxes : m.tabs) || [])[r.vi] || [];
-        const q = Math.round(cols.reduce((a, c) => a + beatsOf(c, 4), 0) * 1e4) / 1e4;
-        const cap = Math.round(((m.beats || s.beats) * 4 / (m.unit || s.unit)) * 1e4) / 1e4;
-        const n = cols.reduce((a, c) => a + (r.k === 'vox' ? (c.deg ? 1 + (c.adds || []).filter(z => z && z.deg).length : 0) : (c.notes || []).length), 0);
-        return { q, cap, n, short: !!((mi === 0 && s.pickup) || m.irr === 1) }; }) }));
+      const R4 = x => Math.round(x * 1e4) / 1e4;
+      const R = rows(s).map(r => ({ k: r.k, vi: r.vs[0], nm: (r.k === 'vox' ? s.voxVoices : s.tabVoices)[r.vs[0]], m: (s.measures || []).map((m, mi) => {
+        const cap = R4((m.beats || s.beats) * 4 / (m.unit || s.unit));
+        let n = 0;
+        /* 每行：q 时值和（含 hid）、ev 可读事件 [起点, 时值, 是休止]（非 hid 列，或写成 print-object 休止的 hid：连音里的、层对以外的）、hid 有没有 */
+        const L = r.vs.map(vi => { const cols = ((r.k === 'vox' ? m.voxes : m.tabs) || [])[vi] || []; let t = 0; const ev = [];
+          cols.forEach(c => { const d = beatsOf(c, 4), hid = r.k === 'vox' && c.hid === 1 && !c.deg;
+            if (!hid || c.tup || r.vs.length < 2) ev.push([R4(t), R4(d), r.k === 'vox' ? !c.deg : !(c.notes || []).length]);
+            t += d; n += r.k === 'vox' ? (c.deg ? 1 + (c.adds || []).filter(z => z && z.deg).length : 0) : (c.notes || []).length; });
+          return { q: R4(t), ev, hid: cols.some(c => r.k === 'vox' && c.hid === 1 && !c.deg) }; });
+        return { q: L[0].q, cap, n, L, short: !!((mi === 0 && s.pickup) || m.irr === 1) }; }) }));
       out.push({ name, x, rows: R, free: !!s.freeMeter });
     } catch (e) { out.push({ name, err: String(e && e.message || e).slice(0, 200) }); }
   };
   if (arg.preset) PRESETS.forEach((p, i) => one('预设 ' + (i + 1) + ' ' + p.name, p.make()));
   (arg.seeds || []).forEach(it => one('曲库 ' + it.title, it.data));
   (arg.trem || []).forEach(it => { const r = importMusicXML(it.x); if (!r || r.error) out.push({ name: '震音曲 ' + it.title, err: '导入失败：' + (r && r.error) }); else one('震音曲 ' + it.title + '（源谱现导入）', r.song); });
+  (arg.lay || []).forEach(it => { const r = importMusicXML(it.x); if (!r || r.error) out.push({ name: '分层 ' + it.title, err: '导入失败：' + (r && r.error) }); else one('分层 ' + it.title + '（夹具现导入）', r.song); });
   return out;
 }
 
@@ -73,7 +87,7 @@ function pageExport(arg) {
     const pg = await ctx.newPage(); pg.on('pageerror', e => errs.push(e.message)); pg.on('dialog', d => d.dismiss().catch(() => {}));
     await pg.goto(URL0 + (URL0.includes('?') ? '&' : '?') + 'shell=classic');
     await pg.waitForFunction(() => typeof exportMusicXML === 'function' && typeof PRESETS === 'object');
-    S = await pg.evaluate(pageExport, { preset: want('preset'), seeds: want('lib') ? SEEDS : [], trem: want('trem') ? TREM : [] });
+    S = await pg.evaluate(pageExport, { preset: want('preset'), seeds: want('lib') ? SEEDS : [], trem: want('trem') ? TREM : [], lay: want('lay') ? LAY : [] });
     await ctx.close();
   } catch (e) { T(false, 'X0 页内导出', e.stack || e); }
   await b.close();
@@ -89,6 +103,13 @@ function pageExport(arg) {
       NEG.push({ k: 'X3', why: '删掉一个有音高的音', x: base.x.replace(nt[0], '') });
       NEG.push({ k: 'X2', why: '同谱表塞进第二声部', x: base.x.replace(nt[0], nt[0] + '<backup><duration>1</duration></backup><note><rest/><duration>1</duration><voice>9</voice></note>') });
     }
+  }
+  /* v70.5 B 组 分层样本的反例：层（voice 2）的一个音 duration ×2、删掉层前面的 backup——都靠 (offset, 时值) 比对报 X1 */
+  const baseL = S.find(s => s.x && /分层 F07/.test(s.name));
+  if (baseL) {
+    const nt2 = baseL.x.match(/<note>(?:(?!<\/note>)[\s\S])*?<pitch>(?:(?!<\/note>)[\s\S])*?<voice>2<\/voice>(?:(?!<\/note>)[\s\S])*?<\/note>/);
+    if (nt2) NEG.push({ k: 'X1', why: '层的一个音 duration ×2', b: baseL, x: baseL.x.replace(nt2[0], nt2[0].replace(/<duration>(\d+)<\/duration>/, (m, d) => '<duration>' + (2 * d) + '</duration>')) });
+    NEG.push({ k: 'X1', why: '删掉层前面的 backup', b: baseL, x: baseL.x.replace(/<backup><duration>\d+<\/duration><\/backup>/, '') });
   }
   /* ---------- music21 读 ---------- */
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pyq-extread-'));
@@ -106,18 +127,24 @@ function pageExport(arg) {
   function cmp(s, rd, tally) {
     const bad = [], kn = [];
     if (rd.parts.length !== s.rows.length) bad.push('X2 谱表数 music21 ' + rd.parts.length + ' ≠ 谱面 ' + s.rows.length + '（' + rd.parts.map(p => p.name).join(' / ') + '）');
+    const evEq = (a, b2) => a.length === b2.length && a.every((x, i) => close(x[0], b2[i][0]) && close(x[1], b2[i][1]));
     s.rows.forEach((r, ri) => { const P = rd.parts[ri]; if (!P) return;
       if (P.measures.length !== r.m.length) bad.push('第 ' + (ri + 1) + ' 行「' + r.nm + '」小节数 music21 ' + P.measures.length + ' ≠ ' + r.m.length);
       r.m.forEach((e, mi) => { const M = P.measures[mi]; if (!M) return; if (tally) { nMea++; nNotes += e.n; }
         const at = '第 ' + (ri + 1) + ' 行「' + r.nm + '」第 ' + (mi + 1) + ' 小节';
         if (!close(M.bar, e.cap)) bad.push('X1 ' + at + ' 拍号长 ' + M.bar + ' ≠ ' + e.cap);
         const wantQ = e.short ? e.q : e.cap;
-        M.voices.forEach((v, k) => { if (s.free || close(v, wantQ)) return;
-          /* 已知读法差异（不算错）：不完整小节（irr / 弱起）里的整小节休止 <rest measure="yes"/>（不写 type，duration＝这一小节实际时值，与 MuseScore 导出同写法）——
-             music21 一律按拍号撑满（xmlToM21 fullMeasureRest）。只放行「这一声部只有一个整小节休止、music21 读成整拍号长」这一种 */
-          if (e.short && (M.fm || [])[k] && close(v, e.cap)) { kn.push(s.name + ' ' + at); return; }
-          bad.push('X1 ' + at + ' 时值 ' + M.voices.join('+') + ' ≠ ' + wantQ); });
-        if (M.nv !== 1) bad.push('X2 ' + at + ' 声部数 ' + M.nv);
+        const RL = e.L.filter(x => x.ev.length);   /* 这一小节有可读内容的行（宿主在前、层在后；music21 的声部按 voice 号排） */
+        if (M.nv !== RL.length) bad.push('X2 ' + at + ' 声部数 ' + M.nv + ' ≠ ' + RL.length);
+        RL.forEach((x, k) => { const V = (M.ev || [])[k]; if (!V) return;
+          /* 没有 hid 的行照旧核「时值和＝拍号」（弱起 / 不完整小节＝本行实际时值；散拍草稿不核） */
+          if (!s.free && !x.hid && !close(x.q, wantQ)) { bad.push('X1 ' + at + ' 时值 ' + x.q + ' ≠ ' + wantQ); return; }
+          /* 整小节休止 <rest measure="yes"/>：一个休止对谱面这一行的全部休止列 */
+          if (V.ev.length === 1 && V.ev[0][3] && x.ev.every(z => z[2])) { if (close(V.ev[0][1], x.q)) return;
+            /* 已知读法差异（不算错）：不完整小节（irr / 弱起）里的整小节休止（不写 type，duration＝这一小节实际时值，与 MuseScore 导出同写法）——
+               music21 一律按拍号撑满（xmlToM21 fullMeasureRest）。只放行「这一声部只有一个整小节休止、music21 读成整拍号长」这一种 */
+            if (e.short && close(V.ev[0][1], e.cap)) { kn.push(s.name + ' ' + at); return; } }
+          if (!evEq(V.ev, x.ev)) bad.push('X1 ' + at + ' 第 ' + (k + 1) + ' 声部 (起点, 时值) music21 ' + JSON.stringify(V.ev.map(z => [z[0], z[1]])) + ' ≠ ' + JSON.stringify(x.ev.map(z => [z[0], z[1]]))); });
         if (M.notes !== e.n) bad.push('X3 ' + at + ' 音数 ' + M.notes + ' ≠ ' + e.n);
       }); });
     return { bad, kn };
@@ -129,8 +156,8 @@ function pageExport(arg) {
     T(!bad.length, 'X ' + s.name + '：' + s.rows.length + ' 谱表 · ' + (s.rows[0] ? s.rows[0].m.length : 0) + ' 小节，时值＝拍号、声部数、音数与谱面一致', bad.length + ' 处：' + bad.slice(0, 6).join('；'));
   });
   console.log('合计核对 ' + nMea + ' 个谱表小节、' + nNotes + ' 个音头' + (known.length ? '；已知读法差异（不完整小节的整小节休止被 music21 撑满拍号）' + known.length + ' 处：' + known.slice(0, 4).join('；') + (known.length > 4 ? ' 等' : '') : ''));
-  { const got = NEG.map(n => { const rd = RD[n.file]; const r = rd && !rd.err ? cmp(base, rd, false).bad : ['读取失败']; return { k: n.k, why: n.why, hit: r.some(x => x.indexOf(n.k + ' ') === 0), first: r[0] || '' }; });
-    T(NEG.length === 3 && got.every(g => g.hit), 'XN 门禁自检：' + (base ? base.name : '（无样本）') + ' 的导出改坏三处（一个音 duration ×2 / 删掉一个音 / 塞进第二声部），比对各自报出 X1 / X3 / X2', JSON.stringify(got)); }
+  { const got = NEG.map(n => { const rd = RD[n.file]; const r = rd && !rd.err ? cmp(n.b || base, rd, false).bad : ['读取失败']; return { k: n.k, why: n.why, hit: r.some(x => x.indexOf(n.k + ' ') === 0), first: r[0] || '' }; });
+    T(NEG.length === (want('lay') ? 5 : 3) && got.every(g => g.hit), 'XN 门禁自检：' + (base ? base.name : '（无样本）') + ' 的导出改坏三处（一个音 duration ×2 / 删掉一个音 / 塞进第二声部）报 X1 / X3 / X2；分层样本 F07 改坏两处（层的一个音 duration ×2 / 删掉层前面的 backup）都报 X1', JSON.stringify(got)); }
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
   console.log('\n' + pass + '/' + total + ' 通过' + (fails.length ? '；失败：' + fails.join(' ') : ''));
   process.exit(fails.length ? 1 : 0);
