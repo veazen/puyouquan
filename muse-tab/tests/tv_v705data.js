@@ -2,7 +2,7 @@
    旧版本（v70.4 页面）编辑后再开、旧版回落剥字段、无层谱零差异。浏览器侧（真实编辑器）补 api/kindname.test.js 的 node 侧。
    G0 计数闸（§0.13）：三个主 grep（N voxNotations||[])[ · B type==='brace' · L voxVoices||[]).length）在 index.html 的行数 ≤ fixtures/v705_grep.json；
       共享段两份（index.html 与 api/kindname.js 的 @pq-kindname 段）B / L 行数相等且＝夹具 shared；allow 的锚点各只出现一次；
-      16 预设、21 示例、曲库种子的歌曲数据里没有叫 hid / voxLayer / lay 的键（SAN_NUM 按键名全局生效）
+      21 份示例（16 预设＋5 示例）、曲库种子的歌曲数据里没有叫 hid / voxLayer / lay 的键（SAN_NUM 按键名全局生效）
    D  字段与清洗（§1.2 / §1.3 / §1.7）：SAN_NUM / SD_NUM 含三键；"1"→1；合法分层谱经 normalizeSongFields / sanitizeUntrusted / migrate 逐字节不变；
       migrate 只删长度失配（含非数组）的 voxLayer 与全部见证，记谱法 / 八度 / 移调不一致、缺见证的原样留；
       hid 不变式：键盘录入 / 按时值粘贴 / 任意 mutate 写了音之后被清扫、再删回休止是普通休止；改时值命令（单格 / 选区批量 / 附点 / 联动邻格 / 增时线）删所改列的 hid
@@ -20,7 +20,7 @@
       换谱类重建 · 换谱类另建一份 · 配伴奏新窗口 · →钢琴伴奏直接换」后的谱（--write-base 时生成进 fixtures/v705data_base.json，CI 读文件），用新版打开：
       退回独立谱表或挂对（每个生效层都挂在原来的宿主名上）、不抛、音符完整
    R  旧版回落（STRIP705：删 voxLayer、hid、mixer 的 lay）：多出一行谱表、音符完整、hid 处是普通休止；有显式分组的分层谱离屏谱面＝剥字段后的谱面（v70.5 谱面零改动，D-5）
-   Z  零差异：无层谱（16 预设＋21 示例）载入后 JSON、MusicXML、MIDI 字节、播放事件与基线 579ada0 相等（摘要在 fixtures/v705data_base.json）；
+   Z  零差异：无层谱（21 份：16 预设＋5 示例）载入后 JSON、MusicXML、MIDI 字节、播放事件与基线 579ada0 相等（摘要在 fixtures/v705data_base.json）；
       离屏谱面在拿得到基线页时（本机有 git 历史）逐份对拍，CI 浅克隆没有基线页时由 tv_inplace Z / tv_parts PAZ / tv_pgbrk 的基线对拍兜底（本段不计数）
    修前红：MUSETAB_URL=file://<git show a73fecc:muse-tab/index.html 的副本> MUSETAB_API=<a73fecc 的 api/kindname.js 所在目录>/kindname.js 复跑——G0 以外各段都有红。
    基线：node tv_v705data.js --write-base 用 git show 579ada0（线上 v70.4）的 muse-tab/index.html 生成 fixtures/v705data_base.json（O 段旧页面产物、Z 段摘要）。
@@ -233,7 +233,7 @@ async function writeBase(b) {
       const hits = [];
       pre.forEach(x => { const k = keysIn(x.data, set, []); if (k.length) hits.push(x.name + ':' + k.slice(0, 3).join(',')); });
       lib.forEach(x => { const k = keysIn(x.data, set, []); if (k.length) hits.push(x.id + ':' + k.slice(0, 3).join(',')); });
-      T(pre.length === 21 && lib.length >= 10 && !hits.length, 'G0d 16 预设＋21 示例＋曲库种子 ' + lib.length + ' 首的歌曲数据里没有叫 hid / voxLayer / lay 的键（SAN_NUM 按键名全局生效，碰不到既有数据）', J({ n: pre.length, hits }));
+      T(pre.length === 21 && lib.length >= 10 && !hits.length, 'G0d 21 份示例（16 预设＋5 示例）＋曲库种子 ' + lib.length + ' 首的歌曲数据里没有叫 hid / voxLayer / lay 的键（SAN_NUM 按键名全局生效，碰不到既有数据）', J({ n: pre.length, hits }));
     });
 
     /* ================= D 字段与清洗 ================= */
@@ -570,7 +570,7 @@ async function writeBase(b) {
         const z = BASE.Z[x.name]; if (!z) { bad.push(x.name + ' 基线里没有'); continue; }
         for (const k of ['json', 'mid', 'mxl', 'play']) if (Z[x.name][k] !== z[k]) bad.push(x.name + '·' + k);
       }
-      T(songs.length === 21 && !bad.length, 'Z1 无层谱（16 预设＋21 示例）载入 JSON / MIDI / MusicXML / 播放事件与基线 v70.4 逐字节相同', bad.join('、'));
+      T(songs.length === 21 && !bad.length, 'Z1 无层谱（21 份：16 预设＋5 示例）载入 JSON / MIDI / MusicXML / 播放事件与基线 v70.4 逐字节相同', bad.join('、'));
       if (BASE_ED && !process.env.CI) {
         const po = await openEditor(b, BASE_ED); const badS = [];
         for (const x of songs) { const a = await EV(pg, s => __off(s), x.data), c2 = await EV(po, s => __off(s), x.data); if (a !== c2) badS.push(x.name); }

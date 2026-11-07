@@ -402,6 +402,17 @@ const X_TAB = HEAD(['P1'], `<part id="P1"><measure number="1">${TABATT}${TN(1, 0
           for (let i = 0; i < songs.length; i++) { const a = await EV(A1.pg, s => __off(s), songs[i]), z = await EV(R.pg, s => __off(s), songs[i]); if (typeof a !== 'string' || a !== z) bad.push(q + ' #' + i + (typeof a === 'string' && typeof z === 'string' ? ' 长度 ' + a.length + '/' + z.length : ' ' + J(a).slice(0, 80))); }
           allErrs.push(...A1.errs); await A1.ctx.close(); await R.ctx.close(); }
         T(!bad.length, 'V1 v70.5 两种外壳下分层谱（F07 / F06 / F21 / F14 / F17 / F23，组跨两张以上物理谱表或声乐层）的离屏谱面＝c9882a4 打开同一 JSON（层按独立谱表、hid 照普通休止，D-5）', bad.join(' | ')); }
+      /* v70.5 审核修 5（规格 §5.1 例外①）：单谱表乐器带层、源谱没有 part-group（F01 小提琴 / F16）——导入不写显式组；v70.5 分类视图里只有一个单元、不推括线，
+         c9882a4（v70.4）打开同一 JSON 看见两行五线谱、按谱面推出方括号 0–1。D-5「谱面＝v70.4」在这一类上不成立，属已知例外，单列断言（不是回归守卫，ba1b270 同样成立） */
+      { const one = await EV(pg, xs => xs.map(x => JSON.parse(JSON.stringify(importMusicXML(x).song))), [FX('F01'), FX('F16')]);
+        if (one.err || !ru) T(false, 'V1b 取样 / 基线页', one.err || '基线页取不到');
+        else { const got = [], nb = h => typeof h === 'string' ? (h.match(/data-grp="bracket"/g) || []).length : 'ERR';
+          for (const q of ['shell=classic', 'x=1']) { const A1 = await open(b, URL0, q), R = await open(b, ru, q);
+            await EV(A1.pg, OFF); await EV(R.pg, OFF);
+            for (let i = 0; i < one.length; i++) got.push({ q, i, vg: one[i].voxGroups === undefined ? '无' : one[i].voxGroups, now: nb(await EV(A1.pg, s => __off(s), one[i])), ref: nb(await EV(R.pg, s => __off(s), one[i])) });
+            allErrs.push(...A1.errs); await A1.ctx.close(); await R.ctx.close(); }
+          T(got.length === 4 && got.every(g => g.vg === '无' && g.now === 0 && g.ref >= 1),
+            'V1b 例外①：单谱表乐器带层（F01 / F16，源谱无 part-group）导入不写显式组——v70.5 两种外壳都不画方括号，c9882a4 打开同一 JSON 推出方括号（规格 §5.1）', J(got)); } }
       const r = await EV(pg, x => { const s = importMusicXML(x).song; const out = {};
         const s1 = JSON.parse(JSON.stringify(s)); delete s1.voxGroups; out.g = PQ_KIND.groupsOf(s1);
         const W = (d, o) => Object.assign({ dur: 1, dotted: false, deg: d, acc: '', oct: 0, lyrics: [], tie: false }, o || {});
