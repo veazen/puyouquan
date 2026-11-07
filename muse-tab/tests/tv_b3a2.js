@@ -5,6 +5,9 @@
    T4 SATB＋钢琴：6 个声部全保留、钢琴虚拟 part 名「Piano·右手/左手」、voxGroups = bracket 0–3 + brace 4–5、谱类＝五线谱合唱谱（v70.0 P2a 拍板 11 起谱名＝五线谱合唱谱（含钢琴伴奏））
    T5 上限：9 个旋律 part 取 8、第 9 个点名；8 旋律＋8 吉他取到总轨 15（吉他 7）、第 8 条吉他点名
    T6 编辑器同口径：MAX_VOICES=8、MAX_TRACKS=15；8 声部时「＋声部」被拦（文案含 8）、7＋8=15 轨时被拦（文案含 15）、7 声部可加
+   v70.5 B 组（规格 §10.4）新增：T7 MuseScore 1/2@1、5/6@2 钢琴 → 4 行（右手 / 右手·2 / 左手 / 左手·2）、花括号 0–3、docType piano（谱类判定随 A 组分类视图）；
+      T8 层不占 MAX_VOICES：8 个单谱表 part、第 1 个带 voice 2 → 9 行、skip.parts 0；T9 超 MAX_TRACKS 的层：8 旋律（各带 voice 2）＋8 吉他 → 层全放不下、每个层的音计 skip.voices（vBy.cap 8）、
+      旋律 8 行与吉他 7 条照收（skip.parts＝1，同 T5）。修前红（a73fecc）：T7–T9（v70.4 丢第二声部、行数不对）
    突变实证：对 v65.2 之前的文件复跑，T1–T6 全部报红。 */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -86,6 +89,28 @@ const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env
       return { MV: MAX_VOICES, MT: MAX_TRACKS, room: typeof trackRoom, n8, m8, n15, m15, n7 };
     } finally { window.toast = t0; } });
   T(!r.err && r.MV === 8 && r.MT === 15 && r.room === 'function' && r.n8 === 8 && /8/.test(r.m8) && r.n15 === 15 && /15/.test(r.m15) && r.n7 === 8, 'T6 编辑器上限同口径：8 声部 / 15 轨', JSON.stringify(r));
+
+  /* T7 */
+  r = await EV(() => { const at = ATTR('<clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef>', 2);
+    const m = N('E', 5, { staff: 1 }) + N('F', 5, { staff: 1 }) + N('G', 5, { staff: 1 }) + N('A', 5, { staff: 1 }) + '<backup><duration>16</duration></backup>' + N('C', 5, { dur: 8, type: 'half', voice: 2, staff: 1 }) + N('D', 5, { dur: 8, type: 'half', voice: 2, staff: 1 })
+      + '<backup><duration>16</duration></backup>' + N('C', 3, { dur: 16, type: 'whole', voice: 5, staff: 2 }) + '<backup><duration>16</duration></backup>' + N('G', 2, { dur: 16, type: 'whole', voice: 6, staff: 2 });
+    const res = importMusicXML(MX([{ id: 'P1', name: 'Piano', attr: at, measures: [m] }])); if (!res.song) return { err: res.error };
+    const s = res.song; return { vv: s.voxVoices.join('/'), vl: JSON.stringify(s.voxLayer), g: JSON.stringify(s.voxGroups), dt: docType(s), sk: res.skip.voices }; });
+  T(!r.err && r.vv === '右手/右手·2/左手/左手·2' && r.vl === '[null,1,null,1]' && r.g === '[{"type":"brace","from":0,"to":3}]' && r.dt === 'piano' && r.sk === 0,
+    'T7 MuseScore 式钢琴 1/2@1、5/6@2 → 4 行、voxLayer [null,1,null,1]、花括号 0–3、docType piano、不计 skip.voices', JSON.stringify(r));
+  /* T8 / T9 */
+  r = await EV(() => { const mel = (v2) => N('C', 4) + N('D', 4) + N('E', 4) + N('F', 4) + (v2 ? '<backup><duration>16</duration></backup>' + N('A', 3, { dur: 16, type: 'whole', voice: 2 }) : '');
+    const vox8 = Array.from({ length: 8 }, (_, i) => ({ id: 'V' + (i + 1), name: '声部' + (i + 1), measures: [mel(i === 0)] }));
+    const r1 = importMusicXML(MX(vox8)); if (!r1.song) return { err: r1.error };
+    const tabAttr = ATTR('<staff-details><staff-lines>6</staff-lines></staff-details><clef><sign>TAB</sign><line>5</line></clef>');
+    const tn = () => `<note><pitch><step>E</step><octave>4</octave></pitch><duration>16</duration><voice>1</voice><type>whole</type><notations><technical><string>1</string><fret>0</fret></technical></notations></note>`;
+    const tabs = Array.from({ length: 8 }, (_, i) => ({ id: 'T' + (i + 1), name: '吉他' + (i + 1), attr: tabAttr, measures: [tn()] }));
+    const vox8b = Array.from({ length: 8 }, (_, i) => ({ id: 'V' + (i + 1), name: '声部' + (i + 1), measures: [mel(true)] }));
+    const r2 = importMusicXML(MX(vox8b.concat(tabs))); if (!r2.song) return { err: r2.error };
+    return { a: { nv: r1.song.voxVoices.length, vl: JSON.stringify(r1.song.voxLayer), parts: r1.skip.parts }, b: { nv: r2.song.voxVoices.length, nt: r2.song.tabVoices.length, vl: r2.song.voxLayer === undefined, parts: r2.skip.parts, voices: r2.skip.voices, cap: (r2.skip.vBy || {}).cap, txt: skipText(r2.skip) } }; });
+  T(!r.err && r.a.nv === 9 && r.a.vl === '[null,1,null,null,null,null,null,null,null]' && r.a.parts === 0, 'T8 层不占 MAX_VOICES：8 个单谱表 part、第 1 个带 voice 2 → 9 行、skip.parts 0', JSON.stringify(r.a || r));
+  T(!r.err && r.b.nv === 8 && r.b.nt === 7 && r.b.vl && r.b.parts === 1 && r.b.voices === 8 && r.b.cap === 8 && /超出音轨上限的第二声部音符 8 个/.test(r.b.txt),
+    'T9 超 MAX_TRACKS 的层：8 旋律（各带 voice 2）＋8 吉他 → 旋律 8 行＋吉他 7 条照收、8 个层全放不下计 skip.voices（vBy.cap 8，文案点名）', JSON.stringify(r.b || r));
 
   console.log(`PASS ${pass}/${total}`);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
