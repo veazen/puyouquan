@@ -63,7 +63,7 @@ jobs:
           python3 -c "import music21; print('music21', music21.__version__)"
       # v67.9：tv_shellflow 的 S0 要 git show 默认外壳基线提交来对拍「不带开关零差异」；checkout 默认浅克隆（fetch-depth 1）没有历史，
       # 按 shellflow_ref.json 的完整 SHA 只补取这一个提交（拿不到时 S0 在 CI 判红，不再静默跳过）
-      - name: 取对拍基线（tv_shellflow S0 · tv_pgbrk Z / K · tv_parts PAZ · tv_next N0 · tv_preview PV12 · tv_smart SM9 · tv_inplace Z · tv_v698* Z · tv_v697col B4 · tv_trem W12b）
+      - name: 取对拍基线（tv_shellflow S0 · tv_pgbrk Z / K · tv_parts PAZ · tv_next N0 · tv_preview PV12 · tv_smart SM9 · tv_inplace Z · tv_v698* Z · tv_v697col B4 · tv_trem W12b · tv_perf2 P6c · tv_v705layer）
         run: |
           REF=$(node -p "require('./muse-tab/tests/shellflow_ref.json').commit")
           git fetch --no-tags --depth=1 origin "$REF"
@@ -95,6 +95,14 @@ jobs:
           REF8=16de944e2fd138f032026f9119ee7644a169ebcc
           git fetch --no-tags --depth=1 origin "$REF8"
           git cat-file -e "$REF8^{commit}"
+          # v70.5：tv_perf2 P6c（分层钢琴每笔帧时间 ≤ v70.2 ×1.15＋20ms，规格 §10.3 REF9；计时要实跑基线页，存不成快照）对拍 7ec1273；
+          # P6c《侏儒》导入耗时 ≤ v70.4 ×1.2 与 tv_v705layer N10 / X1 / M5 / V1（无层谱导入 / 导出 / MIDI、分层谱谱面＝v70.4 打开同一 JSON）对拍线上 v70.4 c9882a4——浅克隆补取（拿不到时这两处判红）
+          REF9=7ec1273592762925a8d13478a3fb406a4bfe0370
+          git fetch --no-tags --depth=1 origin "$REF9"
+          git cat-file -e "$REF9^{commit}"
+          REF10=c9882a4c1f243470e4bf8f6ce3ff63224b107e75
+          git fetch --no-tags --depth=1 origin "$REF10"
+          git cat-file -e "$REF10^{commit}"
       - name: 浏览器回归套件（run_all.js 关键集）
         working-directory: muse-tab/tests
         env:

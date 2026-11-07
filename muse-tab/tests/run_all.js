@@ -184,9 +184,10 @@ const CORE = [
   /* v70.5 同谱表双声部 a（规格 docs/spec-2026-11-v705.md §10.1）：
      A 组 tv_v705data——G0 计数闸（fixtures/v705_grep.json）· D 字段与清洗、hid 不变式 · S 改声部路径 · Y 谱表级同步 · C 伴奏取行与拒绝 · P 分谱 · K 分类（编辑器侧）·
        O v70.4 页面编辑后再开（fixtures/v705data_base.json，--write-base 由 git show 579ada0 生成）· R 旧版回落剥字段 · Z 无层谱零差异；单跑约 2–3 分钟
-     B 组 tv_v705layer——I 导入夹具 F01–F27 · Q 导入报告 · E 导出 · M MIDI · A 播放 · V v70.5 谱面＝v70.4（只 A 组改本文件，名字按规格先占位，文件不存在时 runner 跳过）
-     B 组 tv_perf2 P6c——分层钢琴 120 小节每笔帧时间预算门（计时，进 SOLO；若 B 组把它并进 P6 段，这一项只跑空段） */
-  'tv_v705data', 'tv_v705layer', 'tv_perf2:P6c',
+     B 组 tv_v705layer——N N9 前置 · I 导入夹具 F01–F27 · Q 导入报告 · K 分类接缝 · X 导出 · M MIDI · A 播放 · V v70.5 谱面＝v70.4；单跑约 1–2 分钟
+     B 组 tv_perf2 P6c——分层钢琴 120 小节每笔帧时间 ≤ v70.2 ×1.15＋20ms、《侏儒》导入 ≤ v70.4 ×1.2：写在 P6 段里，随上面 SOLO 的「tv_perf2:P6」一起跑（集成删掉了只跑空段的「tv_perf2:P6c」一项）
+     集成 tv_v705int——跨组接缝：30 份导入夹具的产物经 A 组分类 / 谱名（编辑器＝服务端）、分谱、改声部 / 配伴奏 / 换谱类路径后 voxLayerOk 与见证、导出再导入相等；两种外壳，单跑约 25 秒 */
+  'tv_v705data', 'tv_v705layer', 'tv_v705int',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）
@@ -199,7 +200,7 @@ const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450
    · SOLO＝带绝对计时断言的套件（开机 / 首播 / 打开构建器 / 排版耗时 / 导览定时），等并行段跑完后再逐个单独跑，计时口径与串行相同；
    · 超时只防挂死：并行时两路分 CPU，上限 ×1.5，断言一条不放宽。 */
 const JOBS = Math.max(1, parseInt(process.env.JOBS, 10) || 1);
-const SOLO = new Set(['tv_perf', 'tv_perf2:P6', 'tv_perf2:P6c', 'tv_playperf', 'tv_chordeng', 'tv_flowdef', 'tv_header', 'tv_parts']);   /* v70.5 P6c 同 P6 是计时段 */
+const SOLO = new Set(['tv_perf', 'tv_perf2:P6', 'tv_playperf', 'tv_chordeng', 'tv_flowdef', 'tv_header', 'tv_parts']);   /* v70.5 P6c 写在 P6 段里（计时），随 tv_perf2:P6 单独跑 */
 const SLOW = JOBS > 1 ? 1.5 : 1;
 
 const runOne = (s, tmp) => new Promise(resolve => {
