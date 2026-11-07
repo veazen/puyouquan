@@ -5618,15 +5618,39 @@ const PQ_KIND = (function(){
       if(L[i] && (mode==='sync' || isStaffNota(vn[i])) && vn[i]===vn[i-1] && co(i)===co(i-1) && tr(i)===tr(i-1)) (out = out || new Array(L.length).fill(0))[i] = 1;
     return out;
   }
+  /* v70.5 审核修 4：「这几行有没有歌词」的批量查询——layerRows('kind') 判声乐层、facetsOf 数无词声部、isChoir 看方括号组，此前每个单元 / 组调一次 voxHasLyrics、
+     每次扫全谱（2 万行分层谱 O(行²)）。lyRangeOf(s) 返回 q(a, b)，与 voxHasLyrics(s, a, b) 逐值相同（s 是视图时同样先把单元下标换回源谱行区间）：
+     第一次查询时一遍线性预算每行「第一个带词的小节」fLy 与「第一个结构坏掉（不是数组）的小节」fBad，再按 voxHasLyrics 的遍历次序（小节由前到后、
+     同一小节内行号由小到大、遇坏结构即抛）合成结果；合成出来是「抛」的那一处直接回调 voxHasLyrics，抛同一个错。measures 不是数组时整个交回 voxHasLyrics */
+  function lyRangeOf(s){
+    const M = s.measures; if(!Array.isArray(M)) return (a, b)=>voxHasLyrics(s, a, b);
+    const w = VIEW.get(s); let fLy = null, fBad = null, fV = Infinity;
+    const prep = ()=>{ fLy = []; fBad = [];
+      for(let j=0; j<M.length; j++){ if(!(j in M)) continue;
+        const m = M[j], vx = (m && m.voxes) || [];
+        if(typeof vx.some !== 'function'){ fV = j; break; }
+        for(let vi=0; vi<vx.length; vi++){ if(!(vi in vx) || fLy[vi]!==undefined || fBad[vi]!==undefined) continue;
+          const cs = vx[vi] || [];
+          if(typeof cs.some !== 'function') fBad[vi] = j; else if(cs.some(hasLy)) fLy[vi] = j; } } };
+    return (a0, b0)=>{ let a = a0, b = b0;
+      if(w){ const ra = w.rows[a0], rb = w.rows[b0]; if(!ra || !rb) return false; a = ra[0]; b = rb[rb.length-1]; }
+      if(!fLy) prep();
+      let J = fV;
+      for(let vi=a; vi<=b; vi++){ const x = fLy[vi], y = fBad[vi]; if(x!==undefined && x<J) J = x; if(y!==undefined && y<J) J = y; }
+      if(J===Infinity) return false;
+      if(J===fV) return voxHasLyrics(s, a0, b0);
+      for(let vi=a; vi<=b; vi++){ if(fBad[vi]===J) return voxHasLyrics(s, a0, b0); if(fLy[vi]===J) return true; }
+      return false; };
+  }
   function layerRows(s, mode){
     const ok = voxLayerOk(s); if(!ok) return null;
     let fold = ok;   /* fold[i]=1：第 i 行折进上一行 */
     if(mode==='kind'){
       const P = collapseLayers(s), pr = VIEW.get(P).rows, gs = groupsOf(P);   /* 物理视图上的组（单元下标） */
-      fold = ok.slice();
+      fold = ok.slice(); let ly = null;   /* v70.5 审核修 4：歌词一遍预算（首次用到才算） */
       pr.forEach((rs, k)=>{ if(rs.length<2) return;
         const inBrace = gs.some(g=>g.type==='brace' && k>=g.from && k<=g.to);
-        if(!inBrace && voxHasLyrics(s, rs[0], rs[1])) fold[rs[1]] = 0; });   /* 声乐层：不折 */
+        if(!inBrace && (ly = ly || lyRangeOf(s))(rs[0], rs[1])) fold[rs[1]] = 0; });   /* 声乐层：不折 */
       if(!fold.some(Boolean)) return null;
     }
     const rows=[], of=[];
@@ -5679,7 +5703,7 @@ const PQ_KIND = (function(){
     s = collapseLayers(s, 'kind');   /* v70.5 分类视图（§2.5）：器乐层折叠、声乐层照独立声部算；老谱原样返回 */
     if(Array.isArray(s.voxGroups) && s.voxGroups.length && groupsExplicitOk(s)) return groupsOf(s).some(g=>g.type==='bracket');
     if(s.pianoAcc) return false;
-    return groupsOf(s).some(g=>g.type==='bracket' && voxHasLyrics(s, g.from, g.to));
+    const ly = lyRangeOf(s); return groupsOf(s).some(g=>g.type==='bracket' && ly(g.from, g.to));   /* v70.5 审核修 4：歌词一遍预算（与逐组 voxHasLyrics 同值） */
   }
   /* 钢琴伴奏歌谱（旋律 ＋ 右手伴奏五线 ＋ 左手伴奏低音谱表）：显式分组时只认「1–2 行花括号」，没写分组的老谱只认一键配伴奏产物的声部名 */
   /* v69.3 显式花括号把 a、b 两行连成大谱表（钢琴右手开头是低音谱号的谱——如舒伯特《阿特拉斯》——靠它认作钢琴，而不是两行低音的合唱） */
@@ -5921,7 +5945,7 @@ const PQ_KIND = (function(){
       else if(k!=='C'){ const ik=ikEff(s);
         if(k==='G') add(ik || 'piano'); else { add(ik); if(k==='CG' || k==='JG' || k==='SG' || k==='SJG' || pno) add('piano'); } }
       const free = vv.map((_, i)=>i).filter(i=>!inBrace(i));
-      const noLy = free.filter(i=>!voxHasLyrics(s, i, i)).length;
+      const ly = lyRangeOf(s), noLy = free.filter(i=>!ly(i, i)).length;   /* v70.5 审核修 4：歌词一遍预算（与逐个 voxHasLyrics 同值） */
       return {
         inst,
         parts: Math.max(1, tab? tv.length : free.length),

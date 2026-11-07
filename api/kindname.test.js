@@ -829,5 +829,48 @@ T('v70.5 编辑器 helper（node 抽取；浏览器里的路径用例见 tv_v705
   for (const d of [null, undefined, {}, { measures: 'x' }]) H.hidSweep(d);
 });
 
+T('v70.5 审核修 4：歌词一遍预算——2 万行分层谱（约 2.5MB）pubKindOf＋facetsOf＋collapseLayers(s,"kind") 合计 <1.5 秒、结果与修前逐值相同；layerRows("kind") / isChoir 与逐个调 voxHasLyrics 的旧算法同值（含坏结构时同样抛）', () => {
+  /* 修前（ba1b270）本机 pubKindOf 2.1 秒、facetsOf 0.6 秒、collapseLayers 0.34 秒（每个层单元 / 无词声部 / 方括号组调一次 voxHasLyrics、每次扫全谱） */
+  const N = 20000, names = [], nota = [], lay = [], mixer = {}, rows = [];
+  for (let i = 0; i < N; i++) { const h = i % 2 === 0; names.push(h ? 'v' + i : 'v' + (i - 1) + '·2'); nota.push('staff'); lay.push(h ? null : 1);
+    mixer['vox:' + i] = { on: true, solo: false, inst: 'ah', vol: 1, pan: null }; if (!h) mixer['vox:' + i].lay = 1;
+    rows.push([{ dur: 1, deg: 1, lyrics: (i >= N - 40 && i % 4 === 0) ? ['啊'] : [] }]); }
+  const big = { v: 3, title: 't', tabVoices: [], voxVoices: names, voxNotations: nota, voxLayer: lay, lyricLines: 1, mixer, measures: [{ tabs: [], voxes: rows }] };
+  const bj = J5(big); assert.ok(bj.length > 2e6, '夹具大小 ' + bj.length);
+  const t0 = process.hrtime.bigint(); const pk = K.pubKindOf(JSON.parse(bj)); const fx = K.facetsOf(big); const cv = K.collapseLayers(big, 'kind');
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+  assert.ok(ms < 1500, '2 万行分层谱 pubKindOf＋facetsOf＋collapseLayers 合计 ' + ms.toFixed(0) + 'ms ≥ 1500ms');
+  /* 修前的结果（ba1b270 实测）：10 对带词的层照独立声部、其余 9990 个器乐层折叠 → 10010 个单元 */
+  assert.strictEqual(J5(pk), '{"type":"vocal","typeLabel":"五线谱合唱谱","pz":"hechang","sub":"wuxian","inst":"","also":["wuxian.hechang"],"fx":{"inst":[],"parts":10010,"chord":false,"acc":false,"ens":true,"verses":1,"nota0":"st","fkey":""}}', 'pubKindOf 与修前相同');
+  assert.strictEqual(J5(fx), J5(pk.fx), 'facetsOf'); assert.strictEqual(cv.voxVoices.length, 10010, '分类视图单元数');
+  const kr = K.layerRows(big, 'kind'), vocal = new Set(); for (let i = N - 40; i < N; i += 4) vocal.add(i + 1);
+  assert.ok(kr && kr.rows.length === 10010 && kr.rows.every(r => r.length === 1 ? (r[0] % 2 === 0 || vocal.has(r[0])) : (r.length === 2 && r[0] % 2 === 0 && r[1] === r[0] + 1 && !vocal.has(r[1]))), '分类视图：带词的 10 对不折、其余折进宿主');
+  assert.strictEqual(K.isChoir(big), true, 'isChoir');
+  /* 旧算法（逐个调 voxHasLyrics、每次扫全谱；voxHasLyrics 本身没改，视图上照旧把单元换回行区间）作 oracle：layerRows(s,'kind') 与 isChoir 逐值相同；
+     旧算法抛的（坏结构）新算法同样抛、错误信息相同 */
+  const vhl = (s, a, b) => K.voxHasLyrics(s, a, b);
+  const refKind = s => { const ok = K.voxLayerOk(s); if (!ok) return null; const P = K.collapseLayers(s), pr = K.layerRows(s).rows, gs = K.groupsOf(P), fold = ok.slice();
+    pr.forEach((rs, k) => { if (rs.length < 2) return; if (!gs.some(g => g.type === 'brace' && k >= g.from && k <= g.to) && vhl(s, rs[0], rs[1])) fold[rs[1]] = 0; });
+    if (!fold.some(Boolean)) return null; const rr = [], of = []; for (let i = 0; i < ok.length; i++) { if (fold[i]) rr[rr.length - 1].push(i); else rr.push([i]); of[i] = rr.length - 1; } return { rows: rr, of }; };
+  const refChoir = s0 => { const s = K.collapseLayers(s0, 'kind'), n = (s.voxVoices || []).length;   /* isChoir 修前全文，只把歌词查询换成逐组 voxHasLyrics */
+    if (Array.isArray(s.voxGroups) && s.voxGroups.length && s.voxGroups.some(g => g && (g.type === 'brace' || g.type === 'bracket') && g.from >= 0 && g.to < n && g.to > g.from)) return K.groupsOf(s).some(g => g.type === 'bracket');
+    if (s.pianoAcc) return false;
+    return K.groupsOf(s).some(g => g.type === 'bracket' && vhl(s, g.from, g.to)); };
+  const res = f => { try { return 'ok ' + J5(f()); } catch (e) { return 'throw ' + e.constructor.name + ' ' + e.message; } };
+  let seed = 7; const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff, ri = n => Math.floor(rnd() * n), pick = a => a[ri(a.length)];
+  const BADV = ['x', 5, {}, true];
+  let n = 0, thr = 0;
+  for (let t = 0; t < 600; t++) {
+    const nv = 2 + ri(6), d = LV(Array.from({ length: nv }, (_, i) => 'v' + i), Array.from({ length: nv }, () => pick(['staff', 'staff', 'bass'])), Array.from({ length: nv }, (_, i) => (i > 0 && rnd() < 0.5 ? 1 : null)));
+    if (rnd() < 0.5) d.voxGroups = [((a, b) => ({ type: pick(['brace', 'bracket']), from: a, to: a + b }))(ri(nv - 1), 1 + ri(2))].filter(g => g.to < nv);
+    d.measures = Array.from({ length: 1 + ri(3) }, () => rnd() < 0.08 ? { voxes: pick(BADV) } : { tabs: [], voxes: Array.from({ length: nv }, () => rnd() < 0.06 ? pick(BADV) : [{ dur: 4, deg: 1, lyrics: rnd() < 0.25 ? [pick(['啊', ' ', ''])] : [] }]) });
+    let V = null; try { V = K.collapseLayers(d, 'kind'); } catch (_) { /* 坏结构：分类视图本身就抛（与旧算法同，上面 layerRows kind 一项核） */ }
+    for (const [nm, a, b] of [['layerRows kind', () => K.layerRows(d, 'kind'), () => refKind(d)], ['isChoir', () => K.isChoir(d), () => refChoir(d)], ...(V ? [['isChoir 视图', () => K.isChoir(V), () => refChoir(V)]] : [])]) {
+      const x = res(a), y = res(b); n++; if (/^throw/.test(y)) thr++;
+      assert.strictEqual(x, y, nm + ' 第 ' + t + ' 例：' + J5(d).slice(0, 300)); }
+  }
+  assert.ok(thr >= 20, '坏结构（旧算法会抛）的用例 ' + thr);
+});
+
 console.log('PASS ' + pass + '/' + total);
 process.exit(pass === total ? 0 : 1);
