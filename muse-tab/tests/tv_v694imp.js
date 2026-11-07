@@ -263,7 +263,10 @@ const WORDS = (w, st) => DT(`<words${st ? ' font-style="italic"' : ''}>${w}</wor
       T(r1.measures[0].voxes[0][0].dyn === 'p' && !r1.measures[1].voxes[0][0].dyn, 'X1 全音符第 3 拍 backup→p→forward：p 挂在本小节那个音上（此前挂到下一小节首音）', J([r1.measures[0].voxes[0][0].dyn, r1.measures[1].voxes[0][0].dyn]));
       const x2 = MX([{ id: 'P1', ms: [N('C', 4) + N('D', 4) + N('E', 4) + N('F', 4) + '<backup><duration>4</duration></backup>' + DIR(DYN('f')) + N('C', 4, { v: 2, d: 4, type: 'whole' }), N('G', 4, { d: 4, type: 'whole' })] }]);
       const r2 = await imp(PG, x2);
-      T(r2.song.measures[0].voxes[0][0].dyn === 'f' && !r2.song.measures[1].voxes[0][0].dyn && r2.skip.voices === 1, 'X2 同谱表第二声部前的 f：按时间位置挂到本小节第 1 拍那一列（第二声部音照旧跳过计数）', J([r2.song.measures[0].voxes[0].map(c => c.dyn), r2.skip]));
+      /* v70.5 有意迁移（规格 §10.4）：第二声部不再跳过（skip.voices 0），导成第二声部（层）：层行 C4 全音符、不带力度（不带 voice 的方向记号只落宿主，D-9） */
+      const l2 = (r2.song.measures[0].voxes[1] || [])[0] || {};
+      T(r2.song.measures[0].voxes[0][0].dyn === 'f' && !r2.song.measures[1].voxes[0][0].dyn && r2.skip.voices === 0 && J(r2.song.voxLayer) === '[null,1]' && l2.deg === 1 && l2.dur === 1 && !l2.dyn,
+        'X2 同谱表第二声部前的 f：按时间位置挂到本小节第 1 拍那一列（第二声部成层、不带力度）', J([r2.song.measures[0].voxes.map(r => r.map(c => c.deg + '/' + c.dur + (c.dyn || ''))), r2.skip]));
       for (const q of ['shell=classic', '']) {
         const pg = await open(q);
         const r = await pg.evaluate(x => { loadSong(importMusicXML(x).song); render(); const h = document.getElementById('score').innerHTML;

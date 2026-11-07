@@ -41483,8 +41483,10 @@ var NWP = (function(){
     const stack=NWB.stackOf(s), pianoOnly=stack==='G', pianoAcc=isPianoAccStack(s);
     const sw=String(r.software||'').trim(), swAI=!!sw && AI_SW.test(sw), ai=!!(aiPick || swAI);
     const kname=keyName(s.key, s.mode);
+    /* v70.5 B 组（规格 §4.7）声部数按分类视图单元说（钢琴带同谱表第二声部仍是「钢琴 · 大谱表 2 行」）；单旋律仍按行数判（有第二声部即不是单旋律） */
+    const KV=PQ_KIND.layerRows(s, 'kind'), nvU = KV? KV.rows.length : nv, nLay=(PQ_KIND.voxLayerOk(s)||[]).filter(Boolean).length;
     /* 声部说法：钢琴一个 part 两行谱表不算「2 声部」（验收：钢琴大谱表文件依据写成 2 声部） */
-    const partsText = pianoOnly? '钢琴 · 大谱表 2 行' : pianoAcc? (nv-2)+' 声部＋钢琴伴奏' : nv? nv+' 声部' : '没有旋律声部';
+    const partsText = pianoOnly? '钢琴 · 大谱表 2 行' : pianoAcc? (nvU-2)+' 声部＋钢琴伴奏' : nv? nvU+' 声部' : '没有旋律声部';
     const basis=[];
     if(r.keyDet) basis.push(['det', kname, '文件没写调号，按音符内容推断（'+keyModeLabel(r.keyDet)+'）']);
     else if(r.keyDefaulted) basis.push(['def', '1=C', '文件没写调号、音符也不够判断，按 1=C']);
@@ -41496,6 +41498,8 @@ var NWP = (function(){
       (mWhy||tWhy)? (mWhy||'拍号按文件')+'；'+(tWhy||'速度按文件') : '按文件']);
     /* 只有六线谱、没有旋律行：不写「简谱 / 歌词」（验收：曾写「0 声部 · 无歌词 · 简谱」） */
     basis.push(['file', nv? partsText+' · '+(ly? '有歌词' : '无歌词')+(pianoOnly? '' : ' · '+(staff? '五线谱' : '简谱'))+(tabs? ' · '+tabs+' 条六线谱' : '') : '只有 '+tabs+' 条六线谱', '按内容']);
+    /* v70.5 B 组 同谱表第二声部（层）与跨谱表的音（只在有时写；老文件依据不变） */
+    if(nLay || (r.lossy && r.lossy.xstaff)) basis.push(['file', [nLay? '同谱表第二声部 '+nLay+' 张谱表，暂按单独一行显示' : '', (r.lossy && r.lossy.xstaff)? '跨谱表的音 '+r.lossy.xstaff+' 个' : ''].filter(Boolean).join('；'), '按内容']);
     if(sw) basis.push([ai? 'ai' : 'file', '来源：'+sw, swAI? '文件里写明由转谱软件导出 → 按 AI 转谱结果处理' : ai? '按文件；你选了「整理 AI 转谱结果」→ 按 AI 转谱结果处理' : '按文件']);
     else if(ai) basis.push(['ai', '来源：AI 转谱', '你选了「整理 AI 转谱结果」']);
     const recommend = ai && melody? 'SJ' : 'orig';
@@ -41507,7 +41511,7 @@ var NWP = (function(){
     if(sk) basis.push(['warn', sk, '读不进来的部分']);
     if(r.warn) basis.push(['warn', r.warn, '按文件']);
     const a={id:++impSeq, name, fmt:zip? 'MusicXML（压缩 .mxl）' : 'MusicXML', r, song:s, stack, parts:nv, partsText, tabs, measures:s.measures.length, hasLyrics:ly, melody, staff, ai, software:sw, basis, recommend, dis:{}, kinds:{}, cv:{}, note:{}};
-    const one = '需要单旋律（'+(pianoOnly? '文件是钢琴两手谱' : '文件有 '+(pianoAcc? (nv-2)+' 个声部＋钢琴伴奏' : nv+' 个声部')+(tabs? '、'+tabs+' 条六线谱' : ''))+'）';
+    const one = '需要单旋律（'+(pianoOnly? '文件是钢琴两手谱' : '文件有 '+(pianoAcc? (nvU-2)+' 个声部＋钢琴伴奏' : nvU+' 个声部')+(tabs? '、'+tabs+' 条六线谱' : ''))+'）';
     if(!nv){ a.dis.J=a.dis.SJ=a.dis.acc=a.dis.JT=a.dis.CJ='文件里没有旋律 / 人声声部'; }
     else if(!melody){ a.dis.acc=a.dis.JT=a.dis.CJ=one; }
     else if(!texAvail(s.beats, s.unit).length) a.dis.acc=s.beats+'/'+s.unit+' 拍还没有伴奏织体';
@@ -44397,9 +44401,12 @@ function skipText(sk){
   if(!sk) return '';
   const it=[];
   if(sk.parts) it.push('声部 '+sk.parts+' 个（'+(sk.partNames||[]).join('、')+'）');
-  if(sk.voices) it.push('同谱表第二声部音符 '+sk.voices+' 个');
   /* v70.4（v70.3 验收 minor）skip.notes 分项：其中同组第 4 个起的倚音（skip.grace4，附首处小节号 skip.at.grace4）单列，其余照旧「音符 N 个」 */
   const at = k=>{ const m=(sk.at||{})[k]; return m? '（'+(m.n>1? '首处' : '')+'第 '+m.m+' 小节）' : ''; };
+  /* v70.5 B 组（规格 §4.8）有分项 skip.vBy 时按分项出（各附首处小节号）：同谱表第二声部不再跳过；GP 导入、旧数据没有 vBy，照旧一句 */
+  if(sk.voices){ const B=sk.vBy, VB={rank3:'同谱表第 3 个起的声部音符', tab:'六线谱第二声部音符', jp:'简谱谱表的第二声部音符', cap:'超出音轨上限的第二声部音符'};
+    if(B && typeof B==='object' && Object.keys(VB).some(k=>B[k]>0)) Object.keys(VB).forEach(k=>{ if(B[k]>0) it.push(VB[k]+' '+B[k]+' 个'+at('voices:'+k)); });
+    else it.push('同谱表第二声部音符 '+sk.voices+' 个'); }
   if(sk.notes){ const g=Math.min(sk.notes, sk.grace4|0), n=sk.notes-g;
     if(n) it.push('音符 '+n+' 个');
     if(g) it.push('第 4 个起的倚音 '+g+' 个'+at('grace4')); }
@@ -45417,6 +45424,9 @@ function importMusicXML(xmlStr){
   const skAtSeen = {};
   const skAt = (k, mi)=>{ const A=skip.at||(skip.at={}), S=skAtSeen[k]||(skAtSeen[k]=new Set()); if(S.has(mi)) return; S.add(mi);
     const e=A[k]; if(!e) A[k]={n:1, m:mi+1}; else { e.n++; if(mi+1<e.m) e.m=mi+1; } };
+  /* v70.5 B 组（规格 §4.8 D-10）skip.voices 新口径：只计有音高的音（主音 / 和音 / 倚音），分项 skip.vBy（只进文案，同 voltaBy 先例；质量门比较的字段集不变）：
+     rank3＝同谱表第 3 个起的声部 · tab＝六线谱第二声部 · jp＝简谱谱表的第二声部 · cap＝超出音轨上限的第二声部；skip.at.voices / 'voices:分项' 记首处小节号 */
+  const skVoice = (cat, mi)=>{ skip.voices++; const B=skip.vBy||(skip.vBy={}); B[cat]=(B[cat]||0)+1; skAt('voices', mi); skAt('voices:'+cat, mi); };
   const q=(el,sel)=>el.querySelector(':scope > '+sel);
   const txt=(el,sel)=>{ const n=el&&q(el,sel); return n? n.textContent.trim() : null; };
   /* v70.3 B1 导入台账（MXL_LED）：skO(名)＝计入 skip.other 并按名记数；以下 led* 在元素被收下时逐个过白名单与取值域（被整音跳过的 voices / notes 不再细分） */
@@ -45693,16 +45703,15 @@ function importMusicXML(xmlStr){
     const allK=[...new Set(N.map(r=>r.k))], staves=[];
     for(let k=1; k<=Math.max(1, nSt); k++){
       const mine=allK.filter(x=>homeOf.get(x)===k).sort((a, b)=>vCmp(vOfK.get(a), vOfK.get(b))), rk=mine.filter(x=>pitK.has(x));
-      staves.push({host: rk.length? rk[0] : (mine.find(x=>noteK.has(x)) ?? null), layer: rk[1] ?? null, drop: rk.slice(2), all: mine}); }
+      staves.push({host: rk.length? rk[0] : (mine.find(x=>noteK.has(x)) ?? null), layer: rk[1] ?? null, drop: rk.slice(2), all: mine, vOf: vOfK}); }
     PRE.set(part, {nSt, perSt, homeOf, staves}); });
   function preHome(part, el, st){ const P=PRE.get(part), k=el.getAttribute('data-pyq-k'); const h=P && k!=null? P.homeOf.get(k) : null; return h!=null? h : st; }
   const VPI = new Map();   /* 虚拟 part → {key 本行声部键, drop 丢弃并计 skip.voices 的键（只在宿主行上计）} */
   const partsAll=[]; const pairMark=new Map();   // 大谱表拆出的 上行→下行
   partsSrc.forEach((p, pi)=>{ const cl=splitStaves(p, pi); cl.forEach(c=>partsAll.push(c)); if(cl.length===2) pairMark.set(cl[0], cl[1]);
     const P=PRE.get(p);
-    cl.forEach((c, ci)=>{ const S=(P && P.staves[cl.length===1? 0 : ci]) || {host:null, layer:null, drop:[]};
-      /* N9 阶段不建第二声部：rank1 与 rank≥2 一起计 skip.voices（只计有音高的音） */
-      VPI.set(c, {key:S.host, drop:new Set([S.layer, ...S.drop].filter(x=>x!=null)), S}); }); });
+    cl.forEach((c, ci)=>{ const S=(P && P.staves[cl.length===1? 0 : ci]) || {host:null, layer:null, drop:[], all:[], vOf:new Map()};
+      VPI.set(c, {key:S.host, drop:new Map(), S}); }); });   /* 丢弃的键在截断、建层之后定（见下方 layPlan） */
   /* v44.7 TAB 声部识别：带 TAB 谱号或 staff-tuning 的 part → 六线谱声部（string/fret 权威） */
   const isTabPart = part=>{ const at=part.querySelector(':scope > measure > attributes'); if(!at) return false;
     const cs=txt(at,'clef > sign'); return cs==='TAB' || cs==='tab' || !!at.querySelector('staff-details > staff-tuning'); };
@@ -45711,10 +45720,47 @@ function importMusicXML(xmlStr){
     partsAll.forEach(p=>{ const tb=isTabPart(p);
       if((nVx+nTb<MAX_TRACKS) && (tb? nTb<MAX_VOICES : nVx<MAX_VOICES)){ parts.push(p); if(tb) nTb++; else nVx++; }
       else { skip.parts++; skip.partNames.push(pname(p)||p.getAttribute('id')||'?'); } }); }
+  /* v70.5 B 组（规格 §4.3、§4.5 D-20、§4.2 R3 例外）同谱表第二声部＝层：上面第一遍截断一字不改（收哪些宿主与六线谱、skip.parts 与 v70.4 恒等），
+     第二遍按谱面顺序把剩下的轨数（旋律行含层＋六线谱 ≤ MAX_TRACKS，每行一个 MIDI 通道）分给层；放不下的层（vBy.cap）、宿主是简谱的层（vBy.jp）不建，
+     它的有音高的音在宿主行计 skip.voices；rank≥2（vBy.rank3）同样。层＝宿主虚拟 part 的克隆，紧跟宿主（data-pyq-lay），读同一个谱号 / 移调 / <group> / part id——
+     记谱法、八度谱号、移调、对照、钢琴音色自动与宿主相同。自家分层导出（<miscellaneous-field name="pyq-voice-names">，点名的层行与按 voice 号排出来的对得上）按名单建层：
+     层全是休止 / 只有 forward 也建（否则往返时空层整行消失）。
+     方向记号按 voice 分流（D-9）：层只留 <voice>＝层声部的 <direction>（不带 voice 的、宿主的、被丢声部的都留在宿主），删全部 <harmony> / <sound>；宿主删 <voice>＝层声部的——
+     每个 direction 都写 voice 的文件（Finale / Dolet）力度、楔形、踏板只挂一次，播放不叠加 */
+  let pvn=null; try{ const mf=root.querySelector('identification > miscellaneous > miscellaneous-field[name="pyq-voice-names"]');
+    if(mf){ const a=JSON.parse(mf.textContent||'null'); if(Array.isArray(a)) pvn=a; } }catch(_){ pvn=null; }
+  const jpPart = p=>{ const id=p.getAttribute('id'), sp=id && root.querySelector(`part-list > score-part[id="${id}"]`), g=sp && sp.querySelector(':scope > group'); return !!(g && g.textContent.trim()==='jp'); };
+  const layPlan = own=>{ let room=MAX_TRACKS-parts.length; const P=new Map(), rows=[];
+    parts.forEach(p=>{ if(isTabPart(p)) return; const S=VPI.get(p).S;
+      const host = own? (S.all[0] ?? null) : S.host, lay = own? (S.all[1] ?? null) : S.layer;
+      let why=null; if(lay!=null){ if(jpPart(p)) why='jp'; else if(room>0) room--; else why='cap'; }
+      P.set(p, {host, lay, why, drop: own? S.all.slice(2) : S.drop}); rows.push(0); if(lay!=null && !why) rows.push(1); });
+    return {P, rows}; };
+  let LP=layPlan(false);
+  if(pvn){ const L2=layPlan(true); if(L2.rows.length===pvn.length && L2.rows.every((x, i)=>(x===1)===Array.isArray(pvn[i]))) LP=L2; else pvn=null; }
+  { const dVoice = el=>{ const v=q(el,'voice'); return v? v.textContent.trim() : null; };
+    const seq=[];
+    parts.forEach(p=>{ seq.push(p); const S=VPI.get(p).S;
+      if(isTabPart(p)){ const drop=new Map(); S.all.forEach(k=>{ if(k!==S.host) drop.set(k, 'tab'); }); VPI.set(p, {key:S.host, drop, S}); return; }
+      const e=LP.P.get(p), drop=new Map(), built = e.lay!=null && !e.why;
+      (e.drop||[]).forEach(k=>drop.set(k, 'rank3')); if(e.lay!=null && e.why) drop.set(e.lay, e.why);
+      VPI.set(p, {key:e.host, drop, S, pair:built});
+      if(!built) return;
+      const lv=S.vOf.get(e.lay), c=p.cloneNode(true);
+      c.setAttribute('data-pyq-lay', '1'); c.setAttribute('data-pyq-vh', e.host); c.setAttribute('data-pyq-vl', e.lay);
+      [...c.querySelectorAll(':scope > measure > direction')].forEach(d=>{ if(dVoice(d)!==lv) d.remove(); });
+      [...c.querySelectorAll(':scope > measure > harmony, :scope > measure > sound')].forEach(x=>x.remove());
+      [...p.querySelectorAll(':scope > measure > direction')].forEach(d=>{ if(dVoice(d)===lv) d.remove(); });
+      VPI.set(c, {key:e.lay, drop:new Map(), S, pair:true, lay:true});
+      seq.push(c); });
+    parts.length=0; seq.forEach(p=>parts.push(p)); }
   const tabFlags = parts.map(isTabPart);
   const voxParts = parts.filter((p,i)=>!tabFlags[i]);
   const tabParts = parts.filter((p,i)=>tabFlags[i]);
-  const bracePairs=[]; voxParts.forEach((p,i)=>{ const c2=pairMark.get(p); if(c2 && voxParts[i+1]===c2) bracePairs.push([i,i+1]); });
+  /* v70.5 B 组 层行（紧跟宿主）：isLay(i)＝第 i 行是层；lastOf(i)＝第 i 行所在谱表的末行（含层）——配对 / 分组都按谱表算、区间覆盖层行（D-11） */
+  const layRow = voxParts.map(p=>!!(VPI.get(p)||{}).lay), hasLay = layRow.some(Boolean);
+  const isLay = i=>!!layRow[i], lastOf = i=>{ while(i+1<layRow.length && layRow[i+1]) i++; return i; };
+  const bracePairs=[]; voxParts.forEach((p,i)=>{ if(isLay(i)) return; const c2=pairMark.get(p); let j=i+1; while(j<voxParts.length && isLay(j)) j++; if(c2 && voxParts[j]===c2) bracePairs.push([i,j]); });   /* 配对＝[上谱表宿主行, 下谱表宿主行]（中间夹层） */
   /* v69.4 A11 移调乐器兜底：每个五线 part 首小节的 <transpose> 读 chromatic + 12×octave-change（此前只读主 part 的 chromatic——八度移调的吉他 / 低音提琴高八度，
      「单簧管＋钢琴」的钢琴也被 song.transp 一起移低、谱面按单簧管的记谱调画）。全部一致才写 song.transp（全曲单值，旧口径）；
      不一致时把移调声部换成实音（音高 + chromatic、字母 + diatonic，按实音调拼写），song.key 用不移调 part 的调号，导入报告提示「已按实音导入（含移调乐器）」。
@@ -45831,6 +45877,10 @@ function importMusicXML(xmlStr){
   if(trSame && voxTr.length && voxTr[0].c) out.transp=Math.max(-24, Math.min(24, voxTr[0].c));
   /* v69.4 A10 钢琴 part 拆出的行 → mixer 钢琴音色 */
   voxParts.forEach((p,i)=>{ if(pianoIds.has(p.getAttribute('id'))){ out.mixer=out.mixer||{}; out.mixer['vox:'+i]=accMixPiano(); } });
+  /* v70.5 B 组（规格 §1.1、§4.6）层：song.voxLayer（只在有层时写，非层行 null）＋层行的见证 mixer['vox:i'].lay＝1——必须写在上一行（钢琴音色 accMixPiano 整条覆盖）之后；
+     条目＝宿主条目的拷贝（宿主没有就用 trackCfg 缺省）再加 lay，层的音色、音量与宿主相同 */
+  if(hasLay){ out.voxLayer = layRow.map(x=> x? 1 : null); out.mixer = out.mixer || {};
+    layRow.forEach((x, i)=>{ if(!x) return; const h=out.mixer['vox:'+(i-1)]; out.mixer['vox:'+i] = Object.assign({}, h || {on:true, solo:false, inst:'ah', vol:1, pan:null}, {lay:1}); }); }
   if(tabInst==='uku') out.inst='uku'; else if(tabParts.length) out.inst='guitar';
   if(tabTuning){ const dflt = tabInst==='uku'? UKU_TUNING : TUNING;
     if(!(tabTuning.length===dflt.length && tabTuning.every((v,i)=>v===dflt[i]))) out.tuning=tabTuning; }
@@ -45882,6 +45932,38 @@ function importMusicXML(xmlStr){
   const meterMap={}; let curBeatsEff=beats, curUnitEff=unit;   // v43.5 变拍子：per-measure 拍号
   let curKeyEff=key, mrActive=0;
   const primaryPart = voxParts[0] || tabParts[0];   // v44.7 measure 级字段采集主 part（有 vox 用首个 vox，否则首个 tab）
+  /* v70.5 B 组（规格 §4.4「voxGap 拆法」D-18）空拍补隐形休止 hid：按拍位拆——先在拍界切开（复拍子 3/8、6/8、9/8、12/8、6/4… 一拍＝附点，3 个分母单位），
+     拍内零头按「起点对齐的最大二分时值」切（复拍子一拍内后两个单位合成一个四分、前两个不合），整拍只合并成从强位起的时值（单拍子偶数拍位起两拍＝二分；
+     复拍子只有 12/x 第 1、3 拍起两拍＝附点二分）；正好整小节＝整小节一组（拍数个拍号单位，同空小节缺省）。至多 16 列；凑不成 64 分音符整数倍的空拍不补（返回 rem）。
+     此前不补（只计「空拍」，后面的音提前、小节被静默标成不完整）；六线谱的 tabGap 不动（D-14） */
+  const meterAt = mi=>{ let b=beats, u=unit; for(let i=0; i<=mi; i++) if(meterMap[i]){ b=meterMap[i].beats; u=meterMap[i].unit; } return {b, u}; };
+  const hidCol = (dur, dotted)=>({dur, dotted, deg:0, acc:'', oct:0, lyrics:[], tie:false, hid:1});
+  const Q2D = q=>{ for(const d of [1,2,4,8,16,32,64]){ if(Math.abs(q-4/d)<1e-6) return {dur:d, dotted:false}; if(Math.abs(q-6/d)<1e-6) return {dur:d, dotted:true}; } return null; };
+  const voxGapCols = (q0, q1, mi)=>{
+    const {b, u}=meterAt(mi), U=4/u, mLen=b*U, g=q1-q0, out2=[];
+    if(!(g>1e-6)) return {cols:out2, rem:0};
+    if(Math.abs(g*16-Math.round(g*16))>0.02) return {cols:out2, rem:g};
+    if(q0<1e-6 && Math.abs(q1-mLen)<1e-6) return {cols:Array.from({length:b}, ()=>hidCol(u, false)), rem:0};
+    const cmp = b%3===0 && (b>3 || u===8), bq = cmp? 3*U : U, pcs=[];
+    const aligned = (a, c, B)=>{ let t=a; while(c-t>1e-6){ let d=0; for(const x of [4,2,1,0.5,0.25,0.125,0.0625]) if(x<=c-t+1e-6 && Math.abs((t-B)/x-Math.round((t-B)/x))<1e-6){ d=x; break; } if(!d) return false; pcs.push(d); t+=d; } return true; };
+    const items=[]; let t=q0;
+    while(q1-t>1e-6){ const bi=Math.floor((t+1e-6)/bq), B=bi*bq, e=Math.min(q1, B+bq);
+      if(Math.abs(t-B)<1e-6 && Math.abs(e-(B+bq))<1e-6) items.push({full:true, bi, B});
+      else items.push({a:t, c:e, B});
+      t=e; }
+    for(let k=0; k<items.length; k++){ const it=items[k];
+      if(it.full){ const nx=items[k+1];
+        if(nx && nx.full && it.bi%2===0 && (cmp? b/3===4 : Q2D(2*bq))){ pcs.push(2*bq); k++; continue; }
+        pcs.push(bq); continue; }
+      if(!cmp){ if(!aligned(it.a, it.c, it.B)) return {cols:[], rem:g}; continue; }
+      if(Math.abs(it.a-(it.B+U))<1e-6 && Math.abs(it.c-(it.B+bq))<1e-6){ pcs.push(2*U); continue; }
+      for(let j=0; j<3; j++){ const s0=it.B+j*U, s1=s0+U, a=Math.max(it.a, s0), c=Math.min(it.c, s1); if(c-a<=1e-6) continue;
+        if(Math.abs(a-s0)<1e-6 && Math.abs(c-s1)<1e-6) pcs.push(U); else if(!aligned(a, c, s0)) return {cols:[], rem:g}; } }
+    let rem=0;
+    for(const x of pcs){ const d=Q2D(x); if(!d || out2.length>=16){ rem+=x; continue; } out2.push(hidCol(d.dur, d.dotted)); }
+    return {cols:out2, rem};
+  };
+  const rowTF = [];   /* rowTF[pi][mi]＝第 pi 行第 mi 小节写到的时间（四分；含本行 forward 补出的 hid）——生效层对的小节末补齐按谱表取最大（D-19） */
   const partCols = voxParts.map((part,pi)=>{
     let div = 24;   // divisions/四分音符（attributes 可更新）
     /* v41.2 渐强渐弱范围括线：wedge start→挂到下一个音符列；stop→终点=最近音符列（跨小节持续）
@@ -45891,7 +45973,7 @@ function importMusicXML(xmlStr){
     let pendOtt=null, curOtt=null, ottStartCol=null;   // v43.4 八度记号 octave-shift 导入
     let pendDyn=null, pendGrace=[];   // v44.8 独立力度 / 前倚音（挂到下一个音符列）
     let pendAnno=null;   // v65.7 其余 words → 下一音 col.anno
-    let pendClef=null, clefSeen=false;   // v45.6 中途换谱号：非首个 <clef> → 挂到下一个音符列 col.clef
+    let pendClef=null, clefSeen=false, pendClefT=0;   // v45.6 中途换谱号：非首个 <clef> → 挂到下一个音符列 col.clef；v70.5 B 组 按时间挂（pendClefT＝换谱号的时刻，层行里它在宿主的流里，照文档顺序会早 N 拍）
     let slurDepth=0; const tieX=new Set();   // v65.1 B3a ① 圆滑线：start…stop 之间的音打 tie 标记；tieX 记录源文件本就带 <tie> 的列
     /* v69.4 A7 文字渐变延续虚线：words 同 direction 带 <dashes type=start> → 接收这条文字的列（openDash），<dashes type=stop> → 写 dynTo（仿 openWedge）
        A4 wedgeHold：力度与渐强渐弱同列时力度留本列、渐强渐弱从下一列起——记下让位的那一列（没有下一列时按旧口径回退）
@@ -45899,7 +45981,8 @@ function importMusicXML(xmlStr){
     let pendDash=false, openDash=null, openDashN='1', wedgeHold=null, pendGraceDur=0, pendGraceNoSl=false;   // pendDash＝待挂的虚线编号（dashes number，缺省 '1'）
     let ledMainEl=null;   /* v70.3 B1 本列主音的 <note>（台账：和音附加音上的重复记号不算丢） */
     const csh = concertSh[pi];   // v69.4 A11 本 part 换实音的平移（null＝记谱音照收）
-    const VK = VPI.get(part) || {key:null, drop:new Set()};   /* v70.5 B 组 本行声部键（预扫） */
+    const VK = VPI.get(part) || {key:null, drop:new Map()};   /* v70.5 B 组 本行声部键（预扫）；pair＝生效层对（宿主或层） */
+    rowTF[pi] = [];
     const addAnno = t=>{ pendAnno = pendAnno? (pendAnno+' '+t).slice(0,40) : t; };
     const clef0 = part.querySelector('measure attributes clef')||null, clefSign = txt(clef0,'sign');
     out.voxNotations[pi] = clefSign==='F'? 'bass' : clefSign==='C'? 'alto' : 'staff';
@@ -45920,6 +46003,14 @@ function importMusicXML(xmlStr){
       /* v69.4 A9 小节内时间游标（divisions）：接收的音 / 跳过的第二声部音 +duration，backup −，forward +；方向记号的位置＝游标 + <offset>。
          cStart＝各列起点，lastEnd＝最后一列的终点——落在已收列之内的方向记号（backup 之后、负 offset）就地挂到对应列，不再顺延到下一个音 / 下一小节 */
       let tcur=0, lastEnd=0, tFill=0;   /* v70.3 B1 tFill＝第一声部已写到的时间（查 forward 留下的空拍：至少一个 64 分音符才算，连音 duration 取整的几个 tick 不算；只用于计数，不影响落列） */
+      let nVis=0, bkSeen=false;   /* v70.5 B 组 nVis＝本小节非 hid 的列数（方向记号「就地落点」只在这些列里找）；bkSeen＝本小节出现过 <backup>（和弦名按时间挂） */
+      if(pendClef) pendClefT=0;   /* 上小节没挂上的换谱号：挂到本小节第一列（同现状） */
+      /* hid 列入列：不接收待挂的力度 / 文字 / 踏板 / 和弦 / 倚音，不作 lastPos / dynTo / ottTo 的终点；只接收曲中谱号（按时间） */
+      const hidIn = (col2, t0)=>{ cols.push(col2); cStart.push(t0); if(pendClef && t0>=pendClefT-1e-6){ col2.clef=pendClef; pendClef=null; } return col2; };
+      /* 空拍补 hid（所有旋律行；divisions）：[t0, t1) 至少一个 64 分音符；按拍位拆，凑不成整时值的余量才计「空拍」（此前一律计「空拍」、不补） */
+      const gapFill = (t0, t1)=>{ if(!(t1-t0>=div/16-1e-6)) return;
+        const r=voxGapCols(t0/div, t1/div, mi2); let tq=t0; r.cols.forEach(c=>{ hidIn(c, tq); tq+=beatsOf(c, 4)*div; });
+        if(r.rem*div>=div/16-1e-6) skO('空拍'); };
       const noteIn=(col2, t0)=>{                       // 音符列入列 + wedge/pedal 起止登记
         cols.push(col2); cStart.push(t0||0); lastPos={mi:mi2, ci:cols.length-1}; prevColRef=lastColRef; lastColRef=col2;
         if(pendWedge && pendDyn){ col2.dyn=pendDyn; pendDyn=null; if(pendDash){ openDash=col2; openDashN=pendDash; pendDash=false; } wedgeHold=col2; }   /* v69.4 A4 力度留本列，渐强渐弱等下一列 */
@@ -45927,7 +46018,8 @@ function importMusicXML(xmlStr){
         else if(pendDyn){ col2.dyn=pendDyn; pendDyn=null; if(pendDash){ openDash=col2; openDashN=pendDash; pendDash=false; } }   // v44.8 独立力度记号
         if(pendAnno){ col2.anno=pendAnno; pendAnno=null; }   // v65.7
         if(pendPed){ col2.ped='on'; pendPed=false; }
-        if(pendClef){ col2.clef=pendClef; pendClef=null; }   // v45.6 中途换谱号归属下一列（含休止列）
+        if(pendClef && (t0||0)>=pendClefT-1e-6){ col2.clef=pendClef; pendClef=null; }   // v45.6 中途换谱号归属下一列（含休止列）；v70.5 B 组 起点不早于换谱号时刻的第一列
+        nVis++;
         if(pendGrace.length && col2.deg){ col2.grace={notes:pendGrace.slice(0,3)}; if(pendGraceDur && pendGraceDur!==8) col2.grace.dur=Math.max(4, Math.min(32, pendGraceDur)); if(pendGraceNoSl) col2.grace.slash=false; pendGrace=[]; pendGraceDur=0; pendGraceNoSl=false; }   // v44.8 前倚音归属下一个有音高音符；v69.4 A5 时值
         /* v43.4 八度记号：起点列存 ott，span 内每列传播 ott（渲染符头逐列移位需要） */
         if(pendOtt){ col2.ott=pendOtt; ottStartCol=col2; curOtt=pendOtt; pendOtt=null; }
@@ -45958,7 +46050,7 @@ function importMusicXML(xmlStr){
           const cl2=el.querySelector('clef > sign');
           if(cl2){ const sg2=cl2.textContent.trim();
             if(!clefSeen) clefSeen=true;
-            else if(sg2==='G'||sg2==='F'||sg2==='C') pendClef = sg2==='F'?'bass': sg2==='C'?'alto':'staff';
+            else if(sg2==='G'||sg2==='F'||sg2==='C'){ pendClef = sg2==='F'?'bass': sg2==='C'?'alto':'staff'; pendClefT=tcur; }
           }
           /* v41.3 小节反复：measure-style measure-repeat start/stop → mea.simile */
           const mr=el.querySelector('measure-style > measure-repeat');
@@ -45977,9 +46069,11 @@ function importMusicXML(xmlStr){
           /* v69.4 A9 落在已收列之内（backup 之后 / 负 offset）：力度 / 文字 / 渐强渐弱 / 踏板起点就地挂到「起点不早于该位置」的第一列（没有就挂覆盖该位置的那一列，
              不跨到下一小节）；这些记号的终点挂到该位置之前最近的一列。目标列上已有同类记号时退回旧口径（顺延到下一个音） */
           const tDir = tcur + ((+(txt(el,'offset')||0))||0);
-          const past = cols.length>0 && tDir < lastEnd-1e-6;
+          const past = nVis>0 && tDir < lastEnd-1e-6;   /* v70.5 B 组 只在非 hid 的列里找落点（没有 hid 时与此前相同） */
           let tgI=-1, stI=-1;
-          if(past){ tgI=cStart.findIndex(t=>t>=tDir-1e-6); if(tgI<0) tgI=cols.length-1; for(let i=0;i<cols.length;i++) if(cStart[i]<tDir-1e-6) stI=i; }
+          if(past){ for(let i=0;i<cols.length;i++) if(!cols[i].hid && cStart[i]>=tDir-1e-6){ tgI=i; break; }
+            if(tgI<0) for(let i=cols.length-1;i>=0;i--) if(!cols[i].hid){ tgI=i; break; }
+            for(let i=0;i<cols.length;i++) if(!cols[i].hid && cStart[i]<tDir-1e-6) stI=i; }
           const tg = tgI>=0? cols[tgI] : null, stC = stI>=0? cols[stI] : null;
           const w=el.querySelector('direction-type > wedge');
           if(w){
@@ -46056,18 +46150,31 @@ function importMusicXML(xmlStr){
           ledDir(el, false, {dash:dashTk});   /* v70.3 B1 台账 */
           return;   // 其余 direction（metronome/rehearsal 等）另行处理
         }
-        if(tag==='harmony'){ const hn=harmonyName(el, csh); if(hn) pendChord=hn; return; }   // v65.1 kind+degree → 后缀（harmonySuffix）；v69.4 A11 换实音的 part 和弦名同移
+        if(tag==='harmony'){ const hn=harmonyName(el, csh); if(!hn) return;   // v65.1 kind+degree → 后缀（harmonySuffix）；v69.4 A11 换实音的 part 和弦名同移
+          /* v70.5 B 组（规格 §4.4「和弦名」）出现在 <backup> 之后、时间落在已写列之内（同方向记号 past 口径）→ 按时间挂到「起点不早于该时间」的第一列（没有就挂覆盖该时间的那一列）；
+             其余照旧挂下一个音（层段里写的和弦名读回不错到下一个宿主音；此前同小节没有下一个音时整个丢） */
+          const tH = tcur + ((+(txt(el,'offset')||0))||0);
+          if(bkSeen && nVis>0 && tH < lastEnd-1e-6){ let ti=-1; for(let i=0;i<cols.length;i++) if(!cols[i].hid && cStart[i]>=tH-1e-6){ ti=i; break; }
+            if(ti<0) for(let i=cols.length-1;i>=0;i--) if(!cols[i].hid){ ti=i; break; }
+            if(ti>=0 && !cols[ti].chord){ cols[ti].chord=hn; return; } }
+          pendChord=hn; return; }
         if(tag==='sound'){ if(el.hasAttribute('tempo')) tpAdd(mi2, Math.max(0, tcur + ((+(txt(el,'offset')||0))||0))/div, el); return; }   /* v69.8 裸 <sound tempo>（只进播放的速度点） */
         /* v69.4 A9 backup / forward 推动时间游标；拆谱表时留下 / 补出的（data-pyq-cur）不计入跳过（与此前拆谱表时删掉它们同口径） */
         /* v70.3 B1 有意迁移：backup / forward 本身不再计入「其他记号」——时间游标已处理（只给方向记号定位的「backup→方向→forward」什么也没丢）；
            真丢了的另计：后面的第二声部音计 skip.voices，第一声部里 forward 留下的空拍（下一列起点晚于上一列终点、或小节末没写满）计「空拍」 */
-        if(tag==='backup' || tag==='forward'){ const dd=(+(txt(el,'duration')||0))||0; tcur = tag==='backup'? Math.max(0, tcur-dd) : tcur+dd; return; }
+        if(tag==='backup' || tag==='forward'){ const dd=(+(txt(el,'duration')||0))||0;
+          /* v70.5 B 组（规格 §4.4「forward 1:1」）<voice>＝本行声部的 <forward>：先补它前面的空拍，再把它自己那段补成 hid（一个 forward 单独拆，自家往返的 hid 列数不变）；
+             不带 voice 的 forward 只推游标 */
+          if(tag==='forward' && VK.key!=null && el.getAttribute('data-pyq-k')===VK.key){ gapFill(tFill, tcur); const a=Math.max(tFill, tcur); gapFill(a, tcur+dd); tFill=Math.max(tFill, tcur+dd); }
+          if(tag==='backup') bkSeen=true;
+          tcur = tag==='backup'? Math.max(0, tcur-dd) : tcur+dd; return; }
         if(tag!=='note') return;
         /* v69.4 A9 时间游标：非和音、非倚音的音（含被跳过的第二声部音、休止）都推进 */
         const tStart = tcur; if(!q(el,'grace') && !q(el,'chord')) tcur += (+(txt(el,'duration')||0))||0;
         /* v70.5 B 组 N9①（规格 §4.4「本行过滤」）不是本行的声部键 → 只推进游标；过滤提到倚音块之前（此前 voice 2 的倚音挂到 voice 1 的下一个音上）。
            被丢的声部（rank≥1，N9 阶段不建第二声部）只在本行（宿主）计 skip.voices，只计有音高的音（主音 / 和音 / 倚音；休止不计） */
-        { const nk=el.getAttribute('data-pyq-k'); if(nk!=null && nk!==VK.key){ if(VK.drop.has(nk) && q(el,'pitch')) skip.voices++; return; } }
+        { const nk=el.getAttribute('data-pyq-k'); if(nk!=null && nk!==VK.key){ if(VK.drop.has(nk) && q(el,'pitch')) skVoice(VK.drop.get(nk), mi2); return; } }
+        if(el.hasAttribute('data-pyq-xs') && q(el,'pitch')) lossy.xstaff=(lossy.xstaff||0)+1;   /* v70.5 B 组 跨谱表的音（留在本声部谱表，R12） */
         if(q(el,'grace')){                                            // v44.8 前倚音：累积到 pendGrace，挂给下一个主音（normGrace 仅存 deg/oct）
           const pe0=q(el,'pitch');
           /* v67.0 调外倚音带 acc；v69.4 A1 按 <step> 拼（同主音）；A5 同组第一个倚音的 <type> 记作组时值 */
@@ -46147,13 +46254,16 @@ function importMusicXML(xmlStr){
         };
         if(q(el,'rest')){
           if(slurDepth>0){ slurDepth=0; skip.slurs++; if(lastColRef && !tieX.has(lastColRef)) lastColRef.tie=false; }   // v65.1 圆滑线跨休止：应用内无法表达，收口并计数
+          /* v70.5 B 组（规格 §1.3、§4.4）print-object="no" 的休止（含拆出的每列）＝隐形休止 hid:1（此前导成可见休止） */
+          const hidR = el.getAttribute('print-object')==='no';
           { const rc=readSigns({dur, dotted, deg:0, acc:'', oct:0, lyrics:[], tie:false, ...(tup?{tup}:{}), ...(tupM2?{tupM:tupM2}:{})});
-            if(pendChord){ rc.chord=pendChord; pendChord=''; }   /* v65.7 休止列（纯和弦谱）也接和弦 */
-            if(tStart-tFill>=div/16-1e-6) skO('空拍'); tFill=tcur;   /* v70.3 B1 */
-            noteIn(rc, tStart); ledVox(el, 'rest', null, rc); ledMainEl=el;   /* v70.3 B1 台账 */
+            if(hidR) rc.hid=1;
+            else if(pendChord){ rc.chord=pendChord; pendChord=''; }   /* v65.7 休止列（纯和弦谱）也接和弦 */
+            gapFill(tFill, tStart); tFill=tcur;   /* v70.3 B1；v70.5 B 组 空拍补 hid */
+            (hidR? hidIn : noteIn)(rc, tStart); ledVox(el, 'rest', null, rc); ledMainEl=el;   /* v70.3 B1 台账 */
             if(restSplit){ const qOf=x=>(4/x.dur)*(x.dotted?1.5:1)*div; let tq=tStart+qOf(restSplit[0]);   /* 拆开的休止列按时间游标依次落位 */
-              restSplit.slice(1).forEach(x=>{ noteIn({dur:x.dur, dotted:x.dotted, deg:0, acc:'', oct:0, lyrics:[], tie:false}, tq); tq+=qOf(x); }); }
-            lastEnd = tcur; }
+              restSplit.slice(1).forEach(x=>{ const c3={dur:x.dur, dotted:x.dotted, deg:0, acc:'', oct:0, lyrics:[], tie:false}; if(hidR){ c3.hid=1; hidIn(c3, tq); } else noteIn(c3, tq); tq+=qOf(x); }); }
+            if(!hidR) lastEnd = tcur; }
           return;
         }
         const pe=q(el,'pitch');
@@ -46221,10 +46331,11 @@ function importMusicXML(xmlStr){
             if(prevSlur) delete pa.tie;   /* 上一列原是圆滑线（非真连音）：列级 tie 仍在，换上来的主音即连音起点 */
             lastColRef.tie=true; tieX.add(lastColRef); }
         }
-        if(tStart-tFill>=div/16-1e-6) skO('空拍'); tFill=tcur;   /* v70.3 B1 */
+        gapFill(tFill, tStart); tFill=tcur;   /* v70.3 B1；v70.5 B 组 空拍补 hid */
         noteIn(readSigns(col), tStart); lastEnd = tcur; ledVox(el, 'main', null, col); ledMainEl=el;   /* v70.3 B1 台账 */
       });
-      if(cols.length && tcur-tFill>=div/16-1e-6) skO('空拍');   /* v70.3 B1 第一声部没写满（末尾 forward） */
+      if(!VK.pair && cols.length && tcur-tFill>=div/16-1e-6) skO('空拍');   /* v70.3 B1 第一声部没写满（末尾 forward）；v70.5 B 组 生效层对的小节末由下方按谱表补齐 */
+      rowTF[pi][mi2] = tFill/div;
       if(part===primaryPart && mrActive) simMap[mi2]=mrActive;   // v41.3 小节反复段内小节全部省写
       return cols;
     });
@@ -46247,7 +46358,7 @@ function importMusicXML(xmlStr){
       let tcur=0, lastEnd=0;   /* v70.3 B3 只留第一声部，其余计 skip.voices——此前第二声部被追加成后续列、小节超拍，skip 却是 0；v70.5 B 组 第一声部＝预扫的全曲最小有音高 voice（不再逐小节取第一个） */
       /* v70.4（v70.3 验收 minor）第一声部里 <forward> 留下的空拍（下一列起点晚于上一列终点 / 小节末没写满）按空出的时值补普通休止列（fitDurTo 从大到小，至多 8 格）——
          此前只计「空拍」，forward 后的音被提前、小节欠拍。补上的处数进导入报告（lossy.tfwd，「近似导入」）；凑不成整时值的余量（如连音里的空拍）照旧计「空拍」。
-         v70.5 隐形休止列（hid）落地后改补隐形休止 */
+         六线谱 hid 随六线谱多声部（长尾）：本版六线谱不建第二声部、不写 hid（规格 D-14，tv_v704io F1–F3） */
       const tabGap = (t0, t1)=>{ let rem=(t1-t0)/div; if(!(t1-t0>=div/16-1e-6)) return;
         for(let g=0; rem>1e-4 && g<8; g++){ const h=fitDurTo(rem, true, 4); if(!h) break; const b=beatsOf(h, 4); if(!(b>1e-6) || b>rem+1e-4) break; cols.push({dur:h.dur, dotted:h.dotted, notes:[]}); rem-=b; }
         if(rem*div>=div/16-1e-6) skO('空拍'); else lossy.tfwd++; };
@@ -46269,7 +46380,7 @@ function importMusicXML(xmlStr){
         if(tag==='backup' || tag==='forward'){ const dd=(+(txt(el,'duration')||0))||0; tcur = tag==='backup'? Math.max(0, tcur-dd) : tcur+dd; return; }
         if(tag!=='note') return;
         const tStart=tcur; if(!q(el,'grace') && !q(el,'chord')) tcur += (+(txt(el,'duration')||0))||0;   /* 时间游标只用来查空拍（同旋律行口径） */
-        { const nk=el.getAttribute('data-pyq-k'); if(nk!=null && nk!==TK.key){ if(TK.drop.has(nk) && prePit(el)) skip.voices++; return; } }   /* v70.3 B3；v70.5 B 组 纯休止声部不计、只计有音高的音（规格 §4.9） */
+        { const nk=el.getAttribute('data-pyq-k'); if(nk!=null && nk!==TK.key){ if(TK.drop.has(nk) && prePit(el)) skVoice('tab', mi2); return; } }   /* v70.3 B3；v70.5 B 组 纯休止声部不计、只计有音高的音（规格 §4.9） */
         if(q(el,'grace')){   /* v52.7 TAB 前倚音：string/fret 反解、挂给下一个主音列（同 vox pendGrace 口径）*/
           const tgE=el.querySelector(':scope > notations technical');
           const sG=tgE&&tgE.querySelector('string'), fG=tgE&&tgE.querySelector('fret');
@@ -46341,6 +46452,27 @@ function importMusicXML(xmlStr){
       for(let j=i+1;j<flat.length;j++){ const nn=flat[j].c.notes||[]; if(!nn.length) break;
         const hit=nn.find(x=>x.s===n2.s); if(hit){ n2.tk={mi:flat[j].mi, ci:flat[j].ci, si:n2.s}; break; } } }));
     flat.forEach(e=>(e.c.notes||[]).forEach(n2=>{ delete n2._stop; })); });
+  /* v70.5 B 组（规格 §4.4 R7 / R9、D-19）生效层对（宿主＋层）逐小节补齐到本谱表写到的最大时间 tMax（不跨谱表、不按拍号——弱起 / 不完整小节不被撑满）：
+     宿主空而层有音 → 宿主整小节 hid；层空 → 层整小节 hid（tMax=0 取该小节拍号）；两行都空 → 宿主照现状（拍数个可见休止）、层整小节 hid。非层行不补到小节末。
+     之后层的八度线按宿主区间按时间复制（层里不带 voice 的 octave-shift 已分给宿主）：起拍落在宿主 [起点列起拍, 终点列终拍) 的层列写 ott，区间首个层列 ottTo 指末个层列 */
+  voxParts.forEach((p, li)=>{ if(!isLay(li)) return; const hi=li-1, H=partCols[hi], L=partCols[li];
+    const sumQ = cs=>(cs||[]).reduce((a, c)=>a+beatsOf(c, 4), 0);
+    const pad = (q0, q1, mi)=>{ if(!(q1-q0>=1/16-1e-6)) return []; const r=voxGapCols(q0, q1, mi); if(r.rem>=1/16-1e-6) skO('空拍'); return r.cols; };
+    const nM=Math.max(H.length, L.length);
+    for(let mi=0; mi<nM; mi++){ const hc=H[mi]||[], lc=L[mi]||[], th=rowTF[hi][mi]||0, tl=rowTF[li][mi]||0, tM=Math.max(th, tl);
+      if(!hc.length && !lc.length){ const {b, u}=meterAt(mi); L[mi]=Array.from({length:b}, ()=>hidCol(u, false)); H[mi]=hc; continue; }
+      const full = tM>1e-6? tM : (()=>{ const {b, u}=meterAt(mi); return b*4/u; })();
+      H[mi] = hc.length? hc.concat(pad(th, full, mi)) : pad(0, full, mi);
+      L[mi] = lc.length? lc.concat(pad(tl, full, mi)) : pad(0, full, mi); }
+    /* 八度线：两行逐列算绝对起拍（小节偏移＝两行本小节总长取大） */
+    const at=[], lt=[]; let off=0;
+    for(let mi=0; mi<nM; mi++){ let t=off; (H[mi]||[]).forEach((c, ci)=>{ at.push({c, mi, ci, t0:t, t1:t+beatsOf(c, 4)}); t+=beatsOf(c, 4); });
+      t=off; (L[mi]||[]).forEach((c, ci)=>{ lt.push({c, mi, ci, t0:t}); t+=beatsOf(c, 4); });
+      off += Math.max(sumQ(H[mi]), sumQ(L[mi])) || (()=>{ const {b, u}=meterAt(mi); return b*4/u; })(); }
+    at.forEach((e, k)=>{ if(!e.c.ott || (k>0 && at[k-1].c.ott && !e.c.ottTo)) return;
+      let end=e; if(e.c.ottTo){ const z=at.find(x=>x.mi===e.c.ottTo.mi && x.ci===e.c.ottTo.ci); if(z) end=z; } else { for(let j=k+1; j<at.length && at[j].c.ott; j++) end=at[j]; }
+      const inI=lt.filter(x=>!x.c.hid && x.t0>=e.t0-1e-6 && x.t0<end.t1-1e-6); if(!inI.length) return;
+      inI.forEach(x=>{ x.c.ott=e.c.ott; delete x.c.ottTo; }); inI[0].c.ottTo={mi:inI[inI.length-1].mi, ci:inI[inI.length-1].ci}; }); });
   out.lyricLines = Math.min(MAX_LYR, maxLyr);   /* v69.4 A6 段数上限与编辑器同口径（此前 3） */
   /* v70.0 验收⑥：自家导出、建谱用途是带歌词的那几类（pyq-intent＝vocal / kids / pacc / gtr / teach）却一个 <lyric> 都没有（没填词的合唱＋钢琴、弹唱谱）——
      按 NWP convert 的口径留 1 行词位：否则往返后 lyricLines 变 0，统一谱名表把合唱＋钢琴退成重奏谱（intent 还在）。只认 pyq-intent：老文件 / 第三方文件导入逐字节不变 */
@@ -46349,29 +46481,30 @@ function importMusicXML(xmlStr){
      与其他五线谱声部同在 → 显式 voxGroups：配对写 brace、其余相邻五线谱声部 ≥2 行写 bracket（否则 voxGroupsOf 会把钢琴并进合唱括线） */
   /* v68.3 D4 自家导出已按原名拆好；收尾 ENG-3：只有一对大谱表、再无别的声部时不管名字从哪来都不写显式 voxGroups（同 v68.2，往返不多出字段）——
      认得出行名（miscellaneous / 自家拆名 / 右手…·左手…）就留原名，认不出按编辑器惯例「右手 / 左手」 */
-  const pairOnly = bracePairs.length===1 && voxParts.length===2 && !tabParts.length;
+  const pairOnly = bracePairs.length===1 && voxParts.length-layRow.filter(Boolean).length===2 && !tabParts.length;   /* v70.5 B 组 按谱表数（不数层行） */
   /* v69.4 A8 源谱 <part-group> → 行号组（按 score-part id 映射到拆谱表后的行；方括号去掉被大谱表花括号占用的行，仍连续且 ≥2 行才收；与已收的组相交的丢弃） */
   let pgGroups=null;
   if(hasPG && !pairOnly){ const rowsOf={}; voxParts.forEach((p,i)=>{ const id=p.getAttribute('id'); (rowsOf[id]=rowsOf[id]||[]).push(i); });
-    const inB=new Set(); bracePairs.forEach(([a,b2])=>{ inB.add(a); inB.add(b2); });
-    const gs=bracePairs.map(([a,b2])=>({type:'brace', from:a, to:b2}));
+    const inB=new Set(); bracePairs.forEach(([a,b2])=>{ for(let r=a; r<=lastOf(b2); r++) inB.add(r); });
+    const gs=bracePairs.map(([a,b2])=>({type:'brace', from:a, to:lastOf(b2)}));   /* v70.5 B 组 组的 to 覆盖末谱表的层行（D-11） */
     const cand=pgList.map(g=>{ const ty = (g.sym==='bracket'||g.sym==='square')? 'bracket' : g.sym==='brace'? 'brace' : '';
         let rows=[...new Set(g.ids.flatMap(id=>rowsOf[id]||[]))].sort((x,y)=>x-y);
         if(ty==='bracket') rows=rows.filter(r=>!inB.has(r));
         return {ty, rows}; })
-      .filter(g=>g.ty && g.rows.length>=2 && g.rows[g.rows.length-1]-g.rows[0]+1===g.rows.length)
+      .filter(g=>g.ty && g.rows.filter(r=>!isLay(r)).length>=2 && g.rows[g.rows.length-1]-g.rows[0]+1===g.rows.length)   /* v70.5 B 组 按谱表数 ≥2 */
       .sort((x,y)=>y.rows.length-x.rows.length);
-    cand.forEach(g=>{ const a=g.rows[0], b2=g.rows[g.rows.length-1];
+    cand.forEach(g=>{ const a=g.rows[0], b2=lastOf(g.rows[g.rows.length-1]);
       if(gs.some(x=>!(b2<x.from || a>x.to))) return;   // 与已有组相交（含「正好是一个 part 的两行」的花括号＝已有配对）→ 不重复写
       gs.push({type:g.ty, from:a, to:b2}); });
     pgGroups = gs.sort((x,y)=>x.from-y.from); }
-  if(pairOnly){ if(!namedPairs) out.voxVoices=['右手','左手']; }
+  if(pairOnly){ if(!namedPairs){ const nm=['右手','左手']; let k=0; out.voxVoices = hasLay? out.voxVoices.map((x, i)=>isLay(i)? x : nm[k++]) : ['右手','左手']; } }
   else if(pgGroups && bracePairs.length) out.voxGroups = pgGroups;   /* 有大谱表配对：与下一分支同样写显式分组，只是不再推断方括号 */
   else if(pgGroups){}   /* 没有大谱表：与按谱面推断的结果不同才写（见小节循环之后），同则不多出字段 */
   else if(bracePairs.length){ const inB=new Set(), gs=[];
-    bracePairs.forEach(([a,b2])=>{ gs.push({type:'brace',from:a,to:b2}); inB.add(a); inB.add(b2); });
-    let run=[]; const flush=()=>{ if(run.length>=2) gs.push({type:'bracket',from:run[0],to:run[run.length-1]}); run=[]; };
-    voxParts.forEach((p,i)=>{ if(!inB.has(i) && isStaffNota(out.voxNotations[i])) run.push(i); else flush(); }); flush();
+    bracePairs.forEach(([a,b2])=>{ gs.push({type:'brace',from:a,to:lastOf(b2)}); for(let r=a; r<=lastOf(b2); r++) inB.add(r); });
+    /* v70.5 B 组 方括号推断按谱表：跳过层行、区间覆盖层行（否则单谱表＋层会被括成方括号） */
+    let run=[]; const flush=()=>{ if(run.length>=2) gs.push({type:'bracket',from:run[0],to:lastOf(run[run.length-1])}); run=[]; };
+    voxParts.forEach((p,i)=>{ if(isLay(i)) return; if(!inB.has(i) && isStaffNota(out.voxNotations[i])) run.push(i); else flush(); }); flush();
     out.voxGroups = gs.sort((x,y)=>x.from-y.from); }
   let voltaCur=0;   // v65.1 B3a ② 房子：ending start 起、stop/discontinue 止，跨小节延续
   for(let mi=0; mi<nMea; mi++){
@@ -46431,10 +46564,18 @@ function importMusicXML(xmlStr){
     if(Array.isArray(a)) a.forEach(i=>{ if(Number.isInteger(i) && i>=0 && out.measures[i] && out.measures[i+1] && out.measures[i+1].pgbrk===1) out.measures[i].brk=1; }); }catch(_){} }
   /* 收尾 ENG-3：认得出行名的单对大谱表——只有按谱面推断出不了花括号（例如上行带歌词会被当成二声部合唱）时才写显式 voxGroups；
      推断得出就不写（自家导出的钢琴独奏谱 / 钢琴弹唱伴奏往返与 v68.2 同形，不多出字段） */
-  if(pgGroups && !bracePairs.length && pgGroups.length){ const g=PQ_KIND.groupsOf(Object.assign({}, out, {voxGroups:undefined}));
-    if(JSON.stringify(g)!==JSON.stringify(pgGroups)) out.voxGroups=pgGroups; }
-  if(pairOnly && namedPairs){ const g=PQ_KIND.groupsOf(Object.assign({}, out, {voxGroups:undefined}));
+  if(pgGroups && !bracePairs.length && pgGroups.length){ if(hasLay) out.voxGroups=pgGroups; else { const g=PQ_KIND.groupsOf(Object.assign({}, out, {voxGroups:undefined}));
+    if(JSON.stringify(g)!==JSON.stringify(pgGroups)) out.voxGroups=pgGroups; } }
+  if(pairOnly && hasLay) out.voxGroups=[{type:'brace', from:0, to:voxParts.length-1}];   /* v70.5 B 组 有层时一律写显式组（D-11），不做「与推断比较、同则不写」 */
+  else if(pairOnly && namedPairs){ const g=PQ_KIND.groupsOf(Object.assign({}, out, {voxGroups:undefined}));
     if(!(g.length===1 && g[0].type==='brace' && g[0].from===0 && g[0].to===1)) out.voxGroups=[{type:'brace', from:0, to:1}]; }
+  /* v70.5 B 组 层行名：「宿主名·2」，自家分层导出按 pyq-voice-names 原样读回（D-13）；有层又没有任何显式组时，按分类视图推断出的组写成显式组（行空间、覆盖层行），
+     旧版本打开时括线照样连续 */
+  if(hasLay){ layRow.forEach((x, i)=>{ if(!x) return; const nm = pvn && Array.isArray(pvn[i]) && typeof pvn[i][0]==='string'? pvn[i][0].slice(0, 64) : null;
+      out.voxVoices[i] = nm!=null? nm : String(out.voxVoices[i-1]||'')+'·2'; });
+    if(!out.voxGroups){ try{ const V=PQ_KIND.collapseLayers(out, 'kind'), K=PQ_KIND.layerRows(out, 'kind'), g=PQ_KIND.groupsOf(V);
+      const gs=g.map(x=>K? {type:x.type, from:K.rows[x.from][0], to:lastOf(K.rows[x.to][K.rows[x.to].length-1])} : {type:x.type, from:x.from, to:lastOf(x.to)}).filter(x=>x.to>x.from);
+      if(gs.length) out.voxGroups=gs; }catch(_){} } }
   /* v67.5 新建面板「从已有音乐」的依据只读几项文件事实（不进 song）：<encoding><software> 导出软件名（AI 转谱工具识别）、
      速度是否文件里写了（<metronome> / <sound tempo> 都没有＝按默认 90）、拍号是否文件里写了 / 被改写（meterDefaulted / meterFrom，见上） */
   /* v69.3 不完整小节（irregular measure）：反复记号 / 段落处被拆成两半的小节、与弱起互补的末小节——所有声部一致短于拍号（且都不为空）
@@ -46451,12 +46592,13 @@ function importMusicXML(xmlStr){
   /* v69.8 C 组（复核 E5）声部简称与首行声部名：<part-abbreviation>（非空且≠全称；只认没拆谱表的 part）→ voxShort；
      首行声部名开关——自家导出只认 <miscellaneous-field name="pyq-rownames">；第三方文件满足生效条件（≥2 份旋律行、有五线谱行）且没有 part-name print-object="no" 时写 rowNames:1 */
   { const sps=voxParts.map(p=>{ const id=p.getAttribute('id'); return id? root.querySelector(`part-list > score-part[id="${id}"]`) : null; });
-    const idN={}; voxParts.forEach(p=>{ const id=p.getAttribute('id')||''; idN[id]=(idN[id]||0)+1; });
-    sps.forEach((sp, i)=>{ if(!sp || idN[voxParts[i].getAttribute('id')||'']>1) return;
+    const idN={}; voxParts.forEach((p, i)=>{ if(isLay(i)) return; const id=p.getAttribute('id')||''; idN[id]=(idN[id]||0)+1; });   /* v70.5 B 组 只数非层行 */
+    sps.forEach((sp, i)=>{ if(!sp || isLay(i) || idN[voxParts[i].getAttribute('id')||'']>1) return;
       const ab=(txt(sp,'part-abbreviation')||'').replace(/\s+/g,' ').trim(), nm=(txt(sp,'part-name')||'').replace(/\s+/g,' ').trim();
       if(ab && ab!==nm && ab.length<=40){ out.voxShort=out.voxShort||voxParts.map(()=>null); out.voxShort[i]=ab; } });
     if(ownSw){ const mf=root.querySelector('identification > miscellaneous > miscellaneous-field[name="pyq-rownames"]'); if(mf && (mf.textContent||'').trim()==='1') out.rowNames=1; }
-    else if(!sps.some(sp=>sp && sp.querySelector(':scope > part-name[print-object="no"]')) && rowNamesOn(Object.assign({}, out, {rowNames:1}))) out.rowNames=1; }
+    else if(!sps.some(sp=>sp && sp.querySelector(':scope > part-name[print-object="no"]')) && rowNamesOn(PQ_KIND.collapseLayers(Object.assign({}, out, {rowNames:1})))) out.rowNames=1;   /* v70.5 B 组 按物理谱表判（单件乐器带层不开声部名） */
+    if(pvn) pvn.forEach((x, i)=>{ if(isLay(i) && Array.isArray(x) && typeof x[1]==='string' && x[1].trim()){ out.voxShort=out.voxShort||voxParts.map(()=>null); out.voxShort[i]=x[1].slice(0, 40); } }); }
   const software = (txt(root,'identification > encoding > software')||'').trim().slice(0,80);
   const tempoDefaulted = !doc.querySelector('metronome per-minute') && !tempoEl;
   /* v69.4 A11 / A4 导入报告：换实音的提示 + 有损映射计数（「从已有音乐」依据与导入提示条都读 r.warn） */
@@ -46464,6 +46606,7 @@ function importMusicXML(xmlStr){
   { const ls=[]; if(lossy.odyn) ls.push('其他力度 '+lossy.odyn+' 处按文字记号导入'); if(lossy.tdyn) ls.push('与力度同位置的文字力度 '+lossy.tdyn+' 处改为文字标注');
     if(lossy.wedge) ls.push('与力度同音的渐强渐弱 '+lossy.wedge+' 处后移一个音');
     if(lossy.tfwd) ls.push('六线谱 forward 空拍 '+lossy.tfwd+' 处补成休止');   /* v70.4 */
+    if(lossy.xstaff) ls.push('跨谱表的音 '+lossy.xstaff+' 个画在本声部谱表');   /* v70.5 B 组（R12） */
     if(ls.length) wl.push('近似导入：'+ls.join('、')); }
   return Object.assign({song: migrate(out), skip, keyDefaulted, software, tempoDefaulted, meterDefaulted, meterFrom, lossy}, wl.length? {warn:wl.join('；')} : {});
 }
