@@ -131,6 +131,14 @@ const BAD = [
   ['坏谱 缺 tabVoices（观看页打不开）', { v: 3, voxVoices: ['右手', '左手'], voxNotations: ['staff', 'bass'], measures: [{ voxes: [[{ deg: 1 }], [{ deg: 1 }]] }] }],
   ['坏谱 顶层 key 是对象', { v: 3, key: { toString: 1 }, tempo: { valueOf: 1 }, tabVoices: [], voxVoices: ['a'], measures: [{ tabs: [], voxes: [[C()]] }] }],
 ].map(([tag, d]) => ({ tag, d: d == null ? d : J(d) }));
+/* v70.5（规格 docs/spec-2026-11-v705.md §10.4 tv_taxonomy X6）坏 voxLayer：判据不成立的谱一律按独立谱表——分类结果＝剥掉 voxLayer 与见证后的结果，不抛、只读 */
+const LBADT = (() => { const pno = (lay, o) => Object.assign({ v: 3, tabVoices: [], voxVoices: ['右手', '右手·2', '左手'], voxNotations: ['staff', 'staff', 'bass'], lyricLines: 0, voxLayer: lay,
+    mixer: { 'vox:1': { on: true, lay: 1 } }, measures: [{ tabs: [], voxes: [[C()], [C()], [C()]] }] }, o || {});
+  return [['坏层 长度不等', pno([null, 1])], ['坏层 不是数组', pno({ 1: 1 })], ['坏层 值是 true', pno([null, true, null])], ['坏层 越界 [1,null,null]', pno([1, null, null])],
+    ['坏层 缺见证', pno([null, 1, null], { mixer: {} })], ['坏层 记谱法不同（层是低音）', pno([null, 1, null], { voxNotations: ['staff', 'bass', 'bass'] })],
+    ['坏层 跨组边界（brace 1–2）', pno([null, 1, null], { voxGroups: [BC(1, 2)] })], ['坏层 和弦谱', pno([null, 1, null], { chordOnly: true })],
+    ['坏层 mixer 是字符串', pno([null, 1, null], { mixer: 'x' })], ['坏层 声部不是数组', pno([null, 1, null], { voxVoices: 'ab' })]].map(([tag, d]) => ({ tag, d: J(d) })); })();
+const stripLay = d => { const c = J(d); delete c.voxLayer; if (c.mixer && typeof c.mixer === 'object') Object.values(c.mixer).forEach(e => { if (e && typeof e === 'object') delete e.lay; }); return c; };
 
 const placesOf = r => [r.pz + '.' + r.sub].concat(r.also || []);
 const pzShow = r => r ? r.row + ' ' + placesOf(r).join('+') + (r.inst ? ' 〔' + r.inst + '〕' : '') : 'null';
@@ -428,6 +436,14 @@ async function allPages(q) {
         if (JSON.stringify(x.d) !== before) bad.push(x.tag + ' 改了入参');
       }
       T(has('pzOf') && has('pubKindOf') && !bad.length, 'X6 坏谱（null / 数组 / 小节或声部不是数组 / 歌词是字符串 / 分组记谱法乐器怪值 / 缺六线谱轨 / 顶层对象值）：pzOf / facetsOf / docTypeOf / pubKindOf 不抛错、结果在表内、只读', JSON.stringify(bad.slice(0, 6)));
+      /* v70.5 坏 voxLayer（§10.4）：不抛、只读、四个出口＝剥掉 voxLayer 与见证后的结果 */
+      const badL = [], sig = d => JSON.stringify([K.pzOf(d), K.facetsOf(d), K.docTypeOf(d), K.pubKindOf(d)]);
+      for (const x of LBADT) {
+        const before = JSON.stringify(x.d);
+        try { if (sig(x.d) !== sig(stripLay(x.d))) badL.push(x.tag + ' ≠ 剥字段结果'); } catch (e) { badL.push(x.tag + ' 抛错 ' + e.message); }
+        if (JSON.stringify(x.d) !== before) badL.push(x.tag + ' 改了入参');
+      }
+      T(typeof K.voxLayerOk === 'function' && !badL.length, 'X6b 坏 voxLayer（' + LBADT.length + ' 类：长度 / 非数组 / 值是 true / 越界 / 缺见证 / 记谱法不同 / 跨组边界 / 和弦谱 / 坏 mixer / 坏声部）：pzOf / facetsOf / docTypeOf / pubKindOf 不抛、只读、＝剥字段结果', JSON.stringify(badL.slice(0, 6)));
     });
 
     /* ---------- X7 真服务端 ---------- */

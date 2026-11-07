@@ -5,7 +5,8 @@
    质量门（任一不过整个构建失败，不写文件）：
      ① 音高：源文件与「导入 → 再导出」逐小节比音高多重集（不含倚音），一个小节都不能差
      ② 时值：beatErrors() 为 0（不完整小节由导入标记 irr 豁免）
-     ③ 不丢：skip.parts / voices / notes 都为 0（同谱表第二声部、超过 4 音的和弦、超出的声部都会计数）
+     ③ 不丢：skip.parts / voices / notes 都为 0（同谱表第 3 个起的声部、六线谱第二声部、超出上限的声部、超过 4 音的和弦都会计数；
+        v70.5 起同谱表第二声部收进紧跟宿主的层行，不再计 skip.voices，skip.voices 只计有音高的音——规格 docs/spec-2026-11-v705.md §4.8 / §9）
         v70.3 B4 扩口径（基石方案 docs/plan-2026-11-foundation.md §3.1）：skip 各项——parts / voices / notes / lyrics / slurs，other 按 skip.otherBy 逐名
         （导入台账 MXL_LED：半断奏、括号符头、跨休止圆滑线…；双音震音 v70.4 起收进 col.trem2、不再计数）——必须与 manifest 条目的 skipAllow 逐项相等：没写 skipAllow 的全 0；
         写了的必须有 signed（by / date）与 why（逐曲签字的例外）；计数变了（多了或少了）都不过门，白名单跟着改、重新签（双音震音的白名单 v70.4 已撤）
