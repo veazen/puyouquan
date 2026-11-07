@@ -323,6 +323,22 @@ const X_TAB = HEAD(['P1'], `<part id="P1"><measure number="1">${TABATT}${TN(1, 0
           const a = await ex(pg), z = await ex(R.pg); await R.ctx.close();
           const bad = Array.isArray(a) && Array.isArray(z) ? a.map((x, i) => x === z[i] ? '' : '预设 ' + (i + 1)).filter(Boolean) : ['取导出失败'];
           T(!bad.length, 'M5 没有层的谱（16 份预设）MIDI 字节与 c9882a4 相同', bad.join(' | ')); } }
+      /* v70.5 审核修 1：非钢琴分层谱（导入时宿主没有混音台条目）——层轨 program＝宿主轨 program＝MusicXML 该 part 的 <midi-program>−1；
+         播放一遍（play() 会经 trackCfg 补缺省条目）后再导出，宿主＋层两条轨的字节不变。修前（ba1b270）宿主 0、层 53，播放后宿主变 53 */
+      { const r = await EV(pg, xs => xs.map(x => { window.SF_PLAYWAIT = false; window.guardReplace = p => p();
+          const s = importMusicXML(x).song, b0 = [...exportMIDI(s).bytes], o0 = song; let X; try { X = exportMusicXML(s); } finally { song = o0; }
+          undoStack.length = 0; redoStack.length = 0; loadSong(JSON.parse(JSON.stringify(s))); sel = { mi: 0, row: 'vox', vi: 0, ci: 0, si: 1 }; clampSel(); selRange = null; render();
+          try { play(); } finally { stopPlay(); }
+          const b1 = [...exportMIDI(song).bytes];
+          return { b0, b1, xp: (X.match(/<midi-program>(\d+)<\/midi-program>/g) || []).map(t => +t.replace(/\D/g, '')), vl: s.voxLayer || null }; }), [FX('F01'), FX('F06')]);
+        if (r.err) T(false, 'M6 MIDI', r.err);
+        else { const pcOf = t => (t.find(e => e.ty === 'pc') || {}).k, chk = (nm, o) => { const A0 = PARSE(o.b0).slice(1), A1 = PARSE(o.b1).slice(1);
+            const host = o.vl.indexOf(1) - 1, lay = host + 1, p0 = A0.map(pcOf), p1 = A1.map(pcOf);
+            const trk = (b2, i) => { const t = PARSE(b2).slice(1)[i]; return J(t); };
+            return { ok: p0[lay] === p0[host] && p0[host] === o.xp[0] - 1 && trk(o.b0, host) === trk(o.b1, host) && trk(o.b0, lay) === trk(o.b1, lay), d: J({ nm, host, lay, p0, p1, xp: o.xp }) }; };
+          const a = chk('F01', r[0]), c = chk('F06', r[1]);
+          T(a.ok, 'M6 F01 单件乐器（小提琴，无混音台条目）带层：层轨 program＝宿主轨＝MusicXML midi-program−1；播放后再导出宿主 / 层两条轨字节不变', a.d);
+          T(c.ok, 'M7 F06 女高 / 女低同谱表（非钢琴分层）：层轨 program＝宿主轨＝MusicXML 该 part 的 midi-program−1；播放前后宿主 / 层两条轨字节相同', c.d); } }
     }
     /* ================= A：播放（规格 §6.1） =================
        修前红（a73fecc）：A1–A3（v70.4 不建层）；A1 的左手增益 / 踏板模拟依赖分层钢琴 docType＝piano（A 组分类入口；临时合并副本验证） */

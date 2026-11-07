@@ -46050,9 +46050,12 @@ function importMusicXML(xmlStr){
   /* v69.4 A10 钢琴 part 拆出的行 → mixer 钢琴音色 */
   voxParts.forEach((p,i)=>{ if(pianoIds.has(p.getAttribute('id'))){ out.mixer=out.mixer||{}; out.mixer['vox:'+i]=accMixPiano(); } });
   /* v70.5 B 组（规格 §1.1、§4.6）层：song.voxLayer（只在有层时写，非层行 null）＋层行的见证 mixer['vox:i'].lay＝1——必须写在上一行（钢琴音色 accMixPiano 整条覆盖）之后；
-     条目＝宿主条目的拷贝（宿主没有就用 trackCfg 缺省）再加 lay，层的音色、音量与宿主相同 */
+     条目＝宿主条目的拷贝（宿主没有就用 trackCfg 缺省）再加 lay，层的音色、音量与宿主相同。
+     v70.5 审核修 1：宿主没有条目时把 trackCfg 缺省条目也写给宿主——否则 MIDI 宿主轨按「无条目」回落 program 0、层轨 53（「啊」），
+     与 MusicXML <midi-instrument>（trackInstOf，「啊」）不一致，且播放一遍（trackCfg 补条目）后宿主又变 53；只作用于带层的宿主行，老谱不经过这里 */
   if(hasLay){ out.voxLayer = layRow.map(x=> x? 1 : null); out.mixer = out.mixer || {};
-    layRow.forEach((x, i)=>{ if(!x) return; const h=out.mixer['vox:'+(i-1)]; out.mixer['vox:'+i] = Object.assign({}, h || {on:true, solo:false, inst:'ah', vol:1, pan:null}, {lay:1}); }); }
+    layRow.forEach((x, i)=>{ if(!x) return; const hk='vox:'+(i-1); if(!out.mixer[hk]) out.mixer[hk] = {on:true, solo:false, inst:'ah', vol:1, pan:null};
+      out.mixer['vox:'+i] = Object.assign({}, out.mixer[hk], {lay:1}); }); }
   if(tabInst==='uku') out.inst='uku'; else if(tabParts.length) out.inst='guitar';
   if(tabTuning){ const dflt = tabInst==='uku'? UKU_TUNING : TUNING;
     if(!(tabTuning.length===dflt.length && tabTuning.every((v,i)=>v===dflt[i]))) out.tuning=tabTuning; }
@@ -47482,7 +47485,7 @@ function exportMIDI0(s, expand){
   const secTk = tempoQPM(s)*TPQ/60;   // 每秒 tick（倍速 1；倚音时值按播放的秒数口径换算）
   (s.voxVoices||[]).forEach((vn,vi)=>{
     const ch=chFor(vi);
-    const evts=[nameEv(vn), {tick:0,pr:0,data:[0xC0|ch,gmProg('vox',vi)]}];   /* v65.4 轨名 + GM 音色 */
+    const evts=[nameEv(vn), {tick:0,pr:0,data:[0xC0|ch,gmProg('vox', LRm? LRm.rows[LRm.of[vi]][0] : vi)]}];   /* v65.4 轨名 + GM 音色；v70.5 审核修 1 层轨取宿主的音色（同一张谱表＝同一件乐器，与 MusicXML 一个 part 一个 midi-instrument 同口径） */
     const tl=tlOfVox(vi), vAt=t=> tl? velOf(80, dynAtTL(tl,t)) : 80;
     const note=(m,at,len,v)=>{ evts.push({tick:at,pr:2,data:[0x90|ch,m&127,v]},
                                          {tick:at+len,pr:1,data:[0x80|ch,m&127,0]}); };
