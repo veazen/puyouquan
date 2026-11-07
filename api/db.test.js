@@ -290,6 +290,31 @@ T('曲库公版谱：每首一个事务、id 被别人占用则把占用的谱�
   assert.strictEqual(row('lib-os-rf1').data, JSON.stringify(v2.data), '下架的谱被仓库刷新');
 });
 
+/* v70.5 同谱表双声部（规格 docs/spec-2026-11-v705.md §1.7）：上传口径＝scoreDataDanger（server.js PUT /api/scores 存库前那一道）——
+   SD_NUM 新登记的 voxLayer / hid / lay：不能转数的字符串、非有限数拒收；null / true / 数字 / 数字串照收（读取端当 null 或规整成 1）。
+   照收的分层谱经 DB 层存取与发布快照逐字节往返（服务端不做 migrate、不剥键） */
+T('v70.5 上传口径：voxLayer:["x"] / hid:"a" / lay:Infinity 拒收；[null,1] / [null,true] / "1" / hid:1 / lay:1 照收，存库与发布快照逐字节往返', () => {
+  const { scoreDataDanger } = require('./scoredata'), { db } = require('./db');
+  const base = () => ({ v: 3, title: '分层', tabVoices: [], voxVoices: ['右手', '右手·2', '左手'], voxNotations: ['staff', 'staff', 'bass'], voxGroups: [{ type: 'brace', from: 0, to: 2 }],
+    mixer: { 'vox:1': { on: true, solo: false, inst: 'piano', vol: 1, pan: null } }, lyricLines: 0,
+    measures: [{ tabs: [], voxes: [[{ dur: 1, dotted: false, deg: 1, acc: '', oct: 0, lyrics: [], tie: false }], [{ dur: 1, dotted: false, deg: 0, acc: '', oct: 0, lyrics: [], tie: false }], [{ dur: 1, dotted: false, deg: 1, acc: '', oct: -1, lyrics: [], tie: false }]] }] });
+  const dz = f => { const d = base(); f(d); return scoreDataDanger(d, '', 'data', 0); };
+  assert.ok(/voxLayer/.test(dz(d => { d.voxLayer = ['x', null, null]; }) || ''), 'voxLayer:["x"] 未拒收');
+  assert.ok(/hid/.test(dz(d => { d.measures[0].voxes[1][0].hid = 'a'; }) || ''), 'hid:"a" 未拒收');
+  assert.ok(/lay/.test(dz(d => { d.mixer['vox:1'].lay = Infinity; }) || ''), 'lay:Infinity 未拒收');
+  const okCases = [['[null,1,null]', d => { d.voxLayer = [null, 1, null]; }], ['[null,true,null]', d => { d.voxLayer = [null, true, null]; }], ['"1"', d => { d.voxLayer = [null, '1', null]; d.mixer['vox:1'].lay = '1'; d.measures[0].voxes[1][0].hid = '1'; }],
+    ['hid:1', d => { d.measures[0].voxes[1][0].hid = 1; }], ['lay:1', d => { d.mixer['vox:1'].lay = 1; }]];
+  for (const [nm, f] of okCases) assert.strictEqual(dz(f), null, nm + ' 应照收');
+  /* 照收的分层谱：存库 → 读回 / 发布快照逐字节相同 */
+  const d = base(); d.voxLayer = [null, 1, null]; d.mixer['vox:1'].lay = 1; d.measures[0].voxes[1][0].hid = 1;
+  const j = JSON.stringify(d), t = now();
+  db.prepare("INSERT INTO users(id,phone,nickname,created_at) VALUES('v705u0001','13100007050','分层',?)").run(t);
+  db.prepare("INSERT INTO scores(id,user_id,title,status,data,pub_data,pub_title,pub_at,updated_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)").run('v705s0001x', 'v705u0001', '分层', 'published', j, j, '分层', t, t, t);
+  const r = db.prepare("SELECT data, pub_data FROM scores WHERE id = 'v705s0001x'").get();
+  assert.strictEqual(r.data, j, '存库改了字节'); assert.strictEqual(r.pub_data, j, '发布快照改了字节');
+  const pg = q.pubGet.get('v705s0001x'); assert.ok(pg && pg.data === j, '公开详情的 data 改了字节');
+});
+
 setTimeout(() => {
   try { require('node:fs').unlinkSync(process.env.DB_PATH); } catch {}
   console.log('PASS ' + pass + '/' + total);
