@@ -44017,8 +44017,8 @@ function exportMusicXML(s){
   const isLayX = vi=> !!LR && LR.rows[LR.of[vi]][0]!==vi, hostX = vi=> LR? LR.rows[LR.of[vi]][0] : vi;
   const layOfX = h=> (LR && LR.rows[LR.of[h]].length===2)? LR.rows[LR.of[h]][1] : null;
   const braceOf={}, botOf={}, topOf={};
-  if(LR) PQ_KIND.groupsOf(PQ_KIND.collapseLayers(s)).forEach(g=>{ if(g.type==='brace' && g.to-g.from===1){ const a=LR.rows[g.from][0], b2=LR.rows[g.to][0]; braceOf[a]='top'; braceOf[b2]='bottom'; botOf[a]=b2; topOf[b2]=a; } });
-  else voxGroupsOf(s).forEach(g=>{ if(g.type==='brace' && g.to-g.from===1){ braceOf[g.from]='top'; braceOf[g.to]='bottom'; botOf[g.from]=g.to; topOf[g.to]=g.from; } });
+  (LR? PQ_KIND.groupsOf(PQ_KIND.collapseLayers(s)).map(g=>({type:g.type, from:g.from, to:g.to, a:LR.rows[g.from][0], b:LR.rows[g.to][0]})) : voxGroupsOf(s).map(g=>({type:g.type, from:g.from, to:g.to, a:g.from, b:g.to})))
+    .forEach(g=>{ if(g.type==='brace' && g.to-g.from===1){ braceOf[g.a]='top'; braceOf[g.b]='bottom'; botOf[g.a]=g.b; topOf[g.b]=g.a; } });   /* 物理视图的单元下标 → 宿主行（没有层时 a＝from、b＝to） */
   const partLayX = top=> !!LR && (layOfX(top)!=null || (botOf[top]!=null && layOfX(botOf[top])!=null));   /* 这个 part（top＝首张谱表宿主行）里有层 */
   /* v65.4 B3a ⑦（P2-13）弱起：首小节 number="0" implicit="yes"（出版惯例，与 meaNo 同口径），其后从 1 编号 */
   /* v68.5 「此处换页」(measures[mi].pgbrk===1，第 1 小节无效)：小节开头写 <print new-page="yes"/>（隐含 new-system，不另写）。
@@ -46634,12 +46634,10 @@ function importMusicXML(xmlStr){
   if(pairOnly && hasLay) out.voxGroups=[{type:'brace', from:0, to:voxParts.length-1}];   /* v70.5 B 组 有层时一律写显式组（D-11），不做「与推断比较、同则不写」 */
   else if(pairOnly && namedPairs){ const g=PQ_KIND.groupsOf(Object.assign({}, out, {voxGroups:undefined}));
     if(!(g.length===1 && g[0].type==='brace' && g[0].from===0 && g[0].to===1)) out.voxGroups=[{type:'brace', from:0, to:1}]; }
-  /* v70.5 B 组 层行名：「宿主名·2」，自家分层导出按 pyq-voice-names 原样读回（D-13）。有层又没有任何显式组时（D-11）：把「层当独立行」时按谱面推断出的组
-     （＝v70.4 打开同一份 JSON 的推断，行空间，组从宿主行起、覆盖层行）写成显式组——v70.5 谱面与旧版本一致（D-5），分类视图里只占一张物理谱表的组自动丢掉，不影响谱名 */
-  if(hasLay){ layRow.forEach((x, i)=>{ if(!x) return; const nm = pvn && Array.isArray(pvn[i]) && typeof pvn[i][0]==='string'? pvn[i][0].slice(0, 64) : null;
+  /* v70.5 B 组 层行名：「宿主名·2」，自家分层导出按 pyq-voice-names 原样读回（D-13）。源谱没有分组（没有 part-group、也不是大谱表配对）时不另造显式组：
+     推断出的方括号写成显式组会被 isChoir 当成合唱（器乐重奏 / 单件乐器带层都会误判） */
+  if(hasLay) layRow.forEach((x, i)=>{ if(!x) return; const nm = pvn && Array.isArray(pvn[i]) && typeof pvn[i][0]==='string'? pvn[i][0].slice(0, 64) : null;
       out.voxVoices[i] = nm!=null? nm : String(out.voxVoices[i-1]||'')+'·2'; });
-    if(!out.voxGroups){ try{ const gs=PQ_KIND.groupsOf(Object.assign({}, out, {voxLayer:undefined, voxGroups:undefined})).map(x=>({type:x.type, from:x.from, to:lastOf(x.to)})).filter(x=>x.to>x.from && !isLay(x.from));
-      if(gs.length) out.voxGroups=gs; }catch(_){} } }
   /* v67.5 新建面板「从已有音乐」的依据只读几项文件事实（不进 song）：<encoding><software> 导出软件名（AI 转谱工具识别）、
      速度是否文件里写了（<metronome> / <sound tempo> 都没有＝按默认 90）、拍号是否文件里写了 / 被改写（meterDefaulted / meterFrom，见上） */
   /* v69.3 不完整小节（irregular measure）：反复记号 / 段落处被拆成两半的小节、与弱起互补的末小节——所有声部一致短于拍号（且都不为空）
@@ -47353,12 +47351,13 @@ function exportMIDI0(s, expand){
   const velOf = (base,g)=> Math.max(1, Math.min(127, Math.round(base*g)));
   const nV=(s.voxVoices||[]).length;
   const TLs=[]; for(let vi=0; vi<nV; vi++) TLs.push(dynTLof(vi));
-  const partner={}; voxGroupsOf(s).forEach(g=>{ if(g.type==='brace' && g.to-g.from===1){ partner[g.from]=g.to; partner[g.to]=g.from; } });   // 大谱表另一行
+  const LRm = PQ_KIND.layerRows(s), partner={}, oppU={};   /* v70.5 B 组 有层时按物理视图找大谱表（单元下标 → oppU），没有层照原口径（行 → partner） */
+  (LRm? PQ_KIND.groupsOf(PQ_KIND.collapseLayers(s)) : voxGroupsOf(s)).forEach(g=>{ if(g.type==='brace' && g.to-g.from===1){ const P2=LRm? oppU : partner; P2[g.from]=g.to; P2[g.to]=g.from; } });   // 大谱表另一行
   /* v70.5 B 组（规格 §6.2 D-7）同谱表双声部：每行仍一条轨、一个通道（层不与宿主共用通道，免得同音高的 note-off 互相截断；MAX_TRACKS 含层保证通道 ≤15）。
      partner 改为「同组行集合」：同谱表宿主＋层，加大谱表（物理视图恰两张谱表的花括号）对面谱表的宿主＋层；力度回落：本行 → 宿主 → 对面谱表宿主；
      CC64 并入同组行集合的全部踏板，每条轨在自己的通道上写一份（去重）。没有层的谱照原代码 */
-  const LRm = PQ_KIND.layerRows(s), grpM = [], tlM = [];
-  if(LRm){ const oppU={}; PQ_KIND.groupsOf(PQ_KIND.collapseLayers(s)).forEach(g=>{ if(g.type==='brace' && g.to-g.from===1){ oppU[g.from]=g.to; oppU[g.to]=g.from; } });
+  const grpM = [], tlM = [];
+  if(LRm){
     for(let vi=0; vi<nV; vi++){ const u=LRm.of[vi], rs=LRm.rows[u], op=oppU[u]!=null? LRm.rows[oppU[u]] : [];
       grpM[vi]=[vi, ...rs.filter(r=>r!==vi), ...op]; tlM[vi]=[vi, rs[0], op[0]].filter(r=>r!=null); } }
   const tlOfVox = vi=> LRm? (tlM[vi].map(r=>TLs[r]).find(Boolean) || null) : (TLs[vi] || (partner[vi]!=null? TLs[partner[vi]] : null));

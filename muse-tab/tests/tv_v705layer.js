@@ -224,11 +224,12 @@ const X_TAB = HEAD(['P1'], `<part id="P1"><measure number="1">${TABATT}${TN(1, 0
        导入产物经 PQ_KIND 分类：钢琴带层仍是钢琴独奏谱 / 大谱表 2 行；女高女低同谱表＋男声是合唱谱、3 个声部 */
     if (want('K')) {
       const r = await EV(pg, xs => xs.map(x => { const s = importMusicXML(x).song; let f = null; try { f = PQ_KIND.facetsOf(s); } catch (_) {}
-        return { k: NWB.stackOf(s), dt: PQ_KIND.docTypeOf(s), nm: PQ_KIND.nameOf(s), parts: f && f.parts, choir: PQ_KIND.isChoir(s) }; }), [FX('F07'), FX('F06'), FX('F01'), FX('F21')]);
+        return { k: NWB.stackOf(s), dt: PQ_KIND.docTypeOf(s), nm: PQ_KIND.nameOf(s), parts: f && f.parts, choir: PQ_KIND.isChoir(s) }; }), [FX('F07'), FX('F06'), FX('F01'), FX('F21'), FX('F14')]);
       T(Array.isArray(r) && r[0].k === 'G' && r[0].dt === 'piano' && /钢琴独奏谱/.test(r[0].nm) && r[3].k === 'G' && r[3].dt === 'piano',
         'K1 F07 / F21 分层钢琴：谱类 G、docType piano、钢琴独奏谱（器乐层在分类上折叠）', J(r));
       T(Array.isArray(r) && r[1].choir && r[1].parts === 3 && /合唱/.test(r[1].nm), 'K2 F06 女高 / 女低同谱表＋男声：合唱谱、facets.parts＝3（声乐层照独立声部算）', J(r && r[1]));
-      T(Array.isArray(r) && r[2].parts === 1, 'K3 F01 单件乐器带层：facets.parts＝1（不变成重奏）', J(r && r[2]));
+      T(Array.isArray(r) && r[2].parts === 1 && !r[2].choir, 'K3 F01 单件乐器带层：facets.parts＝1（不变成重奏）、不是合唱', J(r && r[2]));
+      T(Array.isArray(r) && !r[4].choir && r[4].parts === 8 && r[4].dt === 'instr', 'K4 F14 8 件乐器各带层：不是合唱（导入不另造显式方括号）、8 个声部、器乐', J(r && r[4]));
     }
     /* ================= X：MusicXML 导出（规格 §7、§10.3「E」；段名 X 避开页面脚本错误 E） =================
        修前红（a73fecc）：X2–X6（v70.4 不建层、不写 hid / voice 5 / 6 / forward）；X1 是「老谱逐字节不变」守卫 */
