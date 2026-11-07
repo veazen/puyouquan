@@ -89,6 +89,23 @@ console.log("scores", n, "JSON 解析失败", bad, "数据违规", danger); db.c
 - **不满足**：记下条数（不要把谱面内容贴进聊天或工单）；与线上库同样跑一遍（把路径换成 `DB_PATH`），线上也有＝历史遗留，线上没有＝快照异常，报告负责人。
 - **回滚**：只读，不需要。
 
+## 4b. （可选）已发布谱分类对拍
+
+只在 v70.5 集成说「公开接口取不到全部已发布谱」时做（规格 §10.3 Z、§13）。集成会给出两样东西：对拍脚本（仓库里的路径，实现阶段写）和新版 `api/kindname.js` 所在的提交号。
+
+```bash
+# 两套 kindname.js＋scoredata.js 放到临时目录：旧版＝线上现用的，新版＝集成给的提交里的同名两份
+sudo -u pyq mkdir -p /tmp/kn-old /tmp/kn-new
+sudo -u pyq cp /opt/puyouquan/api/kindname.js /opt/puyouquan/api/scoredata.js /tmp/kn-old/
+# 新版两份文件按集成说明放进 /tmp/kn-new/（不要覆盖 /opt/puyouquan 下的文件）
+sudo -u pyq /opt/node/bin/node <对拍脚本> /tmp/pyq-drill.db /tmp/kn-old /tmp/kn-new
+```
+
+- 脚本只读快照副本、只输出计数与谱 id（不输出谱面内容）：`已发布 N 首，viewOf / pubNameOf / pubKindOf 不同 0 首`。
+- **检查点**：不同 0 首。
+- **不满足**：把输出的 id 列表交给集成（id 不是敏感信息，内容不要贴）；v70.5 暂缓推送，由集成查原因。
+- **回滚**：`sudo rm -rf /tmp/kn-old /tmp/kn-new`。
+
 ## 5. 起演练实例（只绑 127.0.0.1，换端口）
 
 ```bash
@@ -128,6 +145,7 @@ curl -s 127.0.0.1:3127/api/pub/cats | head -c 300; echo
 ```bash
 kill %1 2>/dev/null
 sudo rm -f /tmp/pyq-drill.db /tmp/pyq-drill.db-wal /tmp/pyq-drill.db-shm
+sudo rm -rf /tmp/kn-old /tmp/kn-new
 ss -ltn | grep 3199 || echo "3199 已释放"
 ```
 
@@ -148,6 +166,7 @@ ss -ltn | grep 3199 || echo "3199 已释放"
 | 第 3 步：integrity_check | |
 | 第 3 步：行数（快照 / 线上）users · scores · orders · courses · entitlements | |
 | 第 4 步：scores 条数 / JSON 解析失败 / 数据违规 | |
+| 第 4b 步（可选）：已发布条数 / 分类不同条数（没做写「未做，集成已用公开接口对拍」） | |
 | 第 5 步：health ver（演练 / 线上）、/api/pub/cats 是否一致、抽查的谱 id 与 data 是否相同 | |
 | 第 6 步：RPO / RTO（分钟） | |
 | 第 8 步：清理完成（是 / 否） | |
