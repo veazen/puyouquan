@@ -15,6 +15,9 @@
    P5 旧外壳 ?shell=classic：P1 抽 4 份 + 打印预览 pvOpen 的 PV.content 与关缓存相同。
    P6 性能（相对口径，同一页面开 / 关缓存交替成块测，真实按键，帧时间＝事件时间戳→rAF→setTimeout0）：200 小节和弦谱 / 双轨谱每笔 开 ≤ 关×0.6；
       排版模式 150 小节和弦谱点「此处换行 / 并入上一行」到预览更新 开 ≤ 关×0.8。打印中位数 / IQR 与绝对值。
+   P6c v70.5 B 组（规格 §10.3「tv_perf2 P6c」）同谱表双声部预算门：120 小节钢琴 [右手, 右手·2, 左手, 左手·2]（花括号 0–3、左手·2 一半是隐形休止 hid），
+      真实按键每笔帧时间，本版与 v70.2（7ec1273，git show 落临时目录；env PERF_REF702 可指定）交替成块测：中位数 ≤ v70.2 ×1.15＋20ms；
+      另测《侏儒》（曲库源谱 3 154 个音级）MusicXML 导入耗时：本版中位数 ≤ v70.4（c9882a4，env PERF_REF704）×1.2（交替各 5 次）。随 P6 一起跑（run_all SOLO「tv_perf2:P6」）
    P7「我的曲谱」只读快照 libLoadRO（剖析 B6 大库）：新外壳 / 旧外壳各一遍——存入、落盘后本机内容＝当前谱；外部直接改库后页签 / 保存胶囊立刻认；
       本机写不进（配额满）时快照不留就地改过的那份；libSave 之后快照跟上。
    P8 v68.4 收尾：预览页只放与本页相交的谱行段（PERF-3 / PERF-7）——逐页「页内容＝PV.cks 的按序子序列」+ 几何等价（整份谱面落在本页可见区的顶层元素一个不缺）；
@@ -142,14 +145,14 @@ const PAGE_HELPERS = () => {
 };
 
 const SEQ = ['write', 'del', 'dur', 'lyr', 'chord', 'nota', 'trans', '#vp1280', 'paper', '#vp1440', 'paper2', 'zoom', 'zoom2', 'win', 'undo', 'theme', 'nowrap', 'kind', 'undo'];
-async function openPage(b, nocache, shell) {
+async function openPage(b, nocache, shell, url) {
   const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
   const pg = await ctx.newPage();
   await pg.addInitScript(PAGE_HELPERS);
   if (nocache) await pg.addInitScript(() => { window.__noRenderCache = true; });
   const errs = []; pg.on('pageerror', e => errs.push(e.message));
   pg.on('dialog', d => d.dismiss().catch(() => {}));
-  const u = (nocache && REF) ? REF : URL0;
+  const u = url || ((nocache && REF) ? REF : URL0);
   await pg.goto(shell === 'classic' ? withQ(u, 'shell=classic') : u); await pg.waitForTimeout(1300);
   return { ctx, pg, errs };
 }
@@ -500,6 +503,44 @@ function judge(tag, { res, errs }, needInc) {
         const a = q(on), z = q(off);
         T(a.med <= z.med * 0.8, 'P6 排版模式 150 小节和弦谱「此处换行 / 并入上一行」点击到下一帧：缓存开 ≤ 关×0.8', '开 ' + a.med + 'ms [' + a.q1 + '–' + a.q3 + '] · 关 ' + z.med + 'ms [' + z.q1 + '–' + z.q3 + '] · 比 ' + (a.med / z.med).toFixed(2));
         await P.ctx.close(); }
+      /* v70.5 B 组 P6c：同谱表双声部（层按独立谱表画＝v70.4 回落形态，所以与 v70.2 打开同一 JSON 的渲染量相同）；基线页 git show 落临时目录 */
+      { const fs = require('fs'), os = require('os'), { execFileSync } = require('child_process');
+        const refOf = (env, sha) => { if (process.env[env]) return /^file:/.test(process.env[env]) ? process.env[env] : 'file://' + path.resolve(process.env[env]);
+          const t = path.join(os.tmpdir(), 'perf2_ref_' + sha.slice(0, 12) + '.html');
+          try { if (!fs.existsSync(t) || fs.statSync(t).size < 1e5) fs.writeFileSync(t, execFileSync('git', ['-C', path.resolve(__dirname, '..', '..'), 'show', sha + ':muse-tab/index.html'], { maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] })); return 'file://' + t; } catch (_) { return null; } };
+        const R702 = refOf('PERF_REF702', '7ec1273592762925a8d13478a3fb406a4bfe0370'), R704 = refOf('PERF_REF704', 'c9882a4c1f243470e4bf8f6ce3ff63224b107e75');
+        const V = (d, du, o) => Object.assign({ dur: du, dotted: false, deg: d, acc: '', oct: 0, lyrics: [], tie: false }, o || {});
+        const PS = { v: 3, title: '双声部长谱', key: 'C', beats: 4, unit: 4, tempo: 90, lyricLines: 0, instKey: 'piano', capo: 0, customChords: {}, tabVoices: [],
+          voxVoices: ['右手', '右手·2', '左手', '左手·2'], voxNotations: ['staff', 'staff', 'bass', 'bass'], voxLayer: [null, 1, null, 1], voxGroups: [{ type: 'brace', from: 0, to: 3 }],
+          mixer: { 'vox:0': { on: true, solo: false, inst: 'piano', vol: 1, pan: null }, 'vox:1': { on: true, solo: false, inst: 'piano', vol: 1, pan: null, lay: 1 },
+            'vox:2': { on: true, solo: false, inst: 'piano', vol: 1, pan: null }, 'vox:3': { on: true, solo: false, inst: 'piano', vol: 1, pan: null, lay: 1 } },
+          measures: Array.from({ length: 120 }, (_, mi) => ({ tabs: [], repeatStart: false, repeatEnd: false, voxes: [
+            [V(5, 8), V(6, 8), V(5, 8), V(3, 8), V(1, 4, { oct: 1 }), V(7, 4)], [V(3, 2), V(1, 2)],
+            [V(1, 4, { oct: -1 }), V(5, 4, { oct: -1 }), V(3, 4, { oct: -1 }), V(5, 4, { oct: -1 })],
+            mi % 2 ? [V(0, 2, { hid: 1 }), V(1, 2, { oct: -2 })] : [V(1, 1, { oct: -2 })]] })) };
+        if (!R702) T(false, 'P6c 基线页 v70.2（7ec1273）取不到');
+        else {
+          const A = await openPage(b, false), Z = await openPage(b, false, undefined, R702);
+          for (const P of [A, Z]) await P.pg.evaluate(s0 => { window.guardReplace = p => p(); try { hideStartPad(); } catch (_) {} loadSong(JSON.parse(JSON.stringify(s0)));
+            sel = { mi: 60, row: 'vox', vi: 0, ci: 0, si: 1 }; clampSel(); render(); try { document.activeElement.blur(); } catch (_) {} }, PS);
+          const on = [], off = [];
+          for (let r = 0; r < 3; r++) { off.push(...(await strokes(Z.pg, false, 'w', 4)).slice(1)); on.push(...(await strokes(A.pg, false, 'w', 4)).slice(1)); }
+          const a = q(on), z = q(off);
+          T(a.med <= z.med * 1.15 + 20, 'P6c 120 小节分层钢琴（右手 / 左手各带同谱表第二声部）真实按键每笔：本版 ≤ v70.2 ×1.15＋20ms',
+            '本版 ' + a.med + 'ms [' + a.q1 + '–' + a.q3 + '] · v70.2 ' + z.med + 'ms [' + z.q1 + '–' + z.q3 + '] · 比 ' + (a.med / z.med).toFixed(2) + ' · n=' + on.length + '/' + off.length);
+          T(!A.errs.length && !Z.errs.length, 'P6c 无页面异常', A.errs.concat(Z.errs).slice(0, 2).join(' | '));
+          await A.ctx.close(); await Z.ctx.close(); }
+        if (!R704) T(false, 'P6c 基线页 v70.4（c9882a4）取不到');
+        else {
+          const man = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'library', 'manifest.json'), 'utf8')), it = man.items.find(x => /侏儒/.test(x.title));
+          const X = fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'library', it.file), 'utf8');
+          const A = await openPage(b, false), Z = await openPage(b, false, undefined, R704);
+          const t1 = P => P.pg.evaluate(x => { const t0 = performance.now(); const r = importMusicXML(x); return r && r.song ? performance.now() - t0 : NaN; }, X);
+          const ta = [], tz = []; for (let r = 0; r < 5; r++) { tz.push(await t1(Z)); ta.push(await t1(A)); }
+          const a = q(ta), z = q(tz);
+          T(a.med <= z.med * 1.2, 'P6c《侏儒》MusicXML 导入耗时：本版 ≤ v70.4 ×1.2', '本版 ' + a.med + 'ms [' + a.q1 + '–' + a.q3 + '] · v70.4 ' + z.med + 'ms [' + z.q1 + '–' + z.q3 + '] · 比 ' + (a.med / z.med).toFixed(2));
+          await A.ctx.close(); await Z.ctx.close(); }
+      }
     }
   } catch (e) { T(false, '套件异常', e.stack); }
   await b.close();
