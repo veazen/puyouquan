@@ -633,7 +633,7 @@ const LB = name => { const r = LBAD.find(x => x[0] === name); assert.ok(r, '夹�
 const stripL = d => { const c = JSON.parse(J5(d)); delete c.voxLayer; if (c.mixer && typeof c.mixer === 'object') Object.values(c.mixer).forEach(e => { if (e && typeof e === 'object') delete e.lay; }); return c; };
 const FN5 = ['stackOf', 'docTypeOf', 'nameOf', 'isChoir', 'isPianoAccStack', 'ctxOf', 'pzOf', 'facetsOf', 'groupsOf'];
 const sig5 = (k, d) => FN5.map(f => f + '=' + J5(k[f](d))).join(' | ');
-T('v70.5 voxLayerLinks / voxLayerOk 坏数据十一类（规格 §1.2 表）：服务端与编辑器内联段同值；不抛、只返回 null 或逐行 0 / 1、不改入参；1e5 行 <50ms', () => {
+T('v70.5 voxLayerLinks / voxLayerOk 坏数据十一类（规格 §1.2 表）：服务端与编辑器内联段同值；不抛、只返回 null 或逐行 0 / 1、不改入参；1e5 行 <400ms', () => {
   assert.ok(['voxLayerLinks', 'voxLayerOk', 'layerRows', 'collapseLayers'].every(f => typeof K[f] === 'function' && typeof EDK[f] === 'function'), '导出表缺四函数');
   for (const [name, d, eL, eO, eS] of LBAD) {
     const n = d.voxVoices.length, before = J5(d);
@@ -654,7 +654,7 @@ T('v70.5 voxLayerLinks / voxLayerOk 坏数据十一类（规格 §1.2 表）：�
   let best = Infinity, r = null;
   for (let t = 0; t < 3; t++) { const t0 = process.hrtime.bigint(); r = K.voxLayerOk(big); best = Math.min(best, Number(process.hrtime.bigint() - t0) / 1e6); }
   assert.ok(r && r.length === N && r[1] === 1 && r[2] === 0 && r[N - 1] === 1, '1e5 行结果');
-  assert.ok(best < 50, '1e5 行 voxLayerOk ' + best.toFixed(1) + 'ms ≥ 50ms');
+  assert.ok(best < 400, '1e5 行 voxLayerOk ' + best.toFixed(1) + 'ms ≥ 400ms');   /* v70.5 审核修：本机空载约 20ms、并行负载下到 69ms，50ms 门在 CI 负载下会误报；本条防的是平方级 / 挂死，放宽到 400ms */
 });
 T("v70.5 voxLayerOk(s,'sync') 与缺省只差「是五线谱」一条：生效的行一定一致；一致而不生效的行一定不是五线谱", () => {
   let extra = 0;
