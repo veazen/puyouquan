@@ -10,6 +10,9 @@
    K  分类接缝（需 A 组分类入口接谱表视图，规格 §2.3）：分层钢琴＝钢琴独奏谱、女高女低同谱表＝合唱谱 3 声部、单件乐器带层 parts＝1
    X  MusicXML 导出（§7；规格 §10.3 记作 E 段）：没有层 / hid 的谱与 c9882a4 逐字节相同；分层谱一个 score-part、voice 1 / 2 / 5 / 6、backup 守卫、层对上的 hid 写 forward、
       层对以外 / 连音里的 hid 写 print-object 休止、part 数＝删层后的 part 数、出→入逐声部相等、hid 一列一个 forward、过 XSD、层段记号编号 (stN||1)+2
+   M  MIDI（§6.2 D-7）：轨数＝行数、每行独占通道 ≤15、层轨 program＝宿主、同组行集合（同谱表＋大谱表对面谱表）每条轨各写一份 CC64、层没有力度借宿主；老谱字节不变
+   A  播放（§6.1）：两声部都发声、同谱表同一声像、共用力度线、独奏层只响层、分层钢琴左手增益按所在物理谱表（A4 依赖 A 组分类 docType piano）
+   V  v70.5 谱面（§5 D-5）：分层谱离屏谱面＝c9882a4（两种外壳）；无显式组的分层钢琴推成花括号（V2 依赖 A 组分类视图）；首行声部名组名「钢琴」
    E  页面脚本错误 0
    修前红：MUSETAB_URL 指向 git show a73fecc:muse-tab/index.html 的副本复跑——见各段头注。
    env：MUSETAB_URL 被测页（缺省 ../index.html）· V705_REF 基线页（缺省 git show c9882a4，v70.4 行为）· ONLY=N,I 只跑部分段 */
@@ -278,6 +281,105 @@ const X_TAB = HEAD(['P1'], `<part id="P1"><measure number="1">${TABATT}${TN(1, 0
         T(!r.err && /<wedge type="crescendo"\/>/.test(r.s0) && /<slur type="start" number="1"\/>/.test(r.s0) && /<wedge type="crescendo" number="3"\/>/.test(r.s1) && /<wedge type="stop" number="3"\/>/.test(r.s1)
           && /<slur type="start" number="3"\/>/.test(r.s1) && /<slide type="start" number="3"\/>/.test(r.s1) && /<dashes type="start" number="4"\/>/.test(r.s3) && /<voice>2<\/voice><staff>1<\/staff><\/direction>/.test(r.s1) && /<voice>6<\/voice><staff>2<\/staff><\/direction>/.test(r.s3),
           'X8 层段的楔形 / 圆滑线 / 滑音编号 3（上谱表）、虚线编号 4（下谱表），方向记号写 <voice>；宿主段照旧（楔形不写 number、圆滑线 1）', J(r).slice(0, 1500)); }
+    }
+    /* ================= M：MIDI 导出（规格 §6.2、D-7） =================
+       修前红（a73fecc）：M2 M3 M4（v70.4 不建层；大谱表踏板只给恰两行花括号）；M1 M5 是守卫（轨数 / 通道上限、老谱字节不变） */
+    if (want('M')) {
+      const PARSE = arr => { const b2 = Uint8Array.from(arr), out = []; let i = 14;
+        while (i + 8 <= b2.length && b2[i] === 0x4D) { const len = (b2[i + 4] << 24) | (b2[i + 5] << 16) | (b2[i + 6] << 8) | b2[i + 7]; let j = i + 8, tick = 0, run = 0; const end = j + len, ev = [];
+          while (j < end) { let d = 0, x; do { x = b2[j++]; d = (d << 7) | (x & 0x7f); } while (x & 0x80); tick += d;
+            let st = b2[j]; if (st & 0x80) j++; else st = run; run = st;
+            if (st === 0xFF) { const ty = b2[j++]; let L = 0; do { x = b2[j++]; L = (L << 7) | (x & 0x7f); } while (x & 0x80); j += L; continue; }
+            const hi = st & 0xF0, ch = st & 15;
+            if (hi === 0x90 || hi === 0x80) { ev.push({ tick, ty: hi === 0x90 && b2[j + 1] > 0 ? 'on' : 'off', ch, k: b2[j], v: b2[j + 1] }); j += 2; }
+            else if (hi === 0xB0) { ev.push({ tick, ty: 'cc', ch, k: b2[j], v: b2[j + 1] }); j += 2; }
+            else if (hi === 0xC0) { ev.push({ tick, ty: 'pc', ch, k: b2[j] }); j += 1; } else if (hi === 0xD0) j += 1; else j += 2; }
+          out.push(ev); i = end; }
+        return out; };
+      const mid = await EV(pg, xs => xs.map(x => { const s = typeof x === 'string' ? importMusicXML(x).song : x; return [...exportMIDI(s).bytes]; }), [FX('F14'), FX('F07')]);
+      if (mid.err) T(false, 'M MIDI 导出', mid.err);
+      else {
+        const t14 = PARSE(mid[0]).slice(1), t7 = PARSE(mid[1]).slice(1);
+        const chs = t14.map(ev => [...new Set(ev.filter(e => e.ty === 'on' || e.ty === 'pc').map(e => e.ch))]);
+        T(t14.length === 15 && chs.every(c => c.length === 1) && new Set(chs.map(c => c[0])).size === 15 && chs.every(c => c[0] <= 15 && c[0] !== 9),
+          'M1 F14 15 行（8 宿主＋7 层）→ 15 条轨、每条轨一个独占通道（层不与宿主共用）、全部 ≤15 且跳过打击乐 9', J(chs));
+        const pc = t7.map(ev => (ev.find(e => e.ty === 'pc') || {}).k);
+        T(t7.length === 4 && pc[1] === pc[0] && pc[3] === pc[2] && pc[0] === 0, 'M2 F07 分层钢琴：轨数＝行数 4，层轨 program＝宿主（钢琴 0）', J(pc)); }
+      /* 同组行集合：左手宿主踩踏板 → 右手、右手·2、左手、左手·2 四条轨各在自己的通道上写一份 CC64；层没有力度时借宿主（宿主 p → 层音力度随 p） */
+      { const r = await EV(pg, x => { const s = importMusicXML(x).song; s.measures[0].voxes[2][0].ped = 'on'; s.measures[1].voxes[2][1].ped = 'off'; s.measures[0].voxes[0][0].dyn = 'pp';
+          const s0 = JSON.parse(JSON.stringify(s)); delete s0.measures[0].voxes[0][0].dyn;
+          return [[...exportMIDI(s).bytes], [...exportMIDI(s0).bytes]]; }, FX('F07'));
+        if (r.err) T(false, 'M3 MIDI', r.err);
+        else { const A1 = PARSE(r[0]).slice(1), B1 = PARSE(r[1]).slice(1);
+          const cc = A1.map(ev => ev.filter(e => e.ty === 'cc' && e.k === 64).map(e => e.ch + ':' + e.v));
+          const ch = A1.map(ev => (ev.find(e => e.ty === 'on') || {}).ch);
+          T(cc.every((c, i) => c.length === 2 && c.every(x => +x.split(':')[0] === ch[i])), 'M3 左手宿主的踏板：同组四条轨（宿主＋层＋对面谱表宿主＋层）各在自己的通道上写一份 CC64、不重复', J({ cc, ch }));
+          const vOn = ev => (ev.find(e => e.ty === 'on') || {}).v;
+          T(vOn(A1[1]) < vOn(B1[1]) && vOn(A1[1]) === vOn(A1[0]), 'M4 层行没有力度：按时间借宿主的力度线（右手 pp → 右手·2 的音同样弱）', J({ lay: [vOn(A1[1]), vOn(B1[1])], host: vOn(A1[0]) })); } }
+      { const ru = refUrl(); if (!ru) T(false, 'M5 基线页取不到');
+        else { const R = await open(b, ru);
+          const ex = p => EV(p, () => PRESETS.map(pr => JSON.stringify([...exportMIDI(pr.make()).bytes])));
+          const a = await ex(pg), z = await ex(R.pg); await R.ctx.close();
+          const bad = Array.isArray(a) && Array.isArray(z) ? a.map((x, i) => x === z[i] ? '' : '预设 ' + (i + 1)).filter(Boolean) : ['取导出失败'];
+          T(!bad.length, 'M5 没有层的谱（16 份预设）MIDI 字节与 c9882a4 相同', bad.join(' | ')); } }
+    }
+    /* ================= A：播放（规格 §6.1） =================
+       修前红（a73fecc）：A1–A3（v70.4 不建层）；A1 的左手增益 / 踏板模拟依赖分层钢琴 docType＝piano（A 组分类入口；临时合并副本验证） */
+    if (want('A')) {
+      await EV(pg, () => {
+        window.SF_PLAYWAIT = false; try { localStorage.setItem('musetab-humanize', 'off'); } catch (_) {}
+        window.__ld = s => { window.guardReplace = p => p(); try { hideStartPad(); } catch (_) {} undoStack.length = 0; redoStack.length = 0; loadSong(JSON.parse(JSON.stringify(s)));
+          sel = { mi: 0, row: 'vox', vi: 0, ci: 0, si: 1 }; clampSel(); selRange = null; render(); };
+        window.__play = () => { const rec = []; const o = window.playInst; window.playInst = (k, c, b2, f, w, ring, g) => rec.push([b2, f, w, g]);
+          let tr = {}, pan = {}, gain = {};
+          try { sel.mi = 0; sel.ci = 0; play(); tr = Object.assign({}, audio.tracks);
+            Object.keys(tr).forEach(k => { const t = tr[k]; pan[k] = t.pan ? +t.pan.pan.value.toFixed(3) : null; gain[k] = t.dry ? +t.dry.gain.value.toFixed(3) : null; });
+            const S = audio.schedQ; if (S) S.q.slice(S.i).forEach(ev => { if (ev.k === 'playInst') rec.push([ev.a[2], ev.a[3], ev.a[4], ev.a[6]]); }); }
+          finally { stopPlay(); window.playInst = o; }
+          const name = b2 => { for (const k in tr) if (tr[k] === b2) return k; return '?'; };
+          return { ev: rec.map(r => ({ trk: name(r[0]), m: Math.round(69 + 12 * Math.log2(r[1] / 440)), g: +(+r[3]).toFixed(4) })), pan, gain }; }; });
+      const r = await EV(pg, x => { const s = importMusicXML(x).song; __ld(s); const p0 = __play(), dt = docType(song);
+          s.measures[0].voxes[0][0].dyn = 'pp'; __ld(s); const p1 = __play();
+          const s2 = JSON.parse(JSON.stringify(s)); s2.mixer['vox:1'].solo = true; __ld(s2); const p2 = __play();
+          return { p0, p1, p2, dt }; }, FX('F07'));
+      if (r.err) T(false, 'A 播放', r.err);
+      else {
+        const gOf = (p, k) => p.ev.filter(e => e.trk === k).map(e => e.g);
+        T(r.p1.pan['vox:0'] === r.p1.pan['vox:1'] && r.p1.pan['vox:2'] === r.p1.pan['vox:3'] && r.p1.pan['vox:0'] !== r.p1.pan['vox:2'] && gOf(r.p1, 'vox:1').length === 3 && gOf(r.p1, 'vox:3').length === 2,
+          'A1 两个声部都发声（层轨有音）；同谱表两声部同一声像（按所在谱表下标铺开，宿主＝层）', J({ pan: r.p1.pan, n: [gOf(r.p1, 'vox:1').length, gOf(r.p1, 'vox:3').length] }));
+        const g0 = gOf(r.p1, 'vox:0')[0], g1 = gOf(r.p1, 'vox:1')[0];
+        const q0 = gOf(r.p0, 'vox:0'), q1 = gOf(r.p0, 'vox:1'), q2 = gOf(r.p0, 'vox:2'), q3 = gOf(r.p0, 'vox:3');   /* 同一拍位比：第 1 小节第 1 拍（宿主 / 右手·2 / 左手）、第 2 小节第 1 拍（右手 / 左手·2） */
+        T(g1 != null && Math.abs(g1 - g0) < 1e-3, 'A2 同谱表两声部共用力度线：层的第一个音与宿主同为 pp 的增益', J({ g0, g1 }));
+        T(r.p2.gain['vox:1'] > 0 && r.p2.gain['vox:0'] === 0 && r.p2.gain['vox:2'] === 0 && r.p2.gain['vox:3'] === 0, 'A3 独奏层只响层（各声部各自一条音轨总线）', J(r.p2.gain));
+        T(r.dt === 'piano' && Math.abs(q2[0] / q0[0] - 0.67) < 0.03 && Math.abs(q3[1] / q0[4] - 0.67) < 0.03 && Math.abs(q1[0] / q0[0] - 1) < 0.03,
+          'A4 分层钢琴的左手增益（−3.5dB）落在左手宿主与左手·2（所在物理谱表下标 1），不落在右手·2（依赖 A 组分类：docType piano）', J({ dt: r.dt, q0, q1, q2, q3 }));
+      }
+    }
+    /* ================= V：v70.5 谱面（规格 §5、D-5） =================
+       V1 分层谱的离屏谱面＝c9882a4 打开同一 JSON（两种外壳）；V2 无显式组的分层钢琴括线为花括号（依赖 A 组分类视图推断）；V3 开了首行声部名的分层钢琴组名「钢琴」
+       修前红（a73fecc）：V3（v70.4 组名取「右手」）；V2 在 v70.4 推成方括号；V1 是零差异守卫 */
+    if (want('V')) {
+      const OFF = () => { window.__off = s => { const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); document.body.appendChild(svg); let h = null;
+        try { renderOffscreen({ song: migrate(JSON.parse(JSON.stringify(s))), target: svg, paperW: 870, crop: true }); h = svg.innerHTML; } finally { svg.remove(); } return h; }; };
+      const songs = await EV(pg, xs => xs.map(x => JSON.parse(JSON.stringify(importMusicXML(x).song))), [FX('F07'), FX('F06'), FX('F21'), FX('F14'), FX('F17'), FX('F23')]);
+      const ru = refUrl();
+      if (songs.err || !ru) T(false, 'V1 取样 / 基线页', songs.err || '基线页取不到');
+      else { const bad = [];
+        for (const q of ['shell=classic', 'x=1']) { const A1 = await open(b, URL0, q), R = await open(b, ru, q);
+          await EV(A1.pg, OFF); await EV(R.pg, OFF);
+          for (let i = 0; i < songs.length; i++) { const a = await EV(A1.pg, s => __off(s), songs[i]), z = await EV(R.pg, s => __off(s), songs[i]); if (typeof a !== 'string' || a !== z) bad.push(q + ' #' + i + (typeof a === 'string' && typeof z === 'string' ? ' 长度 ' + a.length + '/' + z.length : ' ' + J(a).slice(0, 80))); }
+          allErrs.push(...A1.errs); await A1.ctx.close(); await R.ctx.close(); }
+        T(!bad.length, 'V1 v70.5 两种外壳下分层谱（F07 / F06 / F21 / F14 / F17 / F23，组跨两张以上物理谱表或声乐层）的离屏谱面＝c9882a4 打开同一 JSON（层按独立谱表、hid 照普通休止，D-5）', bad.join(' | ')); }
+      const r = await EV(pg, x => { const s = importMusicXML(x).song; const out = {};
+        const s1 = JSON.parse(JSON.stringify(s)); delete s1.voxGroups; out.g = PQ_KIND.groupsOf(s1);
+        const W = (d, o) => Object.assign({ dur: 1, dotted: false, deg: d, acc: '', oct: 0, lyrics: [], tie: false }, o || {});
+        const s2 = { v: 3, title: 'x', key: 'C', beats: 4, unit: 4, tempo: 90, lyricLines: 0, rowNames: 1, voxVoices: ['长笛', '右手', '右手·2', '左手'], voxNotations: ['staff', 'staff', 'staff', 'bass'],
+          voxLayer: [null, null, 1, null], voxGroups: [{ type: 'brace', from: 1, to: 3 }], mixer: { 'vox:2': { on: true, solo: false, inst: 'piano', vol: 1, pan: null, lay: 1 }, 'vox:1': { on: true, solo: false, inst: 'piano', vol: 1, pan: null } },
+          tabVoices: [], measures: [{ tabs: [], voxes: [[W(5)], [W(3)], [W(1)], [W(1, { oct: -1 })]], repeatStart: false, repeatEnd: false }] };
+        const P = rowNamesPlan0(migrate(s2)); out.u = P && P.units.map(u => u.type + ':' + u.f);
+        return out; }, FX('F07'));
+      T(!r.err && J(r.g) === J([{ type: 'brace', from: 0, to: 3 }]), 'V2 没写显式组的分层钢琴：括线按分类视图推断为花括号 0–3（依赖 A 组 groupsOf 分类视图）', J(r));
+      T(!r.err && J(r.u) === J([':长笛', 'brace:钢琴']), 'V3 开了首行声部名的长笛＋分层钢琴 [右手, 右手·2, 左手]：花括号组名「钢琴」（去掉层行再取，不是「右手」）', J(r));
     }
   } catch (e) { console.log('❌ 运行异常 ' + (e.stack || e)); total++; fails.push('异常'); }
   allErrs.push(...A.errs); await A.ctx.close();

@@ -6172,7 +6172,8 @@ function rowNamesPlan0(s){
   vv.forEach((nm, vi)=>{
     if(!isStaffNota(vn[vi])){ jp[vi]={f:String(nm||''), sh:shOf(vi, nm)}; return; }
     const g=gOf[vi];
-    if(g && g.type==='brace'){ if(vi!==g.to) return; const f=grpRowName(vv.slice(g.from, g.to+1)); units.push({vi, from:g.from, to:g.to, type:'brace', f, sh:shOf(g.from, f)}); return; }
+    /* v70.5 B 组（规格 §5.2、D-5 第二处例外）组名取名前去掉生效层行（[右手, 右手·2, 左手] → 「钢琴」，不是「右手」）；没有层的谱照旧 */
+    if(g && g.type==='brace'){ if(vi!==g.to) return; const L=PQ_KIND.voxLayerOk(s), f=grpRowName(L? vv.slice(g.from, g.to+1).filter((_, k)=>!L[g.from+k]) : vv.slice(g.from, g.to+1)); units.push({vi, from:g.from, to:g.to, type:'brace', f, sh:shOf(g.from, f)}); return; }
     units.push({vi, from:vi, to:vi, type:g? 'bracket' : '', f:String(nm||''), sh:shOf(vi, nm)});
   });
   /* 左页边距按需加宽：名字占「最长名字宽 + 括号宽（花括号 ≤13、方括号 9）+ 4 + 名字与括号的间距 4」，先用原有左页边距（名字左缘不进纸边 RN_PAD 以内——打印机不可印区），
@@ -27935,9 +27936,21 @@ function play(){
     if(src>=0) dynTL.push(...dynSweep(dynEv[src])); }
   const dynAt=(off)=>dynGainAt(dynTL, off);
   const dynGrp = song.voxVoices.map((_,vi)=>[vi]);
+  /* v70.5 B 组（规格 §6.1）同谱表双声部：LRp＝物理谱表视图。有层时先把同谱表的宿主＋层并成一组，再并花括号组（行空间，已含层）；isPianoAccStack 补的 {1,2}
+     换成分类视图第 1、2 单元的行区间——按并查集合并（共用力度线、真踏板）。没有层的谱照原代码 */
+  const LRp = PQ_KIND.layerRows(song);
   try{ const gs=(voxGroupsOf(song)||[]).filter(g=>g && g.type==='brace').map(g=>({from:g.from, to:g.to}));
-    if(isPianoAccStack(song) && !gs.some(g=>g.from===1 && g.to===2)) gs.push({from:1, to:2});
-    gs.forEach(g=>{ const mem=[]; for(let v=g.from; v<=g.to && v<dynGrp.length; v++) mem.push(v); if(mem.length>1) mem.forEach(v=>{ dynGrp[v]=mem; }); }); }catch(_){}
+    if(!LRp){
+      if(isPianoAccStack(song) && !gs.some(g=>g.from===1 && g.to===2)) gs.push({from:1, to:2});
+      gs.forEach(g=>{ const mem=[]; for(let v=g.from; v<=g.to && v<dynGrp.length; v++) mem.push(v); if(mem.length>1) mem.forEach(v=>{ dynGrp[v]=mem; }); });
+    } else {
+      const K=PQ_KIND.layerRows(song, 'kind'), pa=isPianoAccStack(song) && K && K.rows[2]? {from:K.rows[1][0], to:K.rows[2][K.rows[2].length-1]} : (isPianoAccStack(song)? {from:1, to:2} : null);
+      if(pa && !gs.some(g=>g.from===pa.from && g.to===pa.to)) gs.push(pa);
+      const up=song.voxVoices.map((_,vi)=>vi), fd=v=>{ while(up[v]!==v) v=up[v]=up[up[v]]; return v; }, un=(a,b)=>{ a=fd(a); b=fd(b); if(a!==b) up[Math.max(a,b)]=Math.min(a,b); };
+      LRp.rows.forEach(rs=>rs.forEach(v=>un(rs[0], v)));
+      gs.forEach(g=>{ for(let v=g.from+1; v<=g.to && v<dynGrp.length; v++) un(g.from, v); });
+      song.voxVoices.forEach((_,vi)=>{ const r=fd(vi), mem=song.voxVoices.map((_,v)=>v).filter(v=>fd(v)===r); dynGrp[vi] = mem.length>1? mem : [vi]; });
+    } }catch(_){}
   const dynVTL = song.voxVoices.map((_,vi)=>{ const all=[];
     dynGrp[vi].forEach(v2=>{ if(v2!==vi) dynEv[v2].forEach(e=>all.push(e.rp? Object.assign({}, e, {own:0}) : {tm:e.tm, k:e.k, own:0})); });
     dynEv[vi].forEach(e=>all.push(e.rp? Object.assign({}, e, {own:1}) : {tm:e.tm, k:e.k, own:1}));
@@ -28217,19 +28230,20 @@ function play(){
   song.voxVoices.forEach((_,vi)=>{
     const cfg = trackCfg('vox',vi);
     /* v56.5 全轨常排程（同 TAB 轨口径）：S/M/音量收敛到轨道总线增益 */
-    const autoPan = Math.min(0.4, 0.14 + vi*0.12);   /* 自动铺开（历史行为） */
+    const pvi = LRp? LRp.of[vi] : vi;   /* v70.5 B 组 所在物理谱表下标（同谱表两声部同一声像、左手判定按谱表；没有层时＝vi） */
+    const autoPan = Math.min(0.4, 0.14 + pvi*0.12);   /* 自动铺开（历史行为） */
     const tbus = makeTrackBus(ctx, bus, cfg.pan==null? autoPan : cfg.pan);
     audio.tracks['vox:'+vi]=tbus;
     tbus.dry.gain.value = trackAudible('vox',vi)? trkVolOf(cfg) : 0;   /* v68.2 TRK-5 */
     /* v48.9 声部角色增益：钢琴谱左手（vi=1 低音谱表）默认约 −3.5dB——伴奏手不压右手（可用轨音量覆盖） */
     const dtp0 = docType(song);
-    const roleG = ((dtp0==='piano'||dtp0==='pianoacc') && vi===1)? 0.67 : 1;
+    const roleG = ((dtp0==='piano'||dtp0==='pianoacc') && pvi===1)? 0.67 : 1;
     const vol = norm*roleG;
     const sustained = ['saw','flute','voice'].includes((INSTRUMENTS[cfg.inst]||{}).type);
     /* v49.1 踏板模拟条件：钢琴谱左手声部（非持续音色）——和音延音到本声部下一发声列 */
     /* v69.8 PS＝本组真踏板按下区间（名义秒）；持续音色不受踏板影响。pedHold(松键时刻)＝踩着 → 抬起时刻，否则 null */
     const PS = sustained? null : pedSp[vi];
-    const pedal = !PS && (dtp0==='piano'||dtp0==='pianoacc') && vi===1 && !sustained;
+    const pedal = !PS && (dtp0==='piano'||dtp0==='pianoacc') && pvi===1 && !sustained;
     const pedHold = rel=>{ for(const sp of PS){ if(t+sp[0]+1e-6 < rel && rel <= t+sp[1]+1e-6) return t+sp[1]; } return null; };
     const pedAdds=[], soundTimes=[];
     /* v69.3 和音逐音连音线：带 a.tie 的附加音先挂起（不立即发声），下一列同音高的附加音只延长、不重拨；断链 / 休止 / 声部末尾才按总长发声。
@@ -46611,12 +46625,11 @@ function importMusicXML(xmlStr){
   if(pairOnly && hasLay) out.voxGroups=[{type:'brace', from:0, to:voxParts.length-1}];   /* v70.5 B 组 有层时一律写显式组（D-11），不做「与推断比较、同则不写」 */
   else if(pairOnly && namedPairs){ const g=PQ_KIND.groupsOf(Object.assign({}, out, {voxGroups:undefined}));
     if(!(g.length===1 && g[0].type==='brace' && g[0].from===0 && g[0].to===1)) out.voxGroups=[{type:'brace', from:0, to:1}]; }
-  /* v70.5 B 组 层行名：「宿主名·2」，自家分层导出按 pyq-voice-names 原样读回（D-13）；有层又没有任何显式组时，按分类视图推断出的组写成显式组（行空间、覆盖层行），
-     旧版本打开时括线照样连续 */
+  /* v70.5 B 组 层行名：「宿主名·2」，自家分层导出按 pyq-voice-names 原样读回（D-13）。有层又没有任何显式组时（D-11）：把「层当独立行」时按谱面推断出的组
+     （＝v70.4 打开同一份 JSON 的推断，行空间，组从宿主行起、覆盖层行）写成显式组——v70.5 谱面与旧版本一致（D-5），分类视图里只占一张物理谱表的组自动丢掉，不影响谱名 */
   if(hasLay){ layRow.forEach((x, i)=>{ if(!x) return; const nm = pvn && Array.isArray(pvn[i]) && typeof pvn[i][0]==='string'? pvn[i][0].slice(0, 64) : null;
       out.voxVoices[i] = nm!=null? nm : String(out.voxVoices[i-1]||'')+'·2'; });
-    if(!out.voxGroups){ try{ const V=PQ_KIND.collapseLayers(out, 'kind'), K=PQ_KIND.layerRows(out, 'kind'), g=PQ_KIND.groupsOf(V);
-      const gs=g.map(x=>K? {type:x.type, from:K.rows[x.from][0], to:lastOf(K.rows[x.to][K.rows[x.to].length-1])} : {type:x.type, from:x.from, to:lastOf(x.to)}).filter(x=>x.to>x.from);
+    if(!out.voxGroups){ try{ const gs=PQ_KIND.groupsOf(Object.assign({}, out, {voxLayer:undefined, voxGroups:undefined})).map(x=>({type:x.type, from:x.from, to:lastOf(x.to)})).filter(x=>x.to>x.from && !isLay(x.from));
       if(gs.length) out.voxGroups=gs; }catch(_){} } }
   /* v67.5 新建面板「从已有音乐」的依据只读几项文件事实（不进 song）：<encoding><software> 导出软件名（AI 转谱工具识别）、
      速度是否文件里写了（<metronome> / <sound tempo> 都没有＝按默认 90）、拍号是否文件里写了 / 被改写（meterDefaulted / meterFrom，见上） */
@@ -47332,7 +47345,14 @@ function exportMIDI0(s, expand){
   const nV=(s.voxVoices||[]).length;
   const TLs=[]; for(let vi=0; vi<nV; vi++) TLs.push(dynTLof(vi));
   const partner={}; voxGroupsOf(s).forEach(g=>{ if(g.type==='brace' && g.to-g.from===1){ partner[g.from]=g.to; partner[g.to]=g.from; } });   // 大谱表另一行
-  const tlOfVox = vi=> TLs[vi] || (partner[vi]!=null? TLs[partner[vi]] : null);
+  /* v70.5 B 组（规格 §6.2 D-7）同谱表双声部：每行仍一条轨、一个通道（层不与宿主共用通道，免得同音高的 note-off 互相截断；MAX_TRACKS 含层保证通道 ≤15）。
+     partner 改为「同组行集合」：同谱表宿主＋层，加大谱表（物理视图恰两张谱表的花括号）对面谱表的宿主＋层；力度回落：本行 → 宿主 → 对面谱表宿主；
+     CC64 并入同组行集合的全部踏板，每条轨在自己的通道上写一份（去重）。没有层的谱照原代码 */
+  const LRm = PQ_KIND.layerRows(s), grpM = [], tlM = [];
+  if(LRm){ const oppU={}; PQ_KIND.groupsOf(PQ_KIND.collapseLayers(s)).forEach(g=>{ if(g.type==='brace' && g.to-g.from===1){ oppU[g.from]=g.to; oppU[g.to]=g.from; } });
+    for(let vi=0; vi<nV; vi++){ const u=LRm.of[vi], rs=LRm.rows[u], op=oppU[u]!=null? LRm.rows[oppU[u]] : [];
+      grpM[vi]=[vi, ...rs.filter(r=>r!==vi), ...op]; tlM[vi]=[vi, rs[0], op[0]].filter(r=>r!=null); } }
+  const tlOfVox = vi=> LRm? (tlM[vi].map(r=>TLs[r]).find(Boolean) || null) : (TLs[vi] || (partner[vi]!=null? TLs[partner[vi]] : null));
   /* v69.4 踏板 → CC64：按演奏顺序收本声部的 ped 列（'on' 列起点 127，已踩着先 0；'off' 列尾 0；曲末还踩着补 0） */
   const pedOf = vi=>{
     const out=[]; let down=false, any=false;
@@ -47403,7 +47423,8 @@ function exportMIDI0(s, expand){
     flush();
     aFlushAll();
     /* 踏板：本声部的 ped，加上大谱表另一行的 ped（一架钢琴，两手都受踏板） */
-    [PEDs[vi], partner[vi]!=null? PEDs[partner[vi]] : null].forEach(P=>{ if(P) P.forEach(e=>evts.push({tick:e.t, pr:e.v? 1.5 : 1, data:[0xB0|ch,64,e.v]})); });
+    if(LRm){ const seen=new Set(); grpM[vi].forEach(r=>{ const P=PEDs[r]; if(P) P.forEach(e=>{ const k=e.t+'|'+e.v; if(seen.has(k)) return; seen.add(k); evts.push({tick:e.t, pr:e.v? 1.5 : 1, data:[0xB0|ch,64,e.v]}); }); }); }
+    else [PEDs[vi], partner[vi]!=null? PEDs[partner[vi]] : null].forEach(P=>{ if(P) P.forEach(e=>evts.push({tick:e.t, pr:e.v? 1.5 : 1, data:[0xB0|ch,64,e.v]})); });
     chunks.push(track(evts));
   });
   const TUN = (s.tuning && s.tuning.length)? s.tuning : (s.inst==='uku'? UKU_TUNING : TUNING);   /* v65.4 B3a ⑧（P2-28）自定义定弦（Drop D 最低音 38） */
