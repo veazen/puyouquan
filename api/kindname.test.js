@@ -736,7 +736,7 @@ const LGOLD = [
     LV(['S', 'A', 'T', 'B', 'RH', 'LH'], ['staff', 'staff', 'bass', 'bass', 'staff', 'bass'], undefined, { voxGroups: [BR(0, 3), BC(4, 5)] }, [0, 1, 2, 3]), 'S', 'vocal', '五线谱合唱谱（含钢琴伴奏）'],
 ];
 const LG = name => { const r = LGOLD.find(x => x[0].startsWith(name)); assert.ok(r, '金表 ' + name); return r[1]; };
-T("v70.5 等价金表（§2.3）：分类视图 collapseLayers(s,'kind') 上的 stackOf / docTypeOf / nameOf / isChoir / isPianoAccStack / ctxOf / pzOf / facetsOf / groupsOf＝oracle（服务端与编辑器内联段各一次）", () => {
+T("v70.5 等价金表（§2.3）：分类入口直接吃分层谱＝oracle、groupsOf 返回行空间；分类视图 collapseLayers(s,'kind') 上的 stackOf / docTypeOf / nameOf / isChoir / isPianoAccStack / ctxOf / pzOf / facetsOf / groupsOf＝oracle（服务端与编辑器内联段各一次）", () => {
   for (const [name, d, orc, eK, eD, eN] of LGOLD) {
     const before = J5(d);
     for (const k of [K, EDK]) {
@@ -745,6 +745,32 @@ T("v70.5 等价金表（§2.3）：分类视图 collapseLayers(s,'kind') 上的 
       if (eK) assert.strictEqual(k.stackOf(V), eK, name + ' stackOf'); if (eD) assert.strictEqual(k.docTypeOf(V), eD, name + ' docTypeOf'); if (eN) assert.strictEqual(k.nameOf(V), eN, name + ' nameOf');
     }
     assert.strictEqual(J5(d), before, name + ' 只读');
+  }
+  /* 接入后（§2.4 / §2.5）：分类入口直接吃分层谱，结果＝oracle；groupsOf 返回行空间（oracle 的组按分类视图单元展开回源谱行：from＝首单元首行、to＝末单元末行） */
+  const FN5S = FN5.filter(f => f !== 'groupsOf');
+  for (const [name, d, orc, eK, eD, eN] of LGOLD) {
+    const before = J5(d);
+    for (const k of [K, EDK]) {
+      assert.strictEqual(FN5S.map(f => f + '=' + J5(k[f](d))).join(' | '), FN5S.map(f => f + '=' + J5(k[f](orc))).join(' | '), name + '（直接核 f(s)）');
+      const R = k.layerRows(d, 'kind'), rows = R ? R.rows : d.voxVoices.map((_, i) => [i]);
+      assert.strictEqual(J5(k.groupsOf(d)), J5(k.groupsOf(orc).map(g => Object.assign({}, g, { from: rows[g.from][0], to: rows[g.to][rows[g.to].length - 1] }))), name + ' groupsOf 行空间');
+      if (eK) assert.strictEqual(k.stackOf(d), eK, name + ' stackOf(s)'); if (eD) assert.strictEqual(k.docTypeOf(d), eD, name + ' docTypeOf(s)'); if (eN) assert.strictEqual(k.nameOf(d), eN, name + ' nameOf(s)');
+    }
+    assert.strictEqual(J5(d), before, name + ' 只读（直接核）');
+  }
+  assert.strictEqual(J5(K.groupsOf(LG('钢琴 [RH, RH·2(层), LH]，不写分组'))), '[{"type":"brace","from":0,"to":2}]', '不写分组的分层钢琴：推断花括号覆盖层（行空间 0–2）');
+  assert.strictEqual(J5(K.groupsOf(LG('钢琴 [RH, RH·2, LH, LH·2]'))), '[{"type":"brace","from":0,"to":3}]', '显式 brace 0–3 原样（行空间）');
+  assert.strictEqual(J5(K.groupsOf(LG('合唱＋钢琴'))), '[{"type":"bracket","from":0,"to":3},{"type":"brace","from":4,"to":7}]', '合唱＋钢琴：行空间');
+  assert.strictEqual(J5(K.groupsOf(LG('伴奏歌谱 [Mel(无词)'))), '[{"type":"brace","from":2,"to":3}]', '伴奏歌谱：组仍在第 2–3 行');
+  const ps = LG('小提琴'), pp = K.pzOf(ps), pf = K.facetsOf(ps);
+  assert.strictEqual([pp.row, pp.pz + '.' + pp.sub, pp.inst, pf.parts, pf.ens].join(' '), '18 wuxian.qiyue violin 1 false', '小提琴双声部（直接核）');
+  assert.strictEqual(K.facetsOf(LG('SATB')).parts, 4, '闭合 SATB（直接核）'); assert.strictEqual(K.ctxOf(LG('合唱＋钢琴')).pno, true, '合唱＋钢琴 ctx.pno（直接核）');
+  /* §10.3-5 pubKindOf：带层谱（含 "1" 字符串、恶意键）经 viewOf 与编辑器同值 */
+  for (const [name, d] of LGOLD) {
+    const s = JSON.parse(J5(d)); s.voxLayer = s.voxLayer.map(x => (x === 1 ? '1' : x)); Object.values(s.mixer).forEach(e => { if (e.lay === 1) e.lay = '1'; });
+    s.voxVoices = s.voxVoices.map((x, i) => (i === 0 ? x + '<b>' : x)); s.mixer['vox:0'].x = '<script>';
+    const pk = K.pubKindOf(s), want = { type: EDK.docTypeOf(d), typeLabel: EDK.nameOf(d), pz: EDK.pzOf(d).pz, sub: EDK.pzOf(d).sub, fx: J5(EDK.facetsOf(d)) };
+    assert.strictEqual(J5([pk.type, pk.typeLabel, pk.pz, pk.sub, J5(pk.fx)]), J5([want.type, want.typeLabel, want.pz, want.sub, want.fx]), name + ' pubKindOf（"1" 串经清洗后生效、恶意键剥掉）');
   }
   const vn = K.collapseLayers(LG('小提琴'), 'kind'), p = K.pzOf(vn), f = K.facetsOf(vn);
   assert.strictEqual([p.row, p.pz + '.' + p.sub, p.inst, f.parts, f.ens].join(' '), '18 wuxian.qiyue violin 1 false', '小提琴双声部：pz #18 器乐、parts 1、不是合奏');
