@@ -3785,6 +3785,7 @@ body.flow .flw-off{display:none!important}
   body.flow #flw-tlist .flw-trow.on .flw-tn{color:var(--accent-ink);font-weight:600}
   body.flow #flw-tlist .flw-trow.muted .flw-tn{opacity:.55}
   body.flow #flw-tlist .flw-tsum{flex:none;font-size:11px;color:var(--faint);white-space:nowrap;padding-right:6px}
+  body.flow #flw-tlist .flw-tlay{flex:none;font-size:11px;color:var(--faint);white-space:nowrap;padding-right:6px}
   body.flow #flw-tlist .flw-tacts{display:none;align-items:center;flex:none}
   body.flow #flw-tlist .flw-trow:hover .flw-tacts,body.flow #flw-tlist .flw-trow.on .flw-tacts,body.flow #flw-tlist .flw-trow:focus-within .flw-tacts,
     body.flow #flw-tlist .flw-tacts.eng{display:flex}
@@ -31937,9 +31938,12 @@ FLOW.tree = (function(){
       T.push({k:'tab', i, name:String(n||((uku? '尤克里里' : '吉他')+(i+1))), nota: uku? 'tab4' : 'tab6', jp, cur: sel.row==='tab' && sel.vi===i, mute:c.on===false, solo:!!c.solo}); });
     /* 纯和弦谱（chordOnly）：旋律行画成小节格和弦，没有简谱 / 五线谱可切（原左栏在这种谱类本就不给「显示」面板，DOCK_PANELS vox.chord） */
     const chordOnly=!!s.chordOnly;
+    /* v70.5 审核修 3：生效的同谱表第二声部（物理视图里折进上一行的层行）在轨名旁标「第二声部」——组标题按轨数计（「钢琴 · 大谱表 3」），
+       标出来才看得出多的那一轨是哪来的；没有层的谱 LR 为 null，轨行逐字不变 */
+    let LR=null; try{ LR=PQ_KIND.layerRows(s); }catch(_){}
     voxs.forEach((n,i)=>{ const nv=(s.voxNotations||[])[i], st=!chordOnly && isStaffNota(nv), c=mx('vox:'+i);
       T.push({k:'vox', i, name:String(n||('旋律'+(i+1))), nota: chordOnly? 'chord' : st? (nv==='staff'? 'treble' : nv) : 'jp', st, dual: st && !!(s.voxDual||[])[i],
-        cur: sel.row==='vox' && sel.vi===i, mute:c.on===false, solo:!!c.solo}); });
+        cur: sel.row==='vox' && sel.vi===i, mute:c.on===false, solo:!!c.solo, lay: !!(LR && i>0 && LR.of[i]===LR.of[i-1])}); });
     const nT=tabs.length, G=[];
     if(nT) G.push({type:'gtr', from:0, to:nT-1, name: uku? '尤克里里轨' : '吉他轨'});
     let vg=[]; try{ vg=voxGroupsOf(s)||[]; }catch(_){}
@@ -31989,10 +31993,11 @@ FLOW.tree = (function(){
   function rowHTML(m, x, lvl){
     const kk=x.k, i=x.i, tic=trkIcon(kk==='tab'? 'tv' : 'vv', i, 18), nl=notaLabel(x);
     let h='<div class="flw-trow'+(x.cur? ' on' : '')+(x.mute? ' muted' : '')+'" role="treeitem" id="flw-tr-'+kk+'-'+i+'"'+fk('row:'+keyOf(kk, i))+' aria-level="'+lvl+'" aria-selected="'+x.cur+'" aria-expanded="'+x.open+'"'
-      +' tabindex="'+(x.cur? 0 : -1)+'" data-fa="tree:sel"'+attrs(kk, i)+' aria-label="'+E(x.name)+'，'+nl+(x.mute? '，已静音' : '')+(x.solo? '，独奏' : '')+'"'
+      +' tabindex="'+(x.cur? 0 : -1)+'" data-fa="tree:sel"'+attrs(kk, i)+' aria-label="'+E(x.name)+(x.lay? '，第二声部' : '')+'，'+nl+(x.mute? '，已静音' : '')+(x.solo? '，独奏' : '')+'"'
       +' title="'+E(x.name)+' · '+nl+'">'   /* v68.7 S1：悬停＝名称（双击改名照旧，不再写在 title 里） */
       +'<span class="flw-tic" aria-hidden="true">'+tic+badge(x)+'</span>'
       +'<span class="flw-tn">'+E(x.name)+'</span>'
+      +(x.lay? '<span class="flw-tlay" aria-hidden="true">第二声部</span>' : '')
       +(x.open || !notaShort(x)? '' : '<span class="flw-tsum" aria-hidden="true">'+notaShort(x)+'</span>')
       +'<span class="flw-tacts'+(x.mute||x.solo? ' eng' : '')+'">'
         +'<button type="button" class="flw-tib flw-tmute" data-fa="tree:mute"'+attrs(kk, i)+fk('mute:'+kk+i)+' aria-pressed="'+x.mute+'" aria-label="静音「'+E(x.name)+'」" title="静音">'+IC('trk-mute')+'</button>'
@@ -41701,8 +41706,10 @@ var NWP = (function(){
       const hk=keyLabel(headKeyOf(s));
       const keyTxt = r.keyDet? '；文件未写调号，按内容检测为 1='+hk+'（'+keyModeLabel(r.keyDet)+'）'
         : r.keyDefaulted? '；未读到调号已按 1=C' : '；调号按文件 1='+hk+(s.mode==='minor'? '（小调，记作关系大调）' : '');
-      if(t==='orig') toastSay('已导入《'+(s.title||'曲谱')+'》'+s.measures.length+' 小节'+skipText(r.skip)+keyTxt+'，点页头 1=X 可改记谱调（音不变）'+(r.warn? '；'+r.warn : '')+barTxt, {t:'已导入 '+s.measures.length+' 小节', k:'res', act:'close', prev:d0});
-      else toastSay('已导入为'+kind+'《'+(s.title||'曲谱')+'》'+s.measures.length+' 小节 · 新窗口打开，原谱保留'+(a.note[t]? '；'+a.note[t] : '')+skipText(r.skip)+keyTxt+(r.warn? '；'+r.warn : '')+barTxt, {t:'已导入 '+s.measures.length+' 小节', k:'res', act:'close', prev:d0}, NWB.kindOfSong(s).ic);
+      /* v70.5 审核修 3：新外壳短文——导入产物确有生效的同谱表第二声部（物理视图有层）时补半句（此前只有导入面板依据行写了）；旧外壳原文（第 1 参）不动 */
+      const layT = PQ_KIND.layerRows(s)? '，第二声部暂单独一行' : '';
+      if(t==='orig') toastSay('已导入《'+(s.title||'曲谱')+'》'+s.measures.length+' 小节'+skipText(r.skip)+keyTxt+'，点页头 1=X 可改记谱调（音不变）'+(r.warn? '；'+r.warn : '')+barTxt, {t:'已导入 '+s.measures.length+' 小节'+layT, k:'res', act:'close', prev:d0});
+      else toastSay('已导入为'+kind+'《'+(s.title||'曲谱')+'》'+s.measures.length+' 小节 · 新窗口打开，原谱保留'+(a.note[t]? '；'+a.note[t] : '')+skipText(r.skip)+keyTxt+(r.warn? '；'+r.warn : '')+barTxt, {t:'已导入 '+s.measures.length+' 小节'+layT, k:'res', act:'close', prev:d0}, NWB.kindOfSong(s).ic);
       if(onBar) flowSbarFlash();   /* v68.7 S1：原提示「；谱面上方的谱型条可换谱类」→ 悬浮条亮一次 */
     });
   }

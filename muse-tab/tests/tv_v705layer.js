@@ -219,6 +219,21 @@ const X_TAB = HEAD(['P1'], `<part id="P1"><measure number="1">${TABATT}${TN(1, 0
         const b7 = await pick(path.join(FXD, 'F07.musicxml')), b3 = await pick(path.join(FXD, 'F03.musicxml')), b0 = await pick(path.join(FXD, 'F15.musicxml'));
         T(b7.some(x => /同谱表第二声部 2 张谱表，暂按单独一行显示/.test(x)) && b3.some(x => /跨谱表的音 1 个/.test(x)) && !b0.some(x => /同谱表第二声部|跨谱表/.test(x)),
           'Q3 新建面板「从已有音乐」依据：有第二声部写「同谱表第二声部 N 张谱表，暂按单独一行显示」、有跨谱表音写「跨谱表的音 N 个」；老文件不出这两行', J({ b7, b3, b0 })); }
+      /* v70.5 审核修 3：新外壳点「导入」后——提示条短文在导入产物确有第二声部时补「第二声部暂单独一行」，音轨区层行名旁标「第二声部」；老文件（F15）提示条与轨行不变。
+         修前（ba1b270）短文只有「已导入 N 小节」、轨行无标注 */
+      { const go = async fp => { const A2 = await open(b, URL0, 'x=1'), p2 = A2.pg;
+          try { await p2.click('#dt-add'); await p2.waitForSelector('.nf-modal [data-scene]'); await p2.click('.nf-tabs [data-v="import"]'); await p2.waitForSelector('#nf-isrc');
+            const [fc] = await Promise.all([p2.waitForEvent('filechooser', { timeout: 5000 }), p2.click('#nw-import')]); await fc.setFiles(fp);
+            await p2.waitForFunction(() => !!(NWP.state && NWP.state.imp.a) && !!document.querySelector('#nf-impgo:not([aria-disabled="true"])'), null, { timeout: 8000 });
+            await p2.click('#nf-impgo');
+            await p2.waitForFunction(() => /已导入/.test((document.getElementById('toast') || {}).textContent || '') && !!document.querySelector('#flw-tlist .flw-trow'), null, { timeout: 8000 });
+            return await p2.evaluate(() => ({ flow: flowOn(), toast: document.getElementById('toast').textContent, rows: [...document.querySelectorAll('#flw-tlist .flw-trow')].map(r => r.querySelector('.flw-tn').textContent + (r.querySelector('.flw-tlay') ? '〔' + r.querySelector('.flw-tlay').textContent + '〕' : '')) }));
+          } catch (e) { return { err: e.message }; } finally { allErrs.push(...A2.errs); await A2.ctx.close(); } };
+        const g7 = await go(path.join(FXD, 'F07.musicxml')), g1 = await go(path.join(FXD, 'F01.musicxml')), g0 = await go(path.join(FXD, 'F15.musicxml'));
+        T(g7.flow && /^已导入 2 小节，第二声部暂单独一行/.test(g7.toast) && J(g7.rows) === J(['右手', '右手·2〔第二声部〕', '左手', '左手·2〔第二声部〕'])
+          && /^已导入 1 小节，第二声部暂单独一行/.test(g1.toast) && J(g1.rows) === J(['Violin', 'Violin·2〔第二声部〕'])
+          && g0.flow && /^已导入 \d+ 小节/.test(g0.toast) && !/第二声部/.test(g0.toast) && !(g0.rows || []).some(x => /〔/.test(x)),
+          'Q4 新外壳导入后提示条补「第二声部暂单独一行」、层行名旁标「第二声部」（F07 钢琴 / F01 小提琴）；老文件 F15 提示条与轨行不变', J({ g7, g1, g0 })); }
     }
     /* ================= K：分类接缝（A 组分类入口接谱表视图之后成立；规格 §2.3 金表、§4.7） =================
        导入产物经 PQ_KIND 分类：钢琴带层仍是钢琴独奏谱 / 大谱表 2 行；女高女低同谱表＋男声是合唱谱、3 个声部 */
