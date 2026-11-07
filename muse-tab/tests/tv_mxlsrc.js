@@ -2,16 +2,21 @@
 /* v70.3 B1「导入台账」（基石方案 docs/plan-2026-11-foundation.md §3.1 B1–B3）：MusicXML 源文件 → importMusicXML，按元素和取值域逐类统计「保留 / 进报告 / 静默丢」。
    输入：曲库源谱 deploy/library/openscore/（manifest items 10 份）＋ tests/fixtures/mxl/ 下的第三方文件（有就收）＋ 本文件里的合成探针。
    范围：note / notations / direction-type / ornaments / technical / articulations / barline 之下的元素（编辑器里的白名单 MXL_LED）。
-   本套件不读导入器的判断，独立按 DOM 走一遍：哪些音被收下（同谱表第二声部 → skip.voices；第 4 个起 / 和弦 / 无音高的倚音、超出 3 个的附加音 → skip.notes）、
+   本套件不读导入器的判断，独立按 DOM 走一遍：哪些音被收下（v70.5 起同谱表第二声部收成层、第 3 个起的声部 → skip.voices；第 4 个起 / 和弦 / 无音高的倚音、超出 3 个的附加音 → skip.notes）、
    每个元素按取值域该「保留」「引擎重算」还是「进报告」（报告名＝skip.otherBy 的键），再与导入结果核对：
      · 进报告：skip.otherBy 逐名与独立统计相等——少报＝静默丢，多报＝报错；skip.notes / voices / lyrics 同样逐项相等
      · 保留：能落到谱面数据上的逐类数数（延长号 / 演奏法分类型 / 换气 / 装饰音分类型 / 单音震音 / 倚音 / 歌词 / 指法 / 和音指法 / 滑音 / 延续虚线），少了＝静默丢
      · 引擎重算（stem / beam / 普通 accidental / notehead normal / tuplet / staff / voice / duration）单列，不算丢
    S1 每份输入「静默丢」0、「多报」0（打印全体输入的分类汇总表）
    S2 《侏儒》双音震音 188 对、《阿特拉斯》51 对：v70.3 起点名计数（skip.otherBy['震音']）；v70.4 收进 col.trem2——保留数 188 / 51、报告不再有「震音」
+   v70.5 B 组 有意迁移（规格 §10.4，独立镜像）：声部按谱表排名、全曲固定（§4.2：编号约定按 part 判、归属谱表取多数、有音高的声部 rank0 宿主 / rank1 层 / rank≥2 丢）——
+      层音记保留并进逐元素统计；rank≥2 的有音高音与倚音计 skip.voices，休止不计；「本谱表的音」按声部归属谱表判（不再按 <staff>）；
+      旋律行空拍补隐形休止（保留），只有凑不成 64 分音符整数倍的才进报告「空拍」；有层的谱表小节末补齐到本谱表写到的最大时间；倚音计数按声部分开
    S3 探针：① 5 个倚音一组 → skip.notes=2、前 3 个挂到主音 ② 六线谱 4 个四分音符＋backup＋voice 2 全音符 → 4 列、skip.voices=1、小节不超拍
           ③ number="1, 2" 与 "3" 的房子各计 1（房子编号 2），单个 1 / 2 不计 ④ 和弦每音带 <arpeggiate> → 琶音按列计 1 ⑤ 和弦倚音计 skip.notes
           ⑥ 杂项（caesura / cue / 菱形符头 / 颤音线 / 持续音踏板 / 跟 rit. 的延续虚线 / 休止上的歌词…）全部按名进报告
+          ⑦ v70.5：同谱表第二声部成层（不计 skip.voices）、第 3 个声部计 skip.voices、钢琴 voice 1 跨谱表的音留在右手（lossy.xstaff）、只有休止的 voice 2 不计、
+             print-object="no" 的休止与 voice 1 forward 空拍成隐形休止（不计空拍）、三连音里凑不成整时值的空拍仍计「空拍」
    S4 白名单 MXL_LED 在、skipText 按名点出前 5 类（多于 5 类写「等」）
    S5 B4 曲库质量门 ③ 扩口径（deploy/build-library.js skipAllow 逐曲签字白名单）：反例清单（侏儒去掉白名单、阿特拉斯白名单与实际不符且没签字）不过门、逐曲点名
    C  §3.1 编辑纠错（同版互通组一并验收）：C1 普通插入 / 前插（不顶替时）平移跨列引用 dynTo / ottTo / tk，数据断言插入前后指向同一个列对象、撤销回原 JSON；
@@ -62,6 +67,18 @@ const PROBE = {
     RS(1, { ly: '<lyric number="1"><syllabic>single</syllabic><text>啊</text></lyric>' }) +
     NT('E', 5, { x: '<cue/>', not: '<dynamics><sf/></dynamics>' }) +
     `<barline location="right"><bar-style>dashed</bar-style><fermata/></barline></measure></part>`),
+  /* v70.5 B 组 S3⑦ */
+  lay: HEAD(['P1'], `<part id="P1"><measure number="1">${ATT()}${NT('C', 5)}${NT('D', 5)}${NT('E', 5)}${NT('F', 5)}<backup><duration>4</duration></backup><forward><duration>2</duration><voice>2</voice></forward>${NT('A', 4, { d: 2, v: 2, type: 'half', not: '<articulations><accent/></articulations>' })}</measure>`
+    + `<measure number="2">${NT('G', 5, { d: 4, type: 'whole' })}</measure></part>`),
+  v3: HEAD(['P1'], `<part id="P1"><measure number="1">${ATT()}${NT('C', 5, { d: 4, type: 'whole' })}<backup><duration>4</duration></backup>${NT('A', 4, { d: 4, v: 2, type: 'whole' })}<backup><duration>4</duration></backup>`
+    + `${NT('F', 4, { d: 2, v: 3, type: 'half' })}${RS(2, { v: 3, type: 'half' })}${NT('E', 4, { grace: true, v: 3, type: '16th' })}</measure></part>`),
+  xst: HEAD(['P1'], `<part id="P1"><measure number="1">${ATT('<staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef>')}`
+    + `${NT('C', 5, { x: '<staff>1</staff>' })}${NT('G', 3, { x: '<staff>2</staff>' })}${NT('E', 5, { x: '<staff>1</staff>' })}${NT('F', 5, { x: '<staff>1</staff>' })}<backup><duration>4</duration></backup>${NT('C', 3, { d: 4, v: 5, type: 'whole', x: '<staff>2</staff>' })}</measure></part>`),
+  rest2: HEAD(['P1'], `<part id="P1"><measure number="1">${ATT()}${NT('C', 5, { d: 4, type: 'whole' })}<backup><duration>4</duration></backup>${RS(2, { v: 2, type: 'half' })}${RS(2, { v: 2, type: 'half' })}</measure></part>`),
+  po: HEAD(['P1'], `<part id="P1"><measure number="1">${ATT()}${NT('C', 5)}<note print-object="no"><rest/><duration>1</duration><voice>1</voice><type>quarter</type></note><forward><duration>1</duration><voice>1</voice></forward>${NT('G', 5)}</measure></part>`),
+  tup: HEAD(['P1'], `<part id="P1"><measure number="1"><attributes><divisions>3</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>`
+    + `${NT('C', 5, { d: 12, type: 'whole' })}<backup><duration>12</duration></backup>${NT('A', 4, { d: 1, v: 2, type: 'eighth', x: '<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>' })}<forward><duration>1</duration><voice>2</voice></forward>`
+    + `${NT('G', 4, { d: 1, v: 2, type: 'eighth', x: '<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>' })}${NT('F', 4, { d: 9, v: 2, type: 'half', x: '<dot/>' })}</measure></part>`),
 };
 Object.keys(PROBE).forEach(k => SRC.push({ name: 'probe ' + k, x: PROBE[k], probe: k }));
 
@@ -218,40 +235,86 @@ function censusFn(x) {
     for (const v of [4, 2, 1, 0.5, 0.25, 0.125, 0.0625]) if ([1, 1.5, 1.75, 2 / 3].some(f => Math.abs(qn - v * f) < 1e-3)) return false;
     if (!tab && rE && qn > 0) { let left = qn, n = 0; for (const v of [4, 3, 2, 1.5, 1, 0.75, 0.5, 0.375, 0.25, 0.125, 0.0625]) while (left >= v - 1e-3 && n < 16) { n++; left -= v; } if (n && left < 1e-3) return false; }
     return true; };
-  vparts.forEach(vp => { const isPrim = vp === primary, tab = vp.tab; let div = 24, gN = 0;
+  /* v70.5 B 组 声部预扫（独立实现，规格 §4.2）：每个源 part 拆谱表之前扫一遍；R1 缺 voice 记 ''、和音继承主音、倚音同下一个主音；
+     R2 任一声部同一小节两张谱表时间重叠（非和音非倚音，含休止）＝按谱表编号，键＝(v, staff)，否则键＝v、归属谱表取个数多数（平票取小号）；
+     R3 每谱表有音高的声部按 voice 号升序：宿主 / 层 / 丢（rank≥2）；纯休止声部不排名（本谱表没有有音高的声部时取最小的当宿主） */
+  const PREm = new Map();
+  [...root.querySelectorAll(':scope > part')].forEach(p => { const at = p.querySelector(':scope > measure > attributes'), nSt = at ? +(tx(at, 'staves') || 1) : 1, R = [];
+    [...p.querySelectorAll(':scope > measure')].forEach((m, mi) => { let t = 0, last = null; const pg = [];
+      [...m.children].forEach(el => { const tg = el.tagName;
+        if (tg === 'backup' || tg === 'forward') { const dd = +(tx(el, 'duration') || 0) || 0; if (tg === 'forward' && tx(el, 'voice') != null) R.push({ el, v: tx(el, 'voice'), st: +(tx(el, 'staff') || 1) || 1, fw: true, mi, a: t, b: t + dd });
+          t = tg === 'backup' ? Math.max(0, t - dd) : t + dd; return; }
+        if (tg !== 'note') return;
+        const gr = !!q(el, 'grace'), ch = !!q(el, 'chord'), v0 = tx(el, 'voice'), du = +(tx(el, 'duration') || 0) || 0;
+        const r = { el, v: v0, st: +(tx(el, 'staff') || 1) || 1, gr, ch, pit: !!(q(el, 'pitch') || el.querySelector(':scope > notations > technical > fret')), mi, a: t, b: (!gr && !ch) ? t + du : t };
+        if (v0 == null) { if (ch) r.v = last == null ? '' : last; else if (gr) pg.push(r); else r.v = ''; }
+        if (!gr && !ch) { t += du; last = r.v; pg.splice(0).forEach(g => { g.v = r.v; }); }
+        R.push(r); });
+      pg.forEach(g => { g.v = last == null ? '' : last; }); });
+    let perSt = false;
+    if (nSt >= 2) { const by = {}; R.forEach(r => { if (r.fw || r.gr || r.ch || !(r.b > r.a)) return; (by[r.mi + '|' + r.v] = by[r.mi + '|' + r.v] || []).push(r); });
+      perSt = Object.values(by).some(L => L.some(x => L.some(y => x.st !== y.st && x.a < y.b - 1e-6 && y.a < x.b - 1e-6))); }
+    const cnt = {}, home = {}, vOf = {}, role = {}, kOf = new Map();
+    R.forEach(r => { r.k = perSt ? r.v + '@' + r.st : r.v; vOf[r.k] = r.v; kOf.set(r.el, r.k); if (!r.fw && !r.gr && !r.ch) { const c = cnt[r.k] = cnt[r.k] || {}; c[r.st] = (c[r.st] || 0) + 1; } });
+    R.forEach(r => { if (home[r.k] != null) return; if (nSt < 2) home[r.k] = 1; else if (perSt || !cnt[r.k]) home[r.k] = r.st;
+      else { const c = cnt[r.k]; home[r.k] = +Object.keys(c).sort((x, y) => c[y] - c[x] || x - y)[0]; } });
+    const num = v => v === '' ? -Infinity : (/^\s*-?\d+(\.\d+)?\s*$/.test(v) ? +v : Infinity);
+    for (let st = 1; st <= Math.max(1, nSt); st++) {
+      const ks = [...new Set(R.filter(r => home[r.k] === st).map(r => r.k))].sort((x, y) => (num(vOf[x]) - num(vOf[y])) || (vOf[x] < vOf[y] ? -1 : vOf[x] > vOf[y] ? 1 : 0));
+      const pk = ks.filter(x => R.some(r => r.k === x && !r.fw && r.pit));
+      if (pk.length) { role[pk[0]] = 'host'; if (pk[1] != null) role[pk[1]] = 'lay'; pk.slice(2).forEach(x => { role[x] = 'drop'; }); }
+      else { const h = ks.find(x => R.some(r => r.k === x && !r.fw)); if (h != null) role[h] = 'host'; } }
+    PREm.set(p, { home, role, kOf, nSt }); });
+  /* 空拍补隐形休止：至少一个 64 分音符；凑不成 64 分音符整数倍（或起点不在 64 分音符格上）的才进报告「空拍」——同导入的按拍位拆（起点对齐的二分时值） */
+  const hidOk = (a, b2, div) => { const g = (b2 - a) / div, s0 = a / div; return Math.abs(g * 16 - Math.round(g * 16)) < 0.02 && Math.abs(s0 * 16 - Math.round(s0 * 16)) < 0.02; };
+  const gapK = (a, b2, div) => { if (b2 - a >= div / 16 - 1e-6) { if (hidOk(a, b2, div)) k('（时间）空拍 → 隐形休止', 'keep'); else k('（时间）空拍[凑不成整时值]', 'rep', '空拍'); } };
+  vparts.forEach(vp => { const isPrim = vp === primary, tab = vp.tab, PM = PREm.get(vp.p); let div = 24; const SK = {};
+    const sk = kk => SK[kk] || (SK[kk] = { fill: 0, nCols: 0, addN: 0, gN: 0, mainEl: null });
+    const roleOf = kk => (PM.home[kk] === vp.k || vp.nSt < 2) ? PM.role[kk] : 'other';
+    const pair = !tab && Object.keys(PM.role).some(x => PM.role[x] === 'lay' && (vp.nSt < 2 || PM.home[x] === vp.k));   /* 本谱表有第二声部（层）：小节末按谱表补齐 */
     [...vp.p.querySelectorAll(':scope > measure')].forEach(m => {
-      let fv = null, tcur = 0, fill = 0, nCols = 0, addN = 0;
+      let tcur = 0; Object.keys(SK).forEach(x => { SK[x].fill = 0; SK[x].nCols = 0; SK[x].addN = 0; });
       [...m.children].forEach(el => { const tg = el.tagName;
         if (tg === 'attributes') { const dv = tx(el, 'divisions'); if (dv) div = +dv || div; return; }
         const st = +(tx(el, 'staff') || 1), mine = !(vp.nSt >= 2 && st !== vp.k);
-        if (tg === 'backup' || tg === 'forward') { const dd = +(tx(el, 'duration') || 0) || 0; tcur = tg === 'backup' ? Math.max(0, tcur - dd) : tcur + dd; return; }
+        if (tg === 'backup' || tg === 'forward') { const dd = +(tx(el, 'duration') || 0) || 0;
+          /* 本行声部的 forward：前面的空拍与它自己那段都补隐形休止 */
+          if (tg === 'forward' && !tab) { const fk = PM.kOf.get(el), ro = fk != null ? roleOf(fk) : null;
+            if (ro === 'host' || ro === 'lay') { const S0 = sk(fk); gapK(S0.fill, tcur, div); gapK(Math.max(S0.fill, tcur), tcur + dd, div); S0.fill = Math.max(S0.fill, tcur + dd); } }
+          tcur = tg === 'backup' ? Math.max(0, tcur - dd) : tcur + dd; return; }
         if (tg === 'direction') { if (mine) dirCensus(el, vp, isPrim); return; }
         if (tg === 'harmony') { if (!mine) return; const kd = q(el, 'kind'); if (kd && kd.getAttribute('text') == null && KIND.indexOf(kd.textContent.trim()) < 0) EXP['和弦类型'] = (EXP['和弦类型'] || 0) + 1; return; }
         if (tg === 'barline') { if (isPrim) barCensus(el); return; }
         if (tg !== 'note') return;
-        const gr = !!q(el, 'grace'), ch = !!q(el, 'chord'), du = +(tx(el, 'duration') || 0) || 0;
-        if (!mine) { if (!gr && !ch && du > 0) tcur += du; return; }
+        const gr = !!q(el, 'grace'), ch = !!q(el, 'chord'), du = +(tx(el, 'duration') || 0) || 0, kk = PM.kOf.get(el), ro = roleOf(kk);
         const tS = tcur; if (!gr && !ch) tcur += du;
-        /* v70.4 有意迁移（v70.3 验收 minor）：六线谱第一声部 forward 留下的空拍按时值补普通休止（保留，不再进报告）；旋律行照旧计「空拍」 */
-        const gap = () => { if (tS - fill >= div / 16 - 1e-6) { if (tab) k('（时间）forward 空拍 → 补休止[六线谱]', 'keep'); else k('（时间）forward 留下的空拍', 'rep', '空拍'); } fill = tcur; };
+        /* 不是本谱表的声部（归属谱表不在这里）：只推进游标 */
+        if (ro === 'other' || ro == null) return;
+        /* rank≥2（六线谱：第二声部起）：有音高的音（主音 / 和音 / 倚音）计 skip.voices，休止不计 */
+        if (ro === 'drop' || (tab && ro === 'lay')) { if (q(el, 'pitch') || el.querySelector(':scope > notations > technical > fret')) { expVoices++; k(tab ? 'note[同谱表第二声部][六线谱]' : 'note[同谱表第 3 个起的声部]', 'rep'); } return; }
+        const S0 = sk(kk);
+        /* v70.4 有意迁移（v70.3 验收 minor）：六线谱第一声部 forward 留下的空拍按时值补普通休止（保留，不再进报告）；v70.5：旋律行补隐形休止，凑不成整时值的才进报告 */
+        const gap = () => { if (tab) { if (tS - S0.fill >= div / 16 - 1e-6) k('（时间）forward 空拍 → 补休止[六线谱]', 'keep'); } else gapK(S0.fill, tS, div); S0.fill = tcur; };
+        mainEl = S0.mainEl;
         if (!tab) {
-          if (gr) { if (q(el, 'pitch') && !ch && gN < 3) { gN++; P.grace++; noteCensus(el, 'grace', false); } else { expNotes++; k('note[倚音·第 4 个起 / 和弦 / 无音高]', 'rep'); } return; }
-          const vc = tx(el, 'voice'); if (vc != null) { if (fv == null) fv = vc; else if (vc !== fv) { expVoices++; k('note[同谱表第二声部]', 'rep'); return; } }
+          if (gr) { if (q(el, 'pitch') && !ch && S0.gN < 3) { S0.gN++; P.grace++; noteCensus(el, 'grace', false); } else { expNotes++; k('note[倚音·第 4 个起 / 和弦 / 无音高]', 'rep'); } return; }
           if (durBad(el, div, false)) expNotes++;
-          if (q(el, 'rest')) { gap(); nCols++; colId++; addN = 0; mainEl = el; noteCensus(el, 'rest', false); return; }
-          if (!q(el, 'pitch')) { expNotes++; fill = tcur; k('note[无音高]', 'rep'); return; }
-          if (ch && nCols > 0) { if (addN < 3) { addN++; noteCensus(el, 'chord', false); } else { expNotes++; k('note[第 4 个起的附加音]', 'rep'); } return; }
-          gap(); nCols++; colId++; addN = 0; gN = 0; mainEl = el; noteCensus(el, 'main', false); return;
+          if (q(el, 'rest')) { gap(); S0.nCols++; colId++; S0.addN = 0; mainEl = S0.mainEl = el; noteCensus(el, 'rest', false); return; }
+          if (!q(el, 'pitch')) { expNotes++; S0.fill = tcur; k('note[无音高]', 'rep'); return; }
+          if (ch && S0.nCols > 0) { if (S0.addN < 3) { S0.addN++; noteCensus(el, 'chord', false); } else { expNotes++; k('note[第 4 个起的附加音]', 'rep'); } return; }
+          gap(); S0.nCols++; colId++; S0.addN = 0; S0.gN = 0; mainEl = S0.mainEl = el; noteCensus(el, 'main', false); return;
         }
-        const vc = tx(el, 'voice'); if (vc != null) { if (fv == null) fv = vc; else if (vc !== fv) { expVoices++; k('note[同谱表第二声部][六线谱]', 'rep'); return; } }
         const tech = el.querySelector(':scope > notations technical'), sE = tech && tech.querySelector('string'), fE = tech && tech.querySelector('fret');
-        if (gr) { if (sE && fE && gN < 3) { gN++; noteCensus(el, 'grace', true); } else { expNotes++; k('note[倚音·超出][六线谱]', 'rep'); } return; }
+        if (gr) { if (sE && fE && S0.gN < 3) { S0.gN++; noteCensus(el, 'grace', true); } else { expNotes++; k('note[倚音·超出][六线谱]', 'rep'); } return; }
         if (durBad(el, div, true)) expNotes++;
-        if (q(el, 'rest')) { gap(); nCols++; mainEl = el; noteCensus(el, 'rest', true); return; }
-        if (!sE || !fE) { expNotes++; if (!ch) fill = tcur; k('note[无弦 / 品][六线谱]', 'rep'); return; }
-        if (ch && nCols > 0) { noteCensus(el, 'chord', true); return; }
-        gap(); nCols++; gN = 0; mainEl = el; noteCensus(el, 'main', true); });
-      if (nCols && tcur - fill >= div / 16 - 1e-6) { if (tab) k('（时间）forward 空拍 → 补休止[六线谱]', 'keep'); else k('（时间）forward 留下的空拍', 'rep', '空拍'); } }); });
+        if (q(el, 'rest')) { gap(); S0.nCols++; mainEl = S0.mainEl = el; noteCensus(el, 'rest', true); return; }
+        if (!sE || !fE) { expNotes++; if (!ch) S0.fill = tcur; k('note[无弦 / 品][六线谱]', 'rep'); return; }
+        if (ch && S0.nCols > 0) { noteCensus(el, 'chord', true); return; }
+        gap(); S0.nCols++; S0.gN = 0; mainEl = S0.mainEl = el; noteCensus(el, 'main', true); });
+      /* 小节末：没有层的行照旧（末尾 forward 留下的空拍进报告 / 六线谱补休止）；有层的谱表两行都补到本谱表写到的最大时间 */
+      const mineK = Object.keys(SK).filter(x => roleOf(x) === 'host' || (!tab && roleOf(x) === 'lay'));
+      if (pair) { const tM = Math.max(0, ...mineK.map(x => SK[x].fill)); mineK.forEach(x => { if (SK[x].fill > 0 || tM > 0) gapK(SK[x].fill, tM, div); }); }
+      else mineK.forEach(x => { const S0 = SK[x]; if (S0.nCols && tcur - S0.fill >= div / 16 - 1e-6) { if (tab) k('（时间）forward 空拍 → 补休止[六线谱]', 'keep'); else k('（时间）forward 留下的空拍', 'rep', '空拍'); } }); }); });
   /* 谱面数据上的保留数 */
   const S = im.song, got = { ferm: 0, breath: 0, trem: 0, trem2: 0, grace: 0, lyr: 0, fing: 0, afing: 0, gliss: 0, artic: {}, orn: {}, dash: 0 };
   S.measures.forEach(m => { (m.voxes || []).forEach(r => (r || []).forEach(c => { if (!c) return;
@@ -317,6 +380,12 @@ function censusFn(x) {
   { const r = pr('gchord'); T(r.skip.notes === 1 && r.grace0 && (r.grace0.notes || []).length === 1, 'S3⑤ 和弦倚音（<grace> 带 <chord>）计 skip.notes、第一个倚音照收', J([r.skip, r.grace0])); }
   { const r = pr('misc'), want = ['caesura', 'wavy-line', 'notehead-diamond', 'up-bow', 'pedal', 'bracket', 'dashes', 'lyric', 'dynamics', 'bar-style', 'fermata', 'cue'];
     T(want.every(n => r.OB[n] >= 1) && !r.silent, 'S3⑥ 杂项按名进报告：' + want.join(' / '), J(r.OB)); }
+  /* v70.5 B 组 S3⑦（静默丢 / 多报已由 S1 逐份核对；这里另核谱面形态） */
+  { const L = pr('lay'), V3 = pr('v3'), X = pr('xst'), R2 = pr('rest2'), PO = pr('po'), TU = pr('tup');
+    T(L.skip.voices === 0 && L.cols[0][0].length === 2 && V3.skip.voices === 2 && X.skip.voices === 0 && X.cols[0][0].join() === '4,1' && R2.skip.voices === 0 && R2.cols[0][0].length === 1
+      && !(PO.OB['空拍']) && TU.OB['空拍'] === 1 && !L.silent && !V3.silent && !X.silent && !R2.silent && !PO.silent && !TU.silent,
+      'S3⑦ 同谱表第二声部成层（不计 skip.voices）、第 3 个声部的有音高音与倚音计 2（休止不计）、跨谱表的音留在右手、只有休止的 voice 2 不计、print-object 休止与 voice 1 forward 成隐形休止、三连音里的空拍仍计「空拍」',
+      J({ lay: [L.skip, L.cols[0]], v3: V3.skip, xst: [X.skip, X.cols[0]], rest2: [R2.skip, R2.cols[0]], po: PO.OB, tup: TU.OB })); }
 
   /* S4 白名单与文案 */
   const s4 = await pg.evaluate(() => ({ led: typeof MXL_LED === 'object' && Array.isArray(MXL_LED.vox && MXL_LED.vox.note) && Array.isArray(MXL_LED.tab && MXL_LED.tab.technical) && Array.isArray(MXL_LED.barline),

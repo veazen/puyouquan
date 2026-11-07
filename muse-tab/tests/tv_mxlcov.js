@@ -7,7 +7,8 @@
    输出 fixture × 特性矩阵（✓ 保留 / ✗ 丢失 / · 源谱无），覆盖率 = ✓ / (✓+✗)。
    T1 总覆盖率 ≥ 0.90；T2 每个 fixture 零跳过（skip 各项为 0）；T3 没有任何特性列全丢（每列至少一处 ✓）；
    T4 第三方 fixture（MuseScore 风格手写：移调 + 弱起 + 大谱表 + 房子）导入后关键字段齐全。
-   覆盖率计分表本身即「往返结构覆盖率」定义；负责人供第三方 fixture 后把文件丢进 tests/fixtures/mxl/ 即纳入（T5 自动遍历）。 */
+   覆盖率计分表本身即「往返结构覆盖率」定义；负责人供第三方 fixture 后把文件丢进 tests/fixtures/mxl/ 即纳入（T5 自动遍历）。
+   v70.5 B 组（规格 §10.4）：SYNTH 加「同谱表双声部」（钢琴 [右手, 右手·2, 左手]，层行带隐形休止 hid），FEATURES 加 layer（voxLayer 相等）、hid（位置与时值相等）两列；T2 仍零跳过 */
 const { chromium } = require('playwright');
 const path = require('path'); const fs = require('fs');
 const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env.MUSETAB_URL.slice(7) : path.resolve(__dirname, '../index.html');
@@ -59,6 +60,7 @@ const FIXDIR = path.resolve(__dirname, 'fixtures/mxl');
       S('pickup', s => !!s.pickup), S('transp', s => s.transp | 0), S('mode', s => s.mode || ''),
       S('capo', s => (s.capo | 0) + '|' + J(s.tabCapos || null)), S('tuning', s => J(s.tuning || null)),
       S('voices', s => (s.voxVoices || []).length + '/' + (s.tabVoices || []).length),
+      S('layer', s => s.voxLayer ? J(s.voxLayer) + '|' + J(s.voxVoices) : ''), S('hid', s => voxSig(s, c => (c.hid === 1 && !c.deg) ? [c.dur, c.dotted ? 1 : 0] : null)),
     ];
     /* 合成 fixture */
     window.SYNTH = [
@@ -68,6 +70,10 @@ const FIXDIR = path.resolve(__dirname, 'fixtures/mxl');
       ['大谱表＋合唱', () => { const s = createSong('vocal', { title: '合唱钢琴', key: 'F', beats: 4, unit: 4, nMea: 2, nVox: 4, lyr: 1 });
         s.voxNotations = ['staff', 'staff', 'staff', 'bass', 'staff', 'bass']; s.voxVoices = ['S', 'A', 'T', 'B', '右手', '左手']; s.voxGroups = [{ type: 'bracket', from: 0, to: 3 }, { type: 'brace', from: 4, to: 5 }];
         s.measures.forEach(m => { m.voxes = [[V(5, 4, { lyrics: ['啊'] }), V(5, 4), V(6, 4), V(5, 4)], [V(3, 4), V(3, 4), V(4, 4), V(3, 4)], [V(1, 4), V(1, 4), V(2, 4), V(1, 4)], [V(1, 4, { oct: -1 }), V(5, 4, { oct: -2 }), V(4, 4, { oct: -2 }), V(1, 4, { oct: -1 })], [V(1, 8, { chord: 'F' }), V(3, 8), V(5, 8), V(3, 8), V(1, 8), V(3, 8), V(5, 8), V(3, 8)], [V(1, 2, { oct: -1, ped: 'on' }), V(5, 2, { oct: -2, ped: 'off' })]]; }); return s; }],
+      ['同谱表双声部', () => { const s = createSong('piano', { title: '双声部', key: 'G', beats: 4, unit: 4, nMea: 2, lyr: 0 });
+        s.voxVoices = ['右手', '右手·2', '左手']; s.voxNotations = ['staff', 'staff', 'bass']; s.voxLayer = [null, 1, null]; s.voxGroups = [{ type: 'brace', from: 0, to: 2 }];
+        s.mixer = s.mixer || {}; s.mixer['vox:1'] = Object.assign({}, s.mixer['vox:0'] || { on: true, solo: false, inst: 'piano', vol: 1, pan: null }, { lay: 1 });
+        s.measures.forEach((m, mi) => { m.voxes = [[V(5, 4), V(6, 4), V(7, 4), V(1, 4, { oct: 1 })], mi ? [V(3, 2), V(0, 2, { hid: 1 })] : [V(0, 4, { hid: 1 }), V(2, 4), V(3, 2)], [V(1, 1, { oct: -1 })]]; }); return s; }],
       ['移调弱起2/2', () => { const s = createSong('instr', { title: '小号', key: 'Bb', beats: 2, unit: 2, nMea: 3, nVox: 1, lyr: 0 }); s.pickup = true; s.transp = -2; s.mode = 'major';
         s.measures[0].voxes[0] = [V(5, 4)]; s.measures[1].voxes[0] = [V(1, 2, { tup: 1 }), V(2, 2, { tup: 1 }), V(3, 2, { tup: 1 })]; s.measures[2].voxes[0] = [V(1, 2, { dotted: true }), V(0, 4)]; return s; }],
     ];

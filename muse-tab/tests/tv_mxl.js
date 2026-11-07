@@ -113,10 +113,15 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
     const c=r.song.measures[0].voxes[0];
     return { key:r.song.key, beats:r.song.beats, clef:r.song.voxNotations[0],
       cols:c.map(x=>x.deg+':'+x.dur+(x.dotted?'.':'')).join(' '),
-      skipped:(r.skip.voices||0)+r.skip.notes,   /* v65.1 B3a ⑥ 第二声部音符改计入 skip.voices */ renderOK:h.length>1000 && !h.includes('NaN') };
+      skipped:(r.skip.voices||0)+r.skip.notes,   /* v65.1 B3a ⑥ 第二声部音符改计入 skip.voices */ renderOK:h.length>1000 && !h.includes('NaN'),
+      /* v70.5 有意迁移（规格 §10.4）：backup 后的 voice 2 不再跳过，导成紧跟宿主的第二声部（层）；mixer 两行都是钢琴音色、层行另有见证 lay:1（不整条深比 accMixPiano()） */
+      nv:r.song.voxVoices.length, lay:JSON.stringify(r.song.voxLayer), clef1:r.song.voxNotations[1],
+      L:(r.song.measures[0].voxes[1]||[]).map(x=>x.deg+':'+x.dur+(x.dotted?'.':'')).join(' '),
+      mx:[(r.song.mixer||{})['vox:0'], (r.song.mixer||{})['vox:1']].map(e=>e? e.inst+(e.lay===1? '+lay' : '') : '-').join(' ') };
   })()`);
-  const ok5 = !t5.error && t5.key==='Eb' && t5.beats===3 && t5.clef==='bass' && t5.cols==='1:4 3:4. 0:8' && t5.skipped===1 && t5.renderOK;
-  console.log((ok5?'✅':'❌')+' 第三方fixture: key='+t5.key+'(Eb) beats='+t5.beats+' 谱号='+t5.clef+' 列='+t5.cols+'(期望 1:4 3:4. 0:8) 跳过voice2='+t5.skipped+' 渲染='+t5.renderOK);
+  const ok5 = !t5.error && t5.key==='Eb' && t5.beats===3 && t5.clef==='bass' && t5.cols==='1:4 3:4. 0:8' && t5.skipped===0 && t5.renderOK
+    && t5.nv===2 && t5.lay==='[null,1]' && t5.clef1==='bass' && t5.L==='6:2.' && t5.mx==='piano piano+lay';
+  console.log((ok5?'✅':'❌')+' 第三方fixture: key='+t5.key+'(Eb) beats='+t5.beats+' 谱号='+t5.clef+' 列='+t5.cols+'(期望 1:4 3:4. 0:8) 跳过='+t5.skipped+'(期望 0) 层='+t5.lay+' '+t5.L+' 混音='+t5.mx+' 渲染='+t5.renderOK);
   if(ok5) pass++;
   // T6 v44.8 表情字段往返：速度术语 words / 独立力度 dynamics / 前倚音 grace / 滑音 slide
   const t6 = await pg.evaluate(`(()=>{

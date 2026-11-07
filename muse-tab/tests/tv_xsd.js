@@ -7,6 +7,8 @@
    X3  16 份预设「导出 → 导入 → 再导出」：导入不报错、再导出仍过 XSD
    X4  每份预设按演奏者出的分谱（partsPlan → partSong → exportMusicXML）
    X5  TAB 谱：每个含 <staff-details> 的 <attributes> 里 <clef> 在 <staff-details> 之前；往返后 <staff-details>（弦数 / 定弦 / 变调夹）逐字节不变
+   v70.5 B 组（规格 §10.4）加分层样本：X1L 夹具 tests/fixtures/v705/F01–F27 现导入再导出（同谱表第二声部 voice 1 / 2 / 5 / 6、forward 带 voice / staff、print-object 隐形休止）全部过 XSD，
+       且导出里确有 <forward>…<voice>…</forward> 与 voice 5 / 6；X4L 这些分层谱按演奏者出的分谱导出也过 XSD
    E   页面脚本错误 0
    突变实证（报告里列）：把 exportMusicXML 的 TAB 段改回 staffDetailsXML(ti)+<clef> → X1 / X3 / X4 / X5 红（X1 6 份、全语料 31 份）。
    env：MUSETAB_URL · XSD（缺省 fixtures/xsd/musicxml.xsd） */
@@ -44,7 +46,8 @@ const MIN_BAD = MIN_OK.replace('<clef><sign>TAB</sign><line>5</line></clef><staf
     const pg = await b.newPage();
     pg.on('pageerror', e => pageErrs.push(String(e && e.message || e)));
     await pg.goto(URL0 + (URL0.includes('?') ? '&' : '?') + 'shell=classic'); await pg.waitForTimeout(1500);
-    const R = await pg.evaluate(() => {
+    const LAYX = fs.readdirSync(path.join(__dirname, 'fixtures', 'v705')).filter(f => /\.musicxml$/.test(f)).sort().map(f => [f, fs.readFileSync(path.join(__dirname, 'fixtures', 'v705', f), 'utf8')]);
+    const R = await pg.evaluate(LAYX => {
       const run = (n, f) => { try { const x = f(); return typeof x === 'string' ? { n, x } : { n, err: '导出不是字符串' }; } catch (e) { return { n, err: String(e && e.message || e).slice(0, 200) }; } };
       const kinds = [['弹唱吉他', () => createSong('tanchang', { inst: 'guitar', nTab: 1, nVox: 1, lyr: 1, beats: 4, unit: 4, key: 'C', nMea: 3 })],
         ['弹唱尤克里里', () => createSong('tanchang', { inst: 'uku', nTab: 1, nVox: 1, lyr: 1, beats: 4, unit: 4, key: 'G', nMea: 3 })],
@@ -69,13 +72,22 @@ const MIN_BAD = MIN_OK.replace('<clef><sign>TAB</sign><line>5</line></clef><staf
         catch (e) { out.parts.push({ n: p.name + ' · 分谱', err: String(e && e.message || e).slice(0, 200) }); }
       });
       kinds.forEach(([n, mk]) => out.kinds.push(run(n, () => exportMusicXML(mk()))));
+      out.lay = []; out.layParts = [];
+      LAYX.forEach(([n, x]) => { const im = importMusicXML(x); if (!im || !im.song) { out.lay.push({ n, err: '导入失败' }); return; }
+        out.lay.push(run(n, () => exportMusicXML(im.song)));
+        try { loadSong(im.song); (partsPlan(song).parts || []).forEach(pt => out.layParts.push(run(n + ' · ' + (pt.name || pt.id), () => { const ps = partSong(pt); return exportMusicXML(ps.song || ps); }))); }
+        catch (e) { out.layParts.push({ n: n + ' · 分谱', err: String(e && e.message || e).slice(0, 200) }); } });
       return out;
-    });
+    }, LAYX);
     const b1 = checkAll(R.presets), b2 = checkAll(R.kinds), b3 = checkAll(R.round), b4 = checkAll(R.parts);
     T('X1', R.presets.length >= 16 && !b1.length, R.presets.length + ' 份预设谱导出全部过 MusicXML 4.0 XSD', J(b1));
     T('X2', R.kinds.length === 8 && !b2.length, '8 种谱类空谱导出全部过 XSD', J(b2));
     T('X3', R.round.length === R.presets.length && !b3.length, R.round.length + ' 份预设「导出 → 导入 → 再导出」导入不报错、再导出仍过 XSD', J(b3));
     T('X4', R.parts.length > 0 && !b4.length, R.parts.length + ' 份分谱导出全部过 XSD', J(b4));
+    const bL = checkAll(R.lay), bLP = checkAll(R.layParts), lx = R.lay.map(d => d.x || '').join('');
+    T('X1L', R.lay.length >= 30 && !bL.length && /<forward><duration>\d+<\/duration><voice>2<\/voice><\/forward>/.test(lx) && /<forward><duration>\d+<\/duration><voice>6<\/voice><staff>2<\/staff><\/forward>/.test(lx)
+      && /<voice>5<\/voice>/.test(lx) && /<note print-object="no"><rest\/>/.test(lx), R.lay.length + ' 份分层夹具现导入再导出全部过 XSD（含 forward 带 voice / staff、voice 5 / 6、print-object 隐形休止）', J(bL));
+    T('X4L', R.layParts.length > 0 && !bLP.length, R.layParts.length + ' 份分层谱的分谱导出全部过 XSD', J(bLP));
     const tabBad = R.tab.filter(t => !t.order || !t.same || !t.nSd);
     T('X5', R.tab.length >= 5 && !tabBad.length, R.tab.length + ' 份含六线谱的预设：<clef> 在 <staff-details> 之前；往返后弦数 / 定弦 / 变调夹逐字节不变', J(tabBad.length ? tabBad : R.tab));
   } catch (e) { T('X', false, '执行异常', e && e.stack || e); }
