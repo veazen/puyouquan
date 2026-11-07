@@ -567,5 +567,241 @@ T('P2a pzq 新乐器词（§4.4）：竖笛 / 直笛 / 口风琴 / 陶笛 / 箫 
   const t = P.targets().inst; ['recorder', 'melodica', 'ocarina', 'xiao', 'cello', 'clarinet'].forEach(k => { assert.ok(t.indexOf(k) >= 0, 'pzq 认 ' + k); assert.ok(K.own(K.INST, k), k); });
 });
 
+/* ---------- v70.5 A 组第 0 步（规格 docs/spec-2026-11-v705.md §1.2 / §1.7 / §2 / §10.3 第 1–6 条）：同谱表双声部的合法性与谱表视图 ----------
+   voxLayerLinks / voxLayerOk / layerRows / collapseLayers 在共享段（编辑器与服务端同一份）；本步分类入口还没接，等价金表经视图核（f(collapseLayers(s,'kind'))＝f(oracle)），
+   接入后同一批夹具改成直接核 f(s)。浏览器侧的改声部路径 / 谱表级同步 / 旧版本编辑见 muse-tab/tests/tv_v705data.js（A 组后续提交） */
+const vm5 = require('node:vm');
+const J5 = x => JSON.stringify(x);
+/* 造分层谱：names 声部名、nota 记谱法（undefined＝简谱）、lay＝voxLayer（undefined＝不写键）、ly＝填词的行下标；
+   见证 mixer['vox:i'].lay=1 默认写在 lay[i]===1 的行上，o.w 指定写在哪几行（覆盖缺省）、o.w=[] 不写 */
+const LV = (names, nota, lay, o, ly) => {
+  o = Object.assign({}, o); const w = o.w; delete o.w;
+  const wr = w || (Array.isArray(lay) ? lay.map((x, i) => (x === 1 ? i : -1)).filter(i => i >= 0) : []);
+  const mixer = {}; names.forEach((_, i) => { mixer['vox:' + i] = { on: true, solo: false, inst: 'piano', vol: 1, pan: null }; if (wr.includes(i)) mixer['vox:' + i].lay = 1; });
+  const d = { v: 3, title: 't', tabVoices: [], voxVoices: names, voxNotations: nota, lyricLines: (ly && ly.length) ? 1 : 0, mixer,
+    measures: [{ tabs: [], voxes: names.map((_, i) => [{ dur: 4, deg: 1, oct: 0, acc: '', lyrics: (ly || []).includes(i) ? ['啊'] : [] }, { dur: 4, deg: 0, oct: 0, acc: '', lyrics: [] }]) }] };
+  if (lay !== undefined) d.voxLayer = lay;
+  return Object.assign(d, o);
+};
+const ST2 = ['staff', 'staff'], ST3 = ['staff', 'staff', 'staff'];
+/* 编辑器内联段在 vm 里再跑一份（§10.3-1「编辑器内联段与服务端各一次」）；跨 realm 的数组只比 JSON */
+const EDK = (() => { const h = fs.readFileSync(path.join(ROOT, 'muse-tab/index.html'), 'utf8'), a = h.indexOf('/* @pq-kindname begin'), b = h.indexOf('/* @pq-kindname end */');
+  const ctx = vm5.createContext({}); vm5.runInContext(h.slice(a, b) + '\nthis.K = PQ_KIND;', ctx); return ctx.K; })();
+const okShape = (r, n) => r === null || (Array.isArray(r) && r.length === n && r.every(x => x === 0 || x === 1));
+/* [类别, 谱, 期望 voxLayerLinks, 期望 voxLayerOk, 期望 voxLayerOk(s,'sync')]（null 或逐行 0 / 1） */
+const LBAD = [
+  ['合法：钢琴右手双声部', LV(['RH', 'RH·2', 'LH'], ['staff', 'staff', 'bass'], [null, 1, null], { voxGroups: [BC(0, 2)] }), [0, 1, 0], [0, 1, 0], [0, 1, 0]],
+  ['合法：中音谱表两行', LV(['Va', 'Va·2'], ['alto', 'alto'], [null, 1]), [0, 1], [0, 1], [0, 1]],
+  ['越界：voxLayer[0]===1', LV(['甲', '乙'], ST2, [1, null]), null, null, null],
+  ['越界：[1,1]——第 1 行因上一行原值是 1 同样独立', LV(['甲', '乙'], ST2, [1, 1]), null, null, null],
+  ['指向自己 / 绝对下标：0（带见证）', LV(['甲', '乙'], ST2, [null, 0], { w: [1] }), null, null, null],
+  ['指向自己 / 绝对下标：2（带见证）', LV(['甲', '乙', '丙'], ST3, [null, 2, null], { w: [1] }), null, null, null],
+  ['指向自己 / 绝对下标：-1（带见证）', LV(['甲', '乙'], ST2, [null, -1], { w: [1] }), null, null, null],
+  ['链式 / 成环：[null,1,1] 只有第 1 行是层', LV(['甲', '甲·2', '甲·3'], ST3, [null, 1, 1]), [0, 1, 0], [0, 1, 0], [0, 1, 0]],
+  ['记谱法不同：宿主高音、层低音', LV(['甲', '甲·2'], ['staff', 'bass'], [null, 1]), [0, 1], null, null],
+  ['记谱法不同：宿主简谱、层五线', LV(['甲', '甲·2'], [undefined, 'staff'], [null, 1]), [0, 1], null, null],
+  ['记谱法不同：宿主五线、层简谱', LV(['甲', '甲·2'], ['staff', undefined], [null, 1]), [0, 1], null, null],
+  ['两行都是简谱：不生效，一致对成立（sync 不要求五线谱）', LV(['甲', '甲·2'], [undefined, undefined], [null, 1]), [0, 1], null, [0, 1]],
+  ['谱号八度不同（旧版本只改了一行的 voxClefOct）', LV(['T', 'T·2'], ST2, [null, 1], { voxClefOct: [null, -1] }), [0, 1], null, null],
+  ['移调不同（旧版本只改了一行的 voxTransp）', LV(['Cl', 'Cl·2'], ST2, [null, 1], { voxTransp: [2, 0] }), [0, 1], null, null],
+  ['谱号八度 / 移调归一后相等：0 与 null、2 当 0、-12.2 与 -12 取整', LV(['甲', '甲·2'], ST2, [null, 1], { voxClefOct: [2, null], voxTransp: [-12.2, -12] }), [0, 1], [0, 1], [0, 1]],
+  ['长度不等：长', LV(['甲', '甲·2'], ST2, [null, 1, null]), null, null, null],
+  ['长度不等：短', LV(['甲', '甲·2', '乙'], ST3, [null, 1]), null, null, null],
+  ['非数组：对象', LV(['甲', '甲·2'], ST2, { 1: 1 }, { w: [1] }), null, null, null],
+  ['非数组：字符串', LV(['甲', '甲·2'], ST2, '01', { w: [1] }), null, null, null],
+  ['非数组：数字', LV(['甲', '甲·2'], ST2, 1, { w: [1] }), null, null, null],
+  ['值类型：清洗前的 "1"', LV(['甲', '甲·2'], ST2, [null, '1'], { w: [1] }), null, null, null],
+  ['值类型：true', LV(['甲', '甲·2'], ST2, [null, true], { w: [1] }), null, null, null],
+  ['值类型：NaN', LV(['甲', '甲·2'], ST2, [null, NaN], { w: [1] }), null, null, null],
+  ['值类型：对象', LV(['甲', '甲·2'], ST2, [null, {}], { w: [1] }), null, null, null],
+  ['整曲形态：chordOnly', LV(['甲', '甲·2'], ST2, [null, 1], { chordOnly: true }), [0, 1], null, null],
+  ['整曲形态：func', LV(['甲', '甲·2'], ST2, [null, 1], { func: true }), [0, 1], null, null],
+  ['缺见证：没有 mixer', (() => { const d = LV(['甲', '甲·2'], ST2, [null, 1]); delete d.mixer; return d; })(), null, null, null],
+  ['缺见证：mixer 不是对象', LV(['甲', '甲·2'], ST2, [null, 1], { mixer: 'x' }), null, null, null],
+  ['缺见证：mixer 里没有 vox:1 的见证', LV(['甲', '甲·2'], ST2, [null, 1], { w: [] }), null, null, null],
+  ['缺见证：vox:1 不是对象', (() => { const d = LV(['甲', '甲·2'], ST2, [null, 1]); d.mixer['vox:1'] = 1; return d; })(), null, null, null],
+  ['缺见证：见证写在宿主行上', LV(['甲', '甲·2'], ST2, [null, 1], { w: [0] }), null, null, null],
+  ['缺见证：lay 是 "1"（清洗前）', (() => { const d = LV(['甲', '甲·2'], ST2, [null, 1]); d.mixer['vox:1'].lay = '1'; return d; })(), null, null, null],
+  ['缺见证：lay 是 true', (() => { const d = LV(['甲', '甲·2'], ST2, [null, 1]); d.mixer['vox:1'].lay = true; return d; })(), null, null, null],
+  ['缺见证：lay 是 2', (() => { const d = LV(['甲', '甲·2'], ST2, [null, 1]); d.mixer['vox:1'].lay = 2; return d; })(), null, null, null],
+  ['跨组边界：显式合法组 from===i（换谱类重建的 brace {1,2}）', LV(['旋律', '右手伴奏', '左手伴奏'], ['staff', 'staff', 'bass'], [null, 1, null], { voxGroups: [BC(1, 2)] }), null, null, null],
+  ['跨组边界：显式合法组 to===i−1', LV(['X', 'A', 'A·2'], ST3, [null, null, 1], { voxGroups: [BR(0, 1)] }), null, null, null],
+  ['组覆盖宿主与层：不是边界', LV(['X', 'A', 'A·2'], ST3, [null, null, 1], { voxGroups: [BR(0, 2)] }), [0, 0, 1], [0, 0, 1], [0, 0, 1]],
+  ['不合法的组（越界 / 只占一行 / 坏类型 / null / 坏下标）不算边界', LV(['X', 'A', 'A·2'], ST3, [null, null, 1], { voxGroups: [BC(2, 5), BR(2, 2), { type: 'box', from: 1, to: 2 }, null, { type: 'brace', from: 'x', to: 'y' }] }), [0, 0, 1], [0, 0, 1], [0, 0, 1]],
+];
+const LB = name => { const r = LBAD.find(x => x[0] === name); assert.ok(r, '夹具 ' + name); return r[1]; };
+const stripL = d => { const c = JSON.parse(J5(d)); delete c.voxLayer; if (c.mixer && typeof c.mixer === 'object') Object.values(c.mixer).forEach(e => { if (e && typeof e === 'object') delete e.lay; }); return c; };
+const FN5 = ['stackOf', 'docTypeOf', 'nameOf', 'isChoir', 'isPianoAccStack', 'ctxOf', 'pzOf', 'facetsOf', 'groupsOf'];
+const sig5 = (k, d) => FN5.map(f => f + '=' + J5(k[f](d))).join(' | ');
+T('v70.5 voxLayerLinks / voxLayerOk 坏数据十一类（规格 §1.2 表）：服务端与编辑器内联段同值；不抛、只返回 null 或逐行 0 / 1、不改入参；1e5 行 <50ms', () => {
+  assert.ok(['voxLayerLinks', 'voxLayerOk', 'layerRows', 'collapseLayers'].every(f => typeof K[f] === 'function' && typeof EDK[f] === 'function'), '导出表缺四函数');
+  for (const [name, d, eL, eO, eS] of LBAD) {
+    const n = d.voxVoices.length, before = J5(d);
+    for (const k of [K, EDK]) {
+      const L = k.voxLayerLinks(d), O = k.voxLayerOk(d), S = k.voxLayerOk(d, 'sync');
+      assert.ok(okShape(L, n) && okShape(O, n) && okShape(S, n), name + ' 形态');
+      assert.strictEqual(J5(L), J5(eL), name + ' voxLayerLinks'); assert.strictEqual(J5(O), J5(eO), name + ' voxLayerOk'); assert.strictEqual(J5(S), J5(eS), name + " voxLayerOk 'sync'");
+      k.layerRows(d); k.layerRows(d, 'kind'); k.collapseLayers(d); k.collapseLayers(d, 'kind');
+      assert.strictEqual(J5(d), before, name + ' 只读');
+    }
+  }
+  /* 非对象 / 坏谱：不抛 */
+  for (const d of [null, undefined, 0, 'x', [], {}, { voxLayer: [null, 1] }, { voxLayer: [null, 1], voxVoices: 'ab' }, { voxLayer: [null, 1], voxVoices: ['a', 'b'], mixer: { 'vox:1': { lay: 1 } }, voxGroups: 'x' }])
+    for (const k of [K, EDK]) { k.voxLayerLinks(d); k.voxLayerOk(d); k.voxLayerOk(d, 'sync'); k.layerRows(d); if (d && typeof d === 'object') { k.layerRows(d, 'kind'); k.collapseLayers(d, 'kind'); } }
+  /* 1e5 行：单遍线性 */
+  const N = 100000, big = { voxVoices: Array.from({ length: N }, (_, i) => 'v' + i), voxNotations: Array(N).fill('staff'), voxLayer: Array.from({ length: N }, (_, i) => (i % 2 ? 1 : null)), mixer: {}, voxGroups: [BC(0, N - 1)] };
+  for (let i = 1; i < N; i += 2) big.mixer['vox:' + i] = { lay: 1 };
+  let best = Infinity, r = null;
+  for (let t = 0; t < 3; t++) { const t0 = process.hrtime.bigint(); r = K.voxLayerOk(big); best = Math.min(best, Number(process.hrtime.bigint() - t0) / 1e6); }
+  assert.ok(r && r.length === N && r[1] === 1 && r[2] === 0 && r[N - 1] === 1, '1e5 行结果');
+  assert.ok(best < 50, '1e5 行 voxLayerOk ' + best.toFixed(1) + 'ms ≥ 50ms');
+});
+T("v70.5 voxLayerOk(s,'sync') 与缺省只差「是五线谱」一条：生效的行一定一致；一致而不生效的行一定不是五线谱", () => {
+  let extra = 0;
+  for (const [name, d] of LBAD) {
+    const O = K.voxLayerOk(d), S = K.voxLayerOk(d, 'sync'), vn = d.voxNotations || [];
+    (O || []).forEach((x, i) => assert.ok(!x || (S && S[i] === 1), name + ' 第 ' + i + ' 行生效却不一致'));
+    (S || []).forEach((x, i) => { if (x && !(O && O[i])) { extra++; assert.ok(!K.isStaffNota(vn[i]) && vn[i] === vn[i - 1], name + ' 第 ' + i + ' 行一致对多出了五线谱以外的理由'); } });
+  }
+  assert.ok(extra >= 1, '夹具里没有「一致而不生效」的例子');
+});
+T('v70.5 坏数据 oracle（§10.3-4）：判据不成立的谱 collapseLayers 两种视图都原样返回，分类函数＝删掉 voxLayer 与见证后的结果、不抛', () => {
+  let n = 0;
+  for (const [name, d, , eO] of LBAD) {
+    if (eO) continue; n++;
+    assert.strictEqual(K.collapseLayers(d), d, name); assert.strictEqual(K.collapseLayers(d, 'kind'), d, name);
+    assert.strictEqual(K.layerRows(d), null, name); assert.strictEqual(K.layerRows(d, 'kind'), null, name);
+    assert.strictEqual(sig5(K, d), sig5(K, stripL(d)), name);
+  }
+  assert.ok(n >= 30, '坏数据夹具 ' + n);
+});
+T('v70.5 collapseLayers：无层原样返回（===）；有层只剩宿主、分组映射、去掉 voxLayer、measures 同一引用；幂等、不改入参；voxHasLyrics 在视图上按单元换回行区间', () => {
+  for (const [, s] of CASES) { assert.strictEqual(K.collapseLayers(s), s); assert.strictEqual(K.collapseLayers(s, 'kind'), s); assert.strictEqual(K.layerRows(s), null); assert.strictEqual(K.layerRows(s, 'kind'), null); }
+  const F = LV(['RH', 'RH·2', 'LH', 'LH·2'], ['staff', 'staff', 'bass', 'bass'], [null, 1, null, 1],
+    { voxGroups: [BC(0, 3), BR(0, 1), null, { type: 'brace', from: 'x' }], voxDual: [false, false, false, false], voxShort: ['R', null, 'L', null], voxTransp: [0, 0, 0, 0], voxClefOct: [0, 0, 0, 0] }, [3]);
+  const before = J5(F);
+  for (const k of [K, EDK]) {
+    assert.strictEqual(J5(k.layerRows(F)), '{"rows":[[0,1],[2,3]],"of":[0,0,1,1]}');
+    assert.strictEqual(J5(k.layerRows(F, 'kind')), '{"rows":[[0,1],[2,3]],"of":[0,0,1,1]}', '花括号里的层是器乐层（层行带词也折）');
+    const V = k.collapseLayers(F);
+    assert.ok(V !== F && !('voxLayer' in V) && V.measures === F.measures && V.mixer === F.mixer);
+    assert.strictEqual(J5([V.voxVoices, V.voxNotations, V.voxDual, V.voxShort, V.voxTransp, V.voxClefOct]), '[["RH","LH"],["staff","bass"],[false,false],["R","L"],[0,0],[0,0]]');
+    assert.strictEqual(J5(V.voxGroups), '[{"type":"brace","from":0,"to":1},null,{"type":"brace"}]', '映射后 to≤from 的组丢掉，坏组原样留给 groupsOf 过滤');
+    assert.strictEqual(k.collapseLayers(V), V); assert.strictEqual(k.collapseLayers(V, 'kind'), V); assert.strictEqual(k.layerRows(V), null);
+    assert.strictEqual(k.voxHasLyrics(V, 1, 1), true, '单元 1 ＝ 第 2–3 行（LH·2 有词）'); assert.strictEqual(k.voxHasLyrics(V, 0, 0), false);
+    assert.strictEqual(k.voxHasLyrics(V, 2, 2), false, '越界单元＝没有'); assert.strictEqual(k.voxHasLyrics(F, 1, 1), false, '真谱仍是行空间');
+    assert.strictEqual(J5(k.groupsOf(V)), '[{"type":"brace","from":0,"to":1}]', '视图上的组是单元下标');
+    assert.strictEqual(J5(F), before, '只读');
+  }
+  /* 没写的逐声部数组不在视图里多出键 */
+  const G = LV(['RH', 'RH·2', 'LH'], ['staff', 'staff', 'bass'], [null, 1, null]), VG = K.collapseLayers(G);
+  assert.ok(VG !== G && !('voxDual' in VG) && !('voxShort' in VG) && !('voxClefOct' in VG) && !('voxTransp' in VG) && !('voxGroups' in VG), Object.keys(VG).join(','));
+  /* 自有键 __proto__（坏数据）不会变成视图的原型 */
+  const P = JSON.parse('{"v":3,"tabVoices":[],"voxVoices":["RH","RH·2","LH"],"voxNotations":["staff","staff","bass"],"voxLayer":[null,1,null],"mixer":{"vox:1":{"lay":1}},"__proto__":{"pianoAcc":true},"measures":[]}');
+  const VP = K.collapseLayers(P); assert.ok(VP !== P && VP.pianoAcc === undefined && Object.getPrototypeOf(VP) === Object.prototype, '__proto__');
+  /* 分类视图：声乐层（谱表有真歌词、不在花括号组里）不折，器乐层折 */
+  const SATB = LV(['S', 'A', 'T', 'B'], ['staff', 'staff', 'bass', 'bass'], [null, 1, null, 1], { voxGroups: [BR(0, 3)] }, [0, 2]);
+  assert.strictEqual(J5(K.layerRows(SATB)), '{"rows":[[0,1],[2,3]],"of":[0,0,1,1]}'); assert.strictEqual(K.layerRows(SATB, 'kind'), null); assert.strictEqual(K.collapseLayers(SATB, 'kind'), SATB);
+  const CP = LV(['S', 'A', 'T', 'B', 'RH', 'RH·2', 'LH', 'LH·2'], ['staff', 'staff', 'bass', 'bass', 'staff', 'staff', 'bass', 'bass'], [null, 1, null, 1, null, 1, null, 1], { voxGroups: [BR(0, 3), BC(4, 7)] }, [0, 1, 2, 3]);
+  assert.strictEqual(J5(K.layerRows(CP, 'kind').rows), '[[0],[1],[2],[3],[4,5],[6,7]]');
+  const VC = K.collapseLayers(CP, 'kind'); assert.strictEqual(J5(VC.voxGroups), '[{"type":"bracket","from":0,"to":3},{"type":"brace","from":4,"to":5}]');
+  assert.strictEqual(K.collapseLayers(VC, 'kind'), VC, '分类视图上再 collapse 返回它自己');
+  assert.strictEqual(J5(K.layerRows(LV(['Vn', 'Vn·2'], ST2, [null, 1], { instKey: 'violin' }), 'kind')), '{"rows":[[0,1]],"of":[0,0]}', '无词小提琴双声部＝器乐层');
+  assert.strictEqual(K.layerRows(LV(['Vn', 'Vn·2'], ST2, [null, 1], { instKey: 'violin' }, [1]), 'kind'), null, '层行有词、谱表不在花括号里＝声乐层');
+});
+/* 等价金表（§2.3）：[说明, 分层谱, oracle（期望等于它的分类结果）, 期望 stackOf, docTypeOf, nameOf（null＝只比 oracle）] */
+const LGOLD = [
+  ['钢琴 [RH, RH·2(层), LH]，显式 brace 0–2', LV(['右手', '右手·2', '左手'], ['staff', 'staff', 'bass'], [null, 1, null], { voxGroups: [BC(0, 2)] }),
+    LV(['右手', '左手'], ['staff', 'bass'], undefined, { voxGroups: [BC(0, 1)] }), 'G', 'piano', '钢琴独奏谱'],
+  ['钢琴 [RH, RH·2(层), LH]，不写分组', LV(['右手', '右手·2', '左手'], ['staff', 'staff', 'bass'], [null, 1, null]), LV(['右手', '左手'], ['staff', 'bass']), 'G', 'piano', '钢琴独奏谱'],
+  ['钢琴 [RH, LH, LH·2]', LV(['右手', '左手', '左手·2'], ['staff', 'bass', 'bass'], [null, null, 1], { voxGroups: [BC(0, 2)] }),
+    LV(['右手', '左手'], ['staff', 'bass'], undefined, { voxGroups: [BC(0, 1)] }), 'G', 'piano', '钢琴独奏谱'],
+  ['钢琴 [RH, RH·2, LH, LH·2]', LV(['右手', '右手·2', '左手', '左手·2'], ['staff', 'staff', 'bass', 'bass'], [null, 1, null, 1], { voxGroups: [BC(0, 3)] }),
+    LV(['右手', '左手'], ['staff', 'bass'], undefined, { voxGroups: [BC(0, 1)] }), 'G', 'piano', '钢琴独奏谱'],
+  ['右手带词的钢琴 [RH(词), RH·2, LH]＋显式 brace 0–2（花括号里＝器乐层）', LV(['右手', '右手·2', '左手'], ['staff', 'staff', 'bass'], [null, 1, null], { voxGroups: [BC(0, 2)] }, [0]),
+    LV(['右手', '左手'], ['staff', 'bass'], undefined, { voxGroups: [BC(0, 1)] }, [0]), 'G', 'piano', '钢琴独奏谱'],
+  ['伴奏歌谱 [Mel(无词), Mel·2, RH, LH]，brace 2–3', LV(['旋律', '旋律·2', '右手伴奏', '左手伴奏'], ['staff', 'staff', 'staff', 'bass'], [null, 1, null, null], { voxGroups: [BC(2, 3)] }),
+    LV(['旋律', '右手伴奏', '左手伴奏'], ['staff', 'staff', 'bass'], undefined, { voxGroups: [BC(1, 2)] }), 'SG', 'instr', '旋律＋钢琴伴奏谱（五线谱）'],
+  ['伴奏歌谱 [Mel(词), Mel·2, RH, LH]，brace 2–3（声乐层＝剥 voxLayer 的 4 行）', LV(['旋律', '旋律·2', '右手伴奏', '左手伴奏'], ['staff', 'staff', 'staff', 'bass'], [null, 1, null, null], { voxGroups: [BC(2, 3)] }, [0]),
+    LV(['旋律', '旋律·2', '右手伴奏', '左手伴奏'], ['staff', 'staff', 'staff', 'bass'], undefined, { voxGroups: [BC(2, 3)] }, [0]), 'S', null, '五线谱合唱谱（含钢琴伴奏）'],
+  ['[Mel(五线), RH, RH·2, LH]', LV(['旋律', '右手伴奏', '右手伴奏·2', '左手伴奏'], ['staff', 'staff', 'staff', 'bass'], [null, null, 1, null], { voxGroups: [BC(1, 3)] }),
+    LV(['旋律', '右手伴奏', '左手伴奏'], ['staff', 'staff', 'bass'], undefined, { voxGroups: [BC(1, 2)] }), 'SG', null, null],
+  ['[Mel(简谱), RH, RH·2, LH]', LV(['旋律', '右手伴奏', '右手伴奏·2', '左手伴奏'], [undefined, 'staff', 'staff', 'bass'], [null, null, 1, null], { voxGroups: [BC(1, 3)] }, [0]),
+    LV(['旋律', '右手伴奏', '左手伴奏'], [undefined, 'staff', 'bass'], undefined, { voxGroups: [BC(1, 2)] }, [0]), 'JG', null, null],
+  ['小提琴 [Vn, Vn·2]，instKey violin，无词', LV(['小提琴', '小提琴·2'], ST2, [null, 1], { instKey: 'violin' }), LV(['小提琴'], ['staff'], undefined, { instKey: 'violin' }), 'S', 'instr', '小提琴谱（五线谱）'],
+  ['SATB 闭合谱 [S(词), A(层), T(词), B(层)]（剥 voxLayer）', LV(['S', 'A', 'T', 'B'], ['staff', 'staff', 'bass', 'bass'], [null, 1, null, 1], { voxGroups: [BR(0, 3)] }, [0, 2]),
+    LV(['S', 'A', 'T', 'B'], ['staff', 'staff', 'bass', 'bass'], undefined, { voxGroups: [BR(0, 3)] }, [0, 2]), 'S', 'vocal', '五线谱合唱谱'],
+  ['二部 [S(词), A(层)]（剥 voxLayer）', LV(['女高', '女低'], ST2, [null, 1], null, [0]), LV(['女高', '女低'], ST2, undefined, null, [0]), 'S', 'vocal', '五线谱合唱谱'],
+  ['合唱＋钢琴，四张谱表各带层（S/A、T/B 带词，RH / LH 无词）', LV(['S', 'A', 'T', 'B', 'RH', 'RH·2', 'LH', 'LH·2'], ['staff', 'staff', 'bass', 'bass', 'staff', 'staff', 'bass', 'bass'], [null, 1, null, 1, null, 1, null, 1], { voxGroups: [BR(0, 3), BC(4, 7)] }, [0, 1, 2, 3]),
+    LV(['S', 'A', 'T', 'B', 'RH', 'LH'], ['staff', 'staff', 'bass', 'bass', 'staff', 'bass'], undefined, { voxGroups: [BR(0, 3), BC(4, 5)] }, [0, 1, 2, 3]), 'S', 'vocal', '五线谱合唱谱（含钢琴伴奏）'],
+];
+const LG = name => { const r = LGOLD.find(x => x[0].startsWith(name)); assert.ok(r, '金表 ' + name); return r[1]; };
+T("v70.5 等价金表（§2.3）：分类视图 collapseLayers(s,'kind') 上的 stackOf / docTypeOf / nameOf / isChoir / isPianoAccStack / ctxOf / pzOf / facetsOf / groupsOf＝oracle（服务端与编辑器内联段各一次）", () => {
+  for (const [name, d, orc, eK, eD, eN] of LGOLD) {
+    const before = J5(d);
+    for (const k of [K, EDK]) {
+      const V = k.collapseLayers(d, 'kind');
+      assert.strictEqual(sig5(k, V), sig5(k, orc), name);
+      if (eK) assert.strictEqual(k.stackOf(V), eK, name + ' stackOf'); if (eD) assert.strictEqual(k.docTypeOf(V), eD, name + ' docTypeOf'); if (eN) assert.strictEqual(k.nameOf(V), eN, name + ' nameOf');
+    }
+    assert.strictEqual(J5(d), before, name + ' 只读');
+  }
+  const vn = K.collapseLayers(LG('小提琴'), 'kind'), p = K.pzOf(vn), f = K.facetsOf(vn);
+  assert.strictEqual([p.row, p.pz + '.' + p.sub, p.inst, f.parts, f.ens].join(' '), '18 wuxian.qiyue violin 1 false', '小提琴双声部：pz #18 器乐、parts 1、不是合奏');
+  assert.strictEqual(K.facetsOf(K.collapseLayers(LG('SATB'), 'kind')).parts, 4, '闭合 SATB 仍是四个声部（谱库「四部以上」筛得到）');
+  assert.strictEqual(K.ctxOf(K.collapseLayers(LG('合唱＋钢琴'), 'kind')).pno, true, '合唱＋钢琴 ctx.pno');
+});
+T('v70.5 清洗与上传口径（§1.7）：SAN_NUM / SD_NUM 登记 voxLayer / hid / lay；"1" 转 1、合法分层谱经三种清洗逐字节不变；scoreDataDanger 拒收不能转数的字符串 / 非有限数，照收 null / true / 数字串', () => {
+  const SD = require('./scoredata'), h = fs.readFileSync(path.join(ROOT, 'muse-tab/index.html'), 'utf8');
+  for (const k of ['voxLayer', 'hid', 'lay']) { assert.ok(SD.SD_NUM.has(k), 'SD_NUM 缺 ' + k); assert.ok(new RegExp("const SAN_NUM = new Set\\(\\[[^\\]]*'" + k + "'").test(h), 'SAN_NUM 缺 ' + k); }
+  const grab = re => { const m = re.exec(h); assert.ok(m, '读不到 ' + re); return m[0]; };
+  const ctx = vm5.createContext({});
+  vm5.runInContext([grab(/const SAN_NUM = new Set\(\[[^\]]*\]\);/), grab(/const SAN_ENUM_KEEP = \{dyn:new Set\(\['<','>'\]\)\};/), grab(/const SAN_FREE = new Set\(\[[^\]]*\]\);/),
+    grab(/function normalizeSongFields\(v, key\)\{[\s\S]*?\n\}/), grab(/function sanitizeUntrusted\(v, key\)\{[\s\S]*?\n\}/), 'this.N=normalizeSongFields; this.S=sanitizeUntrusted;'].join('\n'), ctx);
+  const ok = JSON.parse(J5(LG('钢琴 [RH, RH·2, LH, LH·2]'))); ok.measures[0].voxes[3][1].hid = 1; const j = J5(ok);
+  assert.strictEqual(J5(ctx.N(JSON.parse(j))), j, 'normalizeSongFields'); assert.strictEqual(J5(ctx.S(JSON.parse(j))), j, 'sanitizeUntrusted'); assert.strictEqual(J5(K.sanitizeLike(JSON.parse(j))), j, 'sanitizeLike');
+  assert.strictEqual(K.viewOf(ok), ok, '干净的分层谱不深拷');
+  assert.strictEqual(SD.scoreDataDanger(JSON.parse(j), '', 'data', 0), null, '合法分层谱照收');
+  /* 数字串：三种清洗都转成数字，清洗后判据成立（服务端 viewOf 与编辑器同值） */
+  const str = JSON.parse(j); str.voxLayer = [null, '1', null, '1']; str.mixer['vox:1'].lay = '1'; str.mixer['vox:3'].lay = '1'; str.measures[0].voxes[3][1].hid = '1';
+  assert.strictEqual(K.voxLayerOk(str), null, '清洗前 "1" 不生效');
+  for (const [nm, c] of [['normalizeSongFields', ctx.N(JSON.parse(J5(str)))], ['sanitizeUntrusted', ctx.S(JSON.parse(J5(str)))], ['sanitizeLike', K.sanitizeLike(JSON.parse(J5(str)))], ['viewOf', K.viewOf(JSON.parse(J5(str)))]])
+    assert.strictEqual(J5(c), j, nm + ' 把 "1" 规整成 1');
+  assert.strictEqual(J5(K.voxLayerOk(K.viewOf(str))), '[0,1,0,1]');
+  const bad = JSON.parse(j); bad.voxLayer = [null, 'x', null, 1];
+  assert.strictEqual(J5(ctx.N(JSON.parse(J5(bad))).voxLayer), '[null,0,null,1]', '不能转数的字符串→0（当 null）');
+  /* 上传口径：拒收 voxLayer:["x"]、hid:"a"、lay:Infinity；照收 [null,1] / [null,true] / "1" / hid:1 / lay:1 */
+  const base = () => ({ v: 3, title: 't', tabVoices: [], voxVoices: ['甲', '甲·2'], voxNotations: ST2, mixer: { 'vox:1': { on: true } }, measures: [{ tabs: [], voxes: [[{ dur: 4, deg: 1 }], [{ dur: 4, deg: 0 }]] }] });
+  const dz = f => { const d = base(); f(d); return SD.scoreDataDanger(d, '', 'data', 0); };
+  assert.ok(/voxLayer/.test(dz(d => { d.voxLayer = ['x']; }) || ''), 'voxLayer:["x"] 未拒收');
+  assert.ok(/hid/.test(dz(d => { d.measures[0].voxes[1][0].hid = 'a'; }) || ''), 'hid:"a" 未拒收');
+  assert.ok(/lay/.test(dz(d => { d.mixer['vox:1'].lay = Infinity; }) || ''), 'lay:Infinity 未拒收');
+  for (const [nm, f] of [['[null,1]', d => { d.voxLayer = [null, 1]; }], ['[null,true]', d => { d.voxLayer = [null, true]; }], ['["1"]', d => { d.voxLayer = [null, '1']; }],
+    ['hid:1', d => { d.measures[0].voxes[1][0].hid = 1; }], ['lay:1', d => { d.mixer['vox:1'].lay = 1; }], ['lay:"1"', d => { d.mixer['vox:1'].lay = '1'; }], ['voxLayer:null', d => { d.voxLayer = null; }]])
+    assert.strictEqual(dz(f), null, nm + ' 应照收');
+});
+T('v70.5 编辑器 helper（node 抽取；浏览器里的路径用例见 tv_v705data）：voxStaffRows 按一致对、voxInsAt 按结构链接顺延、voxLayWSync / voxLayerDrop 只留层行见证、hidSweep 只清有音列；老谱零改动', () => {
+  const h = fs.readFileSync(path.join(ROOT, 'muse-tab/index.html'), 'utf8'), a = h.indexOf('\nfunction voxStaffRows('), b = h.indexOf('\n/* v69.8 C 组：按旋律声部下标的可选数组', a);
+  assert.ok(a > 0 && b > a, '读不到 helper 段');
+  const ctx = vm5.createContext({ PQ_KIND: K }); vm5.runInContext(h.slice(a, b) + '\nthis.H={voxStaffRows, voxInsAt, voxLayWSync, voxLayerDrop, hidSweep};', ctx); const H = ctx.H;
+  const pno = LV(['右手', '右手·2', '左手'], ['staff', 'staff', 'bass'], [null, 1, null], { voxGroups: [BC(0, 2)] });
+  assert.strictEqual(J5([0, 1, 2].map(i => H.voxStaffRows(pno, i))), '[[0,1],[0,1],[2]]');
+  assert.strictEqual(J5([0, 1].map(i => H.voxStaffRows(LB('两行都是简谱：不生效，一致对成立（sync 不要求五线谱）'), i))), '[[0,1],[0,1]]', '两行简谱：一致对联动（宿主切简谱再切回五线谱能复原）');
+  for (const nm of ['记谱法不同：宿主高音、层低音', '谱号八度不同（旧版本只改了一行的 voxClefOct）', '移调不同（旧版本只改了一行的 voxTransp）', '缺见证：mixer 里没有 vox:1 的见证'])
+    assert.strictEqual(J5([0, 1].map(v => H.voxStaffRows(LB(nm), v))), '[[0],[1]]', nm + '：不联动');
+  assert.strictEqual(J5([0, 1, 2, 3].map(at => H.voxInsAt(pno, at))), '[0,2,2,3]', '插入点恰好是层行 → 顺延到层之后');
+  assert.strictEqual(H.voxInsAt(LB('记谱法不同：宿主高音、层低音'), 1), 2, '结构链接（记谱法不同也算）');
+  assert.strictEqual(J5([0, 1, 2].map(at => H.voxInsAt(LV(['甲', '乙', '丙'], ST3), at))), '[0,1,2]', '老谱不变');
+  const w = LV(['A', 'A·2', 'B'], ST3, [null, 1, null], { w: [0, 1, 2] }); H.voxLayWSync(w);
+  assert.strictEqual(J5(Object.keys(w.mixer).filter(k => 'lay' in w.mixer[k])), '["vox:1"]', '见证只留在 voxLayer[i]===1 的行上');
+  const w2 = LV(['A', 'A·2'], ST2, [null, 1]); w2.mixer.tab0 = { lay: 1 }; H.voxLayerDrop(w2);
+  assert.ok(!('voxLayer' in w2) && !('lay' in w2.mixer['vox:1']) && w2.mixer.tab0.lay === 1, 'voxLayerDrop 删 voxLayer 与全部 vox 见证，别的键不碰');
+  for (const d of [...CASES.map(c => c[1]), { v: 3 }, { mixer: 5 }]) { const c = JSON.parse(J5(d)), j0 = J5(c); H.voxLayerDrop(c); H.voxLayWSync(c); H.hidSweep(c); assert.strictEqual(J5(c), j0, '老谱零改动'); }
+  const hs = LV(['甲'], ['staff']); hs.measures[0].voxes[0][0].hid = 1; hs.measures[0].voxes[0][1].hid = 1; hs.measures.push(null, { voxes: [null, [null, { deg: 3, hid: 1 }]] });
+  hs.measures[0].tabs = [[{ dur: 4, hid: 1, notes: [] }]]; H.hidSweep(hs);
+  assert.ok(!('hid' in hs.measures[0].voxes[0][0]) && hs.measures[0].voxes[0][1].hid === 1 && !('hid' in hs.measures[2].voxes[1][1]) && hs.measures[0].tabs[0][0].hid === 1, 'hidSweep：有音列删、休止列留、六线谱不碰');
+  for (const d of [null, undefined, {}, { measures: 'x' }]) H.hidSweep(d);
+});
+
 console.log('PASS ' + pass + '/' + total);
 process.exit(pass === total ? 0 : 1);
