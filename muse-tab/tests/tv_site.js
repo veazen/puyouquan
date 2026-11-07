@@ -393,14 +393,15 @@ const BAD_COURSE = {
 
   /* 用户页签：搜索 + 角色下拉 + 详情展开（权益/订单/曲谱计数） */
   r = await pg.evaluate(async () => {
+    const until = async (f, ms) => { const t0 = Date.now(); while (!f() && Date.now() - t0 < (ms || 4000)) await new Promise(r => setTimeout(r, 40)); };   /* v70.4：CI 高负载时 220ms 定时等不到页签渲染（T9d2 / T9d4 偶发红），改为等到元素出现（上限 4 秒） */
     document.querySelector('#ad-tabs [data-ad="users"]').click();
-    await new Promise(r=>setTimeout(r,220));
+    await until(() => document.getElementById('ad-q') && document.querySelector('#ad-pane [data-role]'));
     const hasSearch = !!document.getElementById('ad-q');
     const sel = document.querySelector('#ad-pane [data-role]');
     const roles = sel ? Array.from(sel.options).map(o=>o.value).join(',') : '';
     const dt = document.querySelector('#ad-pane [data-detail]');
     if (dt) dt.click();
-    await new Promise(r=>setTimeout(r,220));
+    await until(() => ((document.querySelector('#ad-pane .ad-detail:not([hidden])')||{}).textContent||'').includes('已上架'));
     const detail = (document.querySelector('#ad-pane .ad-detail:not([hidden])')||{}).textContent||'';
     return { hasSearch, roles, grant: !!document.querySelector('#ad-pane [data-grant]'),
       detail: detail.includes('已上架') && detail.includes('vip') };
@@ -410,11 +411,12 @@ const BAD_COURSE = {
 
   /* 兑换码页签：生成走 POST /api/admin/codes，历史列表在 */
   r = await pg.evaluate(async () => {
+    const until = async (f, ms) => { const t0 = Date.now(); while (!f() && Date.now() - t0 < (ms || 4000)) await new Promise(r => setTimeout(r, 40)); };
     document.querySelector('#ad-tabs [data-ad="codes"]').click();
-    await new Promise(r=>setTimeout(r,220));
+    await until(() => ((document.getElementById('cd-list')||{}).textContent||'').includes('PYQ-AAAA'));
     const listHas = ((document.getElementById('cd-list')||{}).textContent||'').includes('PYQ-AAAA');
     document.getElementById('cd-go').click();
-    await new Promise(r=>setTimeout(r,220));
+    await until(() => ((document.getElementById('cd-out')||{}).textContent||'').includes('PYQ-TEST'));
     const out = ((document.getElementById('cd-out')||{}).textContent||'');
     return { listHas, gen: out.includes('PYQ-TEST') };
   });
@@ -423,8 +425,9 @@ const BAD_COURSE = {
 
   /* 公告页签：历史（含已读人数）+ 撤回走 DELETE */
   r = await pg.evaluate(async () => {
+    const until = async (f, ms) => { const t0 = Date.now(); while (!f() && Date.now() - t0 < (ms || 4000)) await new Promise(r => setTimeout(r, 40)); };
     document.querySelector('#ad-tabs [data-ad="bcast"]').click();
-    await new Promise(r=>setTimeout(r,220));
+    await until(() => document.getElementById('bc-title') && ((document.getElementById('ad-pane')||{}).textContent||'').includes('已读'));
     const hist = ((document.getElementById('ad-pane')||{}).textContent||'');
     const del = document.querySelector('#ad-pane [data-del]');
     if (del) del.click();
@@ -437,11 +440,12 @@ const BAD_COURSE = {
 
   /* 订单 + 审计日志页签 */
   r = await pg.evaluate(async () => {
+    const until = async (f, ms) => { const t0 = Date.now(); while (!f() && Date.now() - t0 < (ms || 4000)) await new Promise(r => setTimeout(r, 40)); };
     document.querySelector('#ad-tabs [data-ad="orders"]').click();
-    await new Promise(r=>setTimeout(r,220));
+    await until(() => ((document.getElementById('ad-pane')||{}).textContent||'').includes('vip_month'));
     const order = ((document.getElementById('ad-pane')||{}).textContent||'');
     document.querySelector('#ad-tabs [data-ad="logs"]').click();
-    await new Promise(r=>setTimeout(r,220));
+    await until(() => ((document.querySelector('#ad-pane .ad-log')||{}).textContent||'').includes('审核通过'));
     const log = (document.querySelector('#ad-pane .ad-log')||{}).textContent||'';
     return { order: order.includes('vip_month') && order.includes('¥15.00') && order.includes('小谱'),
       log: log.includes('审核通过') && log.includes('阿杜') };
