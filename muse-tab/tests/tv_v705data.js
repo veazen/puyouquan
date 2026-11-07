@@ -117,7 +117,10 @@ const HELP = () => {
         else if (ev.k === 'percHit') rec.push(['h', 0, a[2], 0, a[4], false]);
         else rec.push(['m', 0, a[2], 0, a[4] || 0, !!a[3]]); }); }
     finally { stopPlay(); window.playInst = o.p; window.chick = o.c; window.percHit = o.h; window.metroClick = o.m; }
-    return rec.map(r => [r[0], r[1] ? R(69 + 12 * Math.log2(r[1] / 440)) : 0, R(r[2] - t0), R(r[3]), R(r[4]), r[5]]).sort((a, b) => a[2] - b[2] || a[1] - b[1] || (a[0] < b[0] ? -1 : 1)); };
+    /* 集成修：全键排序（时间 · 音高 · 种类 · 余音 · 增益 · 闷音）。同一时刻同音高的两个事件（如 #4 小星星（尤克里里）第 1.8 拍两个 G4）此前次序不定——
+       哪些事件在 play() 里直接发出、哪些还留在排程队列里随泵定时器的时序变，平票后的次序跟着变，Z1 偶发红（单跑 2 次红 1 次） */
+    return rec.map(r => [r[0], r[1] ? R(69 + 12 * Math.log2(r[1] / 440)) : 0, R(r[2] - t0), R(r[3]), R(r[4]), r[5]])
+      .sort((a, b) => a[2] - b[2] || a[1] - b[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0) || a[3] - b[3] || a[4] - b[4] || (a[5] === b[5] ? 0 : a[5] ? 1 : -1)); };
   window.__b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return btoa(s); };
   window.__exp = s => { const o0 = song; try { const m = migrate(JSON.parse(JSON.stringify(s))); const r = exportMIDI(m); return { mid: window.__b64(r.bytes || r), mxl: exportMusicXML(migrate(JSON.parse(JSON.stringify(s)))) }; } finally { song = o0; } };
   window.__off = s => { const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); document.body.appendChild(svg); let h = null;
