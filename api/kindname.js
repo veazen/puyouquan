@@ -89,8 +89,15 @@ const PQ_KIND = (function(){
   }
   /* v64.4 B4e 声部分组：显式 voxGroups 里至少一组合法（类型对、不越界、跨两行以上） */
   function groupsExplicitOk(s){ const n=(s.voxVoices||[]).length; return (s.voxGroups||[]).some(g=>g && (g.type==='brace'||g.type==='bracket') && g.from>=0 && g.to<n && g.to>g.from); }
-  /* 显式合法组优先；全部失效时按谱面推断——从第一个五线谱声部起连续的五线谱声部（≥2 行）：钢琴弹唱、或高音＋低音谱表恰好两行且没有歌词 → 花括号，其余 → 方括号 */
+  /* 显式合法组优先；全部失效时按谱面推断——从第一个五线谱声部起连续的五线谱声部（≥2 行）：钢琴弹唱、或高音＋低音谱表恰好两行且没有歌词 → 花括号，其余 → 方括号。
+     v70.5（规格 §2.4）：有生效层时在分类视图上校验 / 推断（单元下标），返回前展开回行下标（from＝首单元首行，to＝末单元末行）——
+     渲染 / 导出 / MIDI / 播放 / 分谱 / 观看页都按行用它；视图上的嵌套调用（isChoir / pnoOf / facetsOf 里）拿到的是单元下标，与视图上的其余判定同一个空间 */
   function groupsOf(s){
+    const V = collapseLayers(s, 'kind'); if(V===s) return groupsOfU(s);
+    const rows = VIEW.get(V).rows;
+    return groupsOfU(V).map(g=>({...g, from:rows[g.from][0], to:rows[g.to][rows[g.to].length-1]}));
+  }
+  function groupsOfU(s){
     const n=(s.voxVoices||[]).length, vn=s.voxNotations||[];
     if(Array.isArray(s.voxGroups) && s.voxGroups.length){
       const ok=s.voxGroups.filter(g=>g && (g.type==='brace'||g.type==='bracket') && g.from>=0 && g.to<n && g.to>g.from);
@@ -107,6 +114,7 @@ const PQ_KIND = (function(){
   }
   /* 合唱：显式方括号组，或推断出的五线谱组里确有歌词（三行以上的器乐重奏照样方括号，但不算合唱） */
   function isChoir(s){
+    s = collapseLayers(s, 'kind');   /* v70.5 分类视图（§2.5）：器乐层折叠、声乐层照独立声部算；老谱原样返回 */
     if(Array.isArray(s.voxGroups) && s.voxGroups.length && groupsExplicitOk(s)) return groupsOf(s).some(g=>g.type==='bracket');
     if(s.pianoAcc) return false;
     return groupsOf(s).some(g=>g.type==='bracket' && voxHasLyrics(s, g.from, g.to));
@@ -115,6 +123,7 @@ const PQ_KIND = (function(){
   /* v69.3 显式花括号把 a、b 两行连成大谱表（钢琴右手开头是低音谱号的谱——如舒伯特《阿特拉斯》——靠它认作钢琴，而不是两行低音的合唱） */
   function braceAt(s, a, b){ return Array.isArray(s.voxGroups) && s.voxGroups.length>0 && groupsExplicitOk(s) && s.voxGroups.some(g=>g && g.type==='brace' && g.from===a && g.to===b); }
   function isPianoAccStack(s){
+    s = collapseLayers(s, 'kind');   /* v70.5 分类视图：为真之后编辑器按 0 / 1 / 2 取行的地方经 layerRows(s,'kind') 把单元换成行 */
     if(!s || (s.tabVoices||[]).length || s.pianoAcc || s.func || s.chordOnly) return false;
     const vv=s.voxVoices||[], vn=s.voxNotations||[];
     if(vv.length!==3 || vn[2]!=='bass' || !(vn[1]==='staff' || (vn[1]==='bass' && braceAt(s, 1, 2)))) return false;
@@ -123,6 +132,7 @@ const PQ_KIND = (function(){
   }
   /* 任意曲谱 → 谱行组合 */
   function stackOf(s){
+    s = collapseLayers(s, 'kind');   /* v70.5 分类视图 */
     const vn=s.voxNotations||[], nv=(s.voxVoices||[]).length, dual=s.voxDual||[];
     if((s.tabVoices||[]).length){ if(s.tabStaff && !nv) return 'ST'; return nv? 'JT' : 'T'; }
     if(s.chordOnly) return 'C';
@@ -172,19 +182,21 @@ const PQ_KIND = (function(){
      几声部＝与首行同一记谱法的旋律行数（钢琴伴奏歌谱删掉左手行后剩「简谱旋律＋右手五线」不算合唱）；
      pno（P2a 拍板 11）＝J / S 多声部且有钢琴花括号组（pnoOf 是本段函数声明，已提升），其余 false */
   function ctxOf(s){
+    s = collapseLayers(s, 'kind');   /* v70.5 分类视图：声乐层计入 nVox，器乐层不计 */
     const vv=s.voxVoices||[], k=stackOf(s);
     const lyr = (s.lyricLines|0)>0 || (s.measures||[]).some(m=>((m&&m.voxes)||[]).some(cols=>(cols||[]).some(hasLy)));
     const vn=s.voxNotations||[], nSame = k==='J'? vv.filter((_,i)=>!isStaffNota(vn[i])).length : k==='S'? vv.filter((_,i)=>isStaffNota(vn[i])).length : 1;
     const nVox=Math.max(1, nSame);
     return {nVox, inst:s.inst, instKey:s.instKey, lyr, dual:(k==='G'||k==='CG') && (s.voxDual||[]).some(Boolean), pno:(k==='J'||k==='S') && nVox>1 && pnoOf(s)};
   }
-  const nameOf = s=>kindName(stackOf(s), ctxOf(s));
+  const nameOf = s=>{ s = collapseLayers(s, 'kind'); return kindName(stackOf(s), ctxOf(s)); };   /* v70.5：视图只建一次，stackOf / ctxOf 在视图上再 collapse 返回它自己 */
 
   /* ===== 分类升级 P0：谱种（方案 docs/design-2026-11-taxonomy §五）。全部只读推断，不写字段；坏谱不抛错（pzOf / facetsOf 自带兜底） ===== */
   /* 旧谱类（谱库 type 字段 / 旧外壳谱友圈 10 类按钮）：编辑器原 docType 的判法原样搬来，改防脏写法（缺数组 / 非数组不抛错）——
      编辑器 docType() 与服务端 type 从此只此一份（此前服务端另有 isChoirOf / docTypeOf，v69.6 I6 只改了编辑器一边）。取值不变 */
   function docTypeOf(s){
     if(!s || typeof s!=='object') return 'vocal';
+    s = collapseLayers(s, 'kind');   /* v70.5 分类视图 */
     const len = v=> Array.isArray(v)? v.length : 0, vn = Array.isArray(s.voxNotations)? s.voxNotations : [];
     if(len(s.tabVoices)){ if(s.tabStaff && !len(s.voxVoices)) return 'solo'; return s.inst==='uku'? 'uku' : 'guitar'; }
     if(s.chordOnly) return 'chord';
@@ -275,6 +287,7 @@ const PQ_KIND = (function(){
   function pzOf(s){
     try{
       s = s && typeof s==='object' && !Array.isArray(s)? s : {};
+      s = collapseLayers(s, 'kind');   /* v70.5 分类视图：规范化之后 collapse 一次，内部嵌套调用恒等 */
       const k=stackOf(s), c=ctxOf(s), it=intentOf(s), kids=it==='kids', sc=scanOf(s);
       const tabPz = c.inst==='uku'? 'uku' : 'jita', mel = (k==='S'||k==='SG'||k==='CS')? 'wuxian' : 'jianpu';
       const gq = p=> p==='jianpu' && kids? 'erge' : 'gequ';
@@ -338,6 +351,7 @@ const PQ_KIND = (function(){
   function facetsOf(s){
     try{
       s = s && typeof s==='object' && !Array.isArray(s)? s : {};
+      s = collapseLayers(s, 'kind');   /* v70.5 分类视图：parts / ens 按分类视图单元计（声乐层算一个声部，器乐层不算） */
       const k=stackOf(s), c=ctxOf(s), sc=scanOf(s), vv=A(s.voxVoices), tv=A(s.tabVoices), grp=groupsOf(s), pno=pnoOf(s);
       const tab = k==='T' || k==='JT' || k==='ST', inBrace = i=> grp.some(g=>g.type==='brace' && i>=g.from && i<=g.to);
       const inst=[], add = x=>{ if(x && inst.indexOf(x)<0) inst.push(x); };

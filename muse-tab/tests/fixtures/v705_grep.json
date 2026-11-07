@@ -1,20 +1,50 @@
 {
-  "_": "v70.5 计数闸（规格 docs/spec-2026-11-v705.md §0.0 / §0.13）：三个主 grep 在 muse-tab/index.html 的命中行数上限。tv_v705data G0 断言实测 ≤ ref；增加了就红——新增的一行先在规格 §0 清单补结论，再把 ref 与 allow 一起改。shared＝@pq-kindname 共享段内的行数（index.html 与 api/kindname.js 两份必须相等）。初版＝A 组第 0 步（基线 a73fecc，代码与 c9882a4 相同：N 66 · B 28 · L 54，共享段 B 6 · L 3）；v70.5 合并后由集成按合并提交重数",
-  "commit": "v705-step0",
+  "_": "v70.5 计数闸（规格 docs/spec-2026-11-v705.md §0.0 / §0.13）：三个主 grep 在 muse-tab/index.html 的命中行数上限。tv_v705data G0 断言实测 ≤ ref；增加了就红——新增的一行先在规格 §0 清单补结论，再把 ref 与 allow 一起改。shared＝@pq-kindname 共享段内的行数（index.html 与 api/kindname.js 两份必须相等）。初版＝A 组第 0 步（基线 a73fecc，代码与 c9882a4 相同：N 66 · B 28 · L 54，共享段 B 6 · L 3）；A 组其余（v705-A）：L 54→57，新增三行都在行空间、记进 allow；v70.5 合并后由集成按合并提交重数",
+  "commit": "v705-A",
   "base": "a73fecc",
-  "patterns": { "N": "voxNotations||[])[", "B": "type==='brace'", "L": "voxVoices||[]).length" },
+  "patterns": {
+    "N": "voxNotations||[])[",
+    "B": "type==='brace'",
+    "L": "voxVoices||[]).length"
+  },
   "N": 66,
   "B": 30,
-  "L": 54,
-  "shared": { "N": 0, "B": 8, "L": 3 },
+  "L": 57,
+  "shared": {
+    "N": 0,
+    "B": 8,
+    "L": 3
+  },
   "allow": {
     "B": [
-      { "fn": "voxLayerLinks", "anchor": "if(g && (g.type==='brace'||g.type==='bracket') && g.from>=0 && g.to<n && g.to>g.from){ (cut = cut || new Uint8Array(n+1))[g.from] = 1;",
-        "why": "组边界判据（D-2，§1.2）：在源谱行空间找显式合法组的边界，本来就按行；不是「一行＝一张谱表」" },
-      { "fn": "layerRows", "anchor": "const inBrace = gs.some(g=>g.type==='brace' && k>=g.from && k<=g.to);",
-        "why": "分类视图的声乐层判定（§2.3）：gs 来自物理谱表视图 groupsOf(collapseLayers(s))，k 是单元下标，已是谱表空间" }
+      {
+        "fn": "voxLayerLinks",
+        "anchor": "if(g && (g.type==='brace'||g.type==='bracket') && g.from>=0 && g.to<n && g.to>g.from){ (cut = cut || new Uint8Array(n+1))[g.from] = 1;",
+        "why": "组边界判据（D-2，§1.2）：在源谱行空间找显式合法组的边界，本来就按行；不是「一行＝一张谱表」"
+      },
+      {
+        "fn": "layerRows",
+        "anchor": "const inBrace = gs.some(g=>g.type==='brace' && k>=g.from && k<=g.to);",
+        "why": "分类视图的声乐层判定（§2.3）：gs 来自物理谱表视图 groupsOf(collapseLayers(s))，k 是单元下标，已是谱表空间"
+      }
     ],
     "N": [],
-    "L": []
+    "L": [
+      {
+        "fn": "migrate",
+        "anchor": "if(s.voxLayer!==undefined && !(Array.isArray(s.voxLayer) && s.voxLayer.length===(s.voxVoices||[]).length)) voxLayerDrop(s);",
+        "why": "D-3 载入时 voxLayer 长度＝旋律行数（行空间的数据形状校验，与 :9629 同口径）；不是「一行＝一张谱表」"
+      },
+      {
+        "fn": "voxLayerSplice",
+        "anchor": "const n = (s.voxVoices||[]).length, n0 = n - ins + del;",
+        "why": "§3.2 改声部时按行增删 voxLayer：n / n0 是增删前后的行数（行空间），层的相对编码随行走"
+      },
+      {
+        "fn": "lbApplyDirect →G",
+        "anchor": "s.voxGroups=[{type:'brace', from:0, to:Math.max(1, (s.voxVoices||[]).length-1)}];",
+        "why": "§0.6 :43094 →G 花括号 to＝最后一行（行空间，覆盖层；老谱恒两行＝{0,1}）"
+      }
+    ]
   }
 }

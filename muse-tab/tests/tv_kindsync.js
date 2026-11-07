@@ -101,6 +101,10 @@ const ADV = (() => {
     ['恶意 键名带引号', keyq, true],
     ['恶意 __proto__ 键', proto, true],
     ['老格式 没有 v 字段', { title: 'nov', voxVoices: ['右', '左'], voxNotations: ['staff', 'bass'], tabVoices: [], measures: mea([{}, {}]) }, true],
+    /* v70.5（规格 docs/spec-2026-11-v705.md §10.4 tv_kindsync K8）同谱表双声部：合法分层谱、未清洗的 "1" 串、坏 voxLayer——谱库列表不 500，谱库谱名＝观看页（真跳转）谱名 */
+    ['分层 钢琴右手双声部（带见证）', base({ voxVoices: ['右手', '右手·2', '左手'], voxNotations: ['staff', 'staff', 'bass'], voxLayer: [null, 1, null], mixer: { 'vox:1': { on: true, lay: 1 } }, voxGroups: [{ type: 'brace', from: 0, to: 2 }], measures: mea([{}, { deg: 0 }, {}]) }), true],
+    ['分层 未清洗的 "1" 串', base({ voxVoices: ['右手', '右手·2', '左手'], voxNotations: ['staff', 'staff', 'bass'], voxLayer: [null, '1', null], mixer: { 'vox:1': { on: true, lay: '1' } }, measures: mea([{}, { deg: 0, hid: '1' }, {}]) }), true],
+    ['坏层 voxLayer 不是数组 / 长度不等', base({ voxVoices: ['女', '女·2'], voxNotations: ['staff', 'staff'], voxLayer: { 1: 1 }, lyricLines: 1, measures: mea([{ lyrics: ['啊'] }, {}]) }), true],
     ['坏谱 歌词是字符串（高＋低音谱表两行）', base({ voxVoices: ['女', '男'], voxNotations: ['staff', 'bass'], lyricLines: 1, measures: [{ tabs: [], voxes: [[c({ lyrics: '啊' })], [c()]] }] }), false],
     ['坏谱 声部不是数组', base({ voxVoices: ['a'], voxNotations: ['staff'], measures: [{ tabs: [], voxes: { a: 1 } }] }), false],
     ['坏谱 data 是 null', null, false],
