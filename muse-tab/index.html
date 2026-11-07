@@ -9704,6 +9704,9 @@ function migrate(s){
     /* v69.8 C 组：按旋律声部下标的 voxClefOct / voxTransp / voxShort 长度≠旋律声部数（旧版本页面增删过声部）→ 丢掉该数组（退回不显示八度谱号 / 移调 / 简称，
        免得错位到别的声部）；本版自己的增删声部经 voxMetaSplice 保持等长，合法数据零改动 */
     ['voxClefOct','voxTransp','voxShort'].forEach(k=>{ if(s[k]!==undefined && !(Array.isArray(s[k]) && s[k].length===(s.voxVoices||[]).length)) delete s[k]; });
+    /* v70.5 同谱表双声部（规格 §1.2 / D-3）：voxLayer 不是数组或长度≠旋律声部数（旧版本页面增删过声部，不可能复原）→ 删掉它和全部见证 mixer['vox:i'].lay；
+       记谱法 / 八度谱号 / 移调不一致、缺见证的不删（宿主切回五线谱要能复原，判据 PQ_KIND.voxLayerOk 读的时候当独立谱表）；hid 不碰。老谱没有这个键＝不做事 */
+    if(s.voxLayer!==undefined && !(Array.isArray(s.voxLayer) && s.voxLayer.length===(s.voxVoices||[]).length)) voxLayerDrop(s);
     return s; }
   if(s.v===2){
     s.v=3; s.tabVoices=['吉他1']; s.voxVoices=['旋律1']; s.lyricLines=1;
@@ -18046,7 +18049,7 @@ function pushUndo(){
 }
 /* v38.8 渲染优先于落盘：若本次编辑触发渲染异常，坏状态不会写入 localStorage，自动撤销恢复 */
 function mutate(fn){
-  pushUndo(); fn(); clampSel();
+  pushUndo(); fn(); hidSweep(song); clampSel();   /* v70.5 D-17：有音的列上不留隐形休止 hid（写 deg 的入口很多，这里统一清扫；全谱没有 hid 时只扫一遍） */
   try{ render(); }
   catch(e){
     console.error('渲染异常，自动撤销本次操作', e);
@@ -18416,7 +18419,7 @@ function setDur(d){ try{habit('dur:'+d);}catch(_){}
     /* v70.4 B（基石方案 §3.2 B；10-31② 拍板）选区批量改时值保住小节总时值：durBatch 逐小节改、改短补休止列、改长吸收后面的空白列，
        同一步撤销；「自由编辑」（durFreeMode）只改时值、不补不吸收，提示与 v70.2 逐字相同 */
     if(durFreeMode()){
-      mutate(()=>{ rangeCols().forEach(({mi,col})=>{ col.dur=d; clampDot(col); }); });
+      mutate(()=>{ rangeCols().forEach(({mi,col})=>{ col.dur=d; clampDot(col); hidDrop(col); }); });
       toast('已批量替换时值（与拍号不符时会提示，可按需一键修复）');
       return;
     }
@@ -18442,7 +18445,7 @@ function setDur(d){ try{habit('dur:'+d);}catch(_){}
     if(cols){ const add=durOnBlank(cols, sel.ci, d, sel.row, sel.mi, sel.vi);
       /* IN-2 老打法兼容的标记：紧接着的 Insert / Shift+Insert 用掉一格这次补出的空列（见 insertNote） */
       if(add.length) FILL_LAST={song, cols, cells:add, key:sel.mi+':'+sel.row+':'+sel.vi+':'+sel.ci, top:undoStack[undoStack.length-1]}; }
-    else { c2.dur=d; clampDot(c2); } });
+    else { c2.dur=d; clampDot(c2); hidDrop(c2); } });
     /* v69.6 I3：在空格上先选时值——随后的「.」作用于这一格（预选附点），不回落到上一个刚落的音 */
     const c3=curCol(); if(c3 && (sel.row==='tab'? !((c3.notes||[]).length || c3.strum || c3.perc) : !c3.deg)) DUR_PRE={s:song, row:sel.row, vi:sel.vi, mi:sel.mi, ci:sel.ci}; }
 }
@@ -18451,7 +18454,7 @@ function setDur(d){ try{habit('dur:'+d);}catch(_){}
 function durOnBlank(cols, ci, d, row, mi, vi){
   const c2=cols[ci]; if(!c2) return [];
   const unit=meaMeter(mi).unit, b0=beatsOf(c2, unit);
-  c2.dur=d; { const mx=maxDotLevel(c2.dur); if(dotLevel(c2)>mx) c2.dotted = mx>=1? true : false; }
+  c2.dur=d; { const mx=maxDotLevel(c2.dur); if(dotLevel(c2)>mx) c2.dotted = mx>=1? true : false; } hidDrop(c2);
   if(durFreeMode()) return [];   /* v70.4 B（10-31②）「自由编辑」不补空列、不吸收：只改这一格 */
   const b1=beatsOf(c2, unit); let add=[];
   if(b1<b0-1e-4 && !c2.tup && !meaUnderOk(mi)) add=fillRestsAfter(cols, ci, b0-b1, row, unit, mi, vi);
@@ -18478,7 +18481,7 @@ function durBatch(R, d){
     if(a>b) continue;
     const {beats:cap, unit}=meaMeter(m), tot=()=>cols.reduce((x,c)=>x+beatsOf(c,unit),0);
     const t0=tot(); let tup=false;
-    for(let c=a;c<=b;c++){ const col=cols[c]; col.dur=d; { const mx=maxDotLevel(col.dur); if(dotLevel(col)>mx) col.dotted = mx>=1? true : false; } if(col.tup) tup=true; }
+    for(let c=a;c<=b;c++){ const col=cols[c]; col.dur=d; { const mx=maxDotLevel(col.dur); if(dotLevel(col)>mx) col.dotted = mx>=1? true : false; } hidDrop(col); if(col.tup) tup=true; }
     if(m===R.m2) R.c2=b;
     if(tup) continue;
     const t1=tot();
@@ -18573,9 +18576,9 @@ function dotLink(cols, ci, wasBeatLast){
   const cur=cols[ci];
   if(cur.dur*2>64) return;
   if(wasBeatLast && cur.dur>8 && cols[ci-1]){
-    cols[ci-1].dur=cur.dur*2; cols[ci-1].dotted=false;
+    cols[ci-1].dur=cur.dur*2; cols[ci-1].dotted=false; hidDrop(cols[ci-1]);
   }else if(cols[ci+1]){
-    cols[ci+1].dur=cur.dur*2; cols[ci+1].dotted=false;
+    cols[ci+1].dur=cur.dur*2; cols[ci+1].dotted=false; hidDrop(cols[ci+1]);
   }
 }
 /* v48.2 附点回落到刚落的音：内部「附点＋半时值邻音」联动全靠 sel.ci 索引做邻位查找，
@@ -18626,12 +18629,12 @@ function extendBeat_(dir){
         if(a.del!=null) cols.splice(a.del,1);
         else { const c=cols[a.shrink]; c.dur=a.dur; c.dotted=a.dotted; }
       });
-      col.dur=LAD[ni][0]; col.dotted=!!LAD[ni][1];
+      col.dur=LAD[ni][0]; col.dotted=!!LAD[ni][1]; hidDrop(col);
     });
     toast('已延长为 '+(ni+1)+' 拍'+(sel.row!=='tab'?'（'+ni+' 条增时线）':''));
   } else {
     mutate(()=>{
-      col.dur=LAD[ni][0]; col.dotted=!!LAD[ni][1];
+      col.dur=LAD[ni][0]; col.dotted=!!LAD[ni][1]; hidDrop(col);
       const rest = sel.row==='tab'? {dur:4, dotted:false, notes:[]}
         : {dur:4, dotted:false, deg:0, acc:'', oct:0, lyrics:[], tie:false};
       cols.splice(sel.ci+1, 0, rest);   // 缩短腾出的一拍以休止补位，小节总时值不变
@@ -18658,7 +18661,7 @@ function toggleDotCore(){ try{habit('dot');}catch(_){}
       if(!allDot && cs.length===2 && cs[0].mi===cs[1].mi &&
          cs[0].col.dur===cs[1].col.dur && cs[0].col.dur*2<=64){
         cs[0].col.dotted=true;
-        cs[1].col.dur=cs[0].col.dur*2; cs[1].col.dotted=false;
+        cs[1].col.dur=cs[0].col.dur*2; cs[1].col.dotted=false; hidDrop(cs[0].col); hidDrop(cs[1].col);
         return;
       }
       /* 选中单个音符：与单音路径一致——联动相邻音符变为其时值的一半 */
@@ -18668,12 +18671,12 @@ function toggleDotCore(){ try{habit('dot');}catch(_){}
         const cols = selRange.row==='tab'? song.measures[mi].tabs[selRange.vi] : song.measures[mi].voxes[selRange.vi];
         const ci = cols? cols.indexOf(col) : -1;
         const wasBeatLast = ci>=0 && isBeatLastCol(cols, ci, meaMeter(mi).unit);
-        col.dotted=true;
+        col.dotted=true; hidDrop(col);
         if(ci>=0) dotLink(cols, ci, wasBeatLast);
         return;
       }
       /* v41.5 批量：统一置为单附点/取消（双附点仅走单音循环）；32分列跳过不置附点 */
-      cs.forEach(({mi,col})=>{ col.dotted = !allDot && maxDotLevel(col.dur)>=1; });
+      cs.forEach(({mi,col})=>{ col.dotted = !allDot && maxDotLevel(col.dur)>=1; hidDrop(col); });
     });
     return;
   }
@@ -18681,7 +18684,7 @@ function toggleDotCore(){ try{habit('dot');}catch(_){}
   const lvl=dotLevel(c), mx=maxDotLevel(c.dur);
   if(!mx){ toast('64分音符不可加附点（所需的 128 分细分不在时值体系内）'); return; }
   mutate(()=>{
-    const cur=curCol();
+    const cur=curCol(); hidDrop(cur);
     const cols=curRowCols();
     /* v41.5 附点循环：无 → 附点 → 双附点 → 无；16分只有 无 → 附点 → 无（见 maxDotLevel 注释） */
     const nxt = lvl>=mx? 0 : lvl+1;
@@ -18706,7 +18709,7 @@ function toggleDotCore(){ try{habit('dot');}catch(_){}
          例 4分附点+8分 → 4分双附点+16分，总时值不变；找不到匹配邻音则不联动 */
       const j = (cols[sel.ci+1] && cols[sel.ci+1].dur===cur.dur*2 && !cols[sel.ci+1].dotted)? sel.ci+1
               : (cols[sel.ci-1] && cols[sel.ci-1].dur===cur.dur*2 && !cols[sel.ci-1].dotted)? sel.ci-1 : -1;
-      if(j>=0 && cur.dur*4<=64) cols[j].dur=cur.dur*4;
+      if(j>=0 && cur.dur*4<=64){ cols[j].dur=cur.dur*4; hidDrop(cols[j]); }
     }else{
       cur.dotted=false;   // 取消附点不联动（与旧行为一致，欠拍交由节拍校验提示）
     }
@@ -19784,6 +19787,8 @@ function hidSweep(s){
     for(const cols of vx){ if(!Array.isArray(cols)) continue;
       for(const c of cols) if(c && c.hid!==undefined && c.deg) delete c.hid; } }
 }
+/* 改时值的命令（setDur / durOnBlank / durBatch / toggleDotCore / dotLink / extendBeat）对所改的列删 hid：用户改过时值的休止回到可见（§1.3）；补出 / 拆出的休止列本就不带 hid */
+function hidDrop(c){ if(c && c.hid!==undefined) delete c.hid; }
 /* v69.8 C 组：按旋律声部下标的可选数组（voxClefOct / voxTransp / voxShort，恒与 voxVoices 等长）随增删行同步（同 voxDual 写法）；插入的行补 null，
    全部回到缺省就删键。voxMetaSplice 内部调它；追加到末尾（voxMetaSplice 不经过）的 addVoice / addLyrVoice 直接调。调用时 voxVoices 已是增删之后的 */
 function voxMetaV(s, at, del, ins){
