@@ -21,8 +21,70 @@ const PQ_KIND = (function(){
   const own = (o, k)=> typeof k==='string' && Object.prototype.hasOwnProperty.call(o, k);
   function isStaffNota(n){ return n==='staff' || n==='bass' || n==='alto'; }
   const hasLy = c=> !!(c && c.lyrics && c.lyrics.some && c.lyrics.some(x=>String(x||'').trim()));
-  /* 第 a–b 行（声部下标）里有没有真歌词 */
+  /* v70.5 同谱表双声部（规格 docs/spec-2026-11-v705.md §1.2 / §2）：voxLayer[i]===1＝第 i 行（层）画在第 i−1 行（宿主）的谱表上，作为它的第二声部。
+     下面四个函数只读推断：不写字段、不抛错、不改入参、单遍线性；没有 voxLayer 的老谱第一句就返回，零分配。
+     voxLayerLinks＝结构链接：数组长度＝旋律声部数、值是数字 1、i≥1、上一行原值不是 1（不递归，写不出链 / 环）、层行在 mixer['vox:i'] 带见证 lay===1、
+       宿主与层之间不是显式合法组（花括号 / 方括号）的边界；不看记谱法（插入点顺延 voxInsAt 用）。
+     voxLayerOk＝生效：再要两行 voxNotations 相同且是五线谱、voxClefOct / voxTransp 归一后相等、整曲不是 chordOnly / func；
+       mode==='sync'＝一致对：不要求是五线谱（谱表级同步用：宿主与层一起切成简谱、再切回五线谱要能复原）。返回 null 或逐行 0 / 1 数组。
+     layerRows / collapseLayers＝谱表视图：mode 缺省＝物理谱表（生效层全部折进宿主：导出 / MIDI / 分谱 / 伴奏取行）；
+       'kind'＝分类视图（器乐层折叠；声乐层——所在物理谱表有真歌词且不在花括号组里——照独立声部算，与剥掉 voxLayer 的同一份谱同名同类）。
+       layerRows 返回 null（这种视图下没有要折的层）或 {rows:[[行]…], of:[行→单元]}；collapseLayers 没有要折的层时原样返回 s，否则返回视图：
+       浅拷顶层、逐声部数组只留每个单元首行、分组映射到单元下标（映射后 to≤from 的丢掉）、去掉 voxLayer（视图上再 collapse 返回它自己）；
+       measures 是同一引用、仍是行空间——视图只供只读推断，不可回写 / 渲染 / 存盘。VIEW 登记视图 → {src, rows}，voxHasLyrics 在视图上把单元下标换回源谱行区间 */
+  const VIEW = new WeakMap();
+  function voxLayerLinks(s){
+    const a = s && s.voxLayer; if(a===undefined || a===null) return null;
+    const n = Array.isArray(s.voxVoices)? s.voxVoices.length : 0;
+    if(!Array.isArray(a) || a.length!==n) return null;
+    const mx = s.mixer && typeof s.mixer==='object'? s.mixer : null;
+    let cut = null;   /* cut[i]=1：第 i−1 行与第 i 行之间是某个显式合法组的边界（Uint8Array：from / to 是非整数等坏值时下标赋值被忽略，不抛错） */
+    if(Array.isArray(s.voxGroups)) for(const g of s.voxGroups)
+      if(g && (g.type==='brace'||g.type==='bracket') && g.from>=0 && g.to<n && g.to>g.from){ (cut = cut || new Uint8Array(n+1))[g.from] = 1; cut[+g.to+1] = 1; }
+    let out = null;
+    for(let i=1; i<n; i++){ const w = mx && mx['vox:'+i];
+      if(a[i]===1 && a[i-1]!==1 && w && typeof w==='object' && w.lay===1 && !(cut && cut[i])) (out = out || new Array(n).fill(0))[i] = 1; }
+    return out;
+  }
+  function voxLayerOk(s, mode){
+    const L = voxLayerLinks(s); if(!L || s.chordOnly || s.func) return null;
+    const vn = Array.isArray(s.voxNotations)? s.voxNotations : [], co0 = Array.isArray(s.voxClefOct)? s.voxClefOct : [], tr0 = Array.isArray(s.voxTransp)? s.voxTransp : [];
+    const co = i=>{ const v=co0[i]; return v===1 || v===-1? v : 0; };
+    const tr = i=>{ const v=tr0[i]; return typeof v==='number' && isFinite(v)? Math.round(v) : 0; };
+    let out = null;
+    for(let i=1; i<L.length; i++)
+      if(L[i] && (mode==='sync' || isStaffNota(vn[i])) && vn[i]===vn[i-1] && co(i)===co(i-1) && tr(i)===tr(i-1)) (out = out || new Array(L.length).fill(0))[i] = 1;
+    return out;
+  }
+  function layerRows(s, mode){
+    const ok = voxLayerOk(s); if(!ok) return null;
+    let fold = ok;   /* fold[i]=1：第 i 行折进上一行 */
+    if(mode==='kind'){
+      const P = collapseLayers(s), pr = VIEW.get(P).rows, gs = groupsOf(P);   /* 物理视图上的组（单元下标） */
+      fold = ok.slice();
+      pr.forEach((rs, k)=>{ if(rs.length<2) return;
+        const inBrace = gs.some(g=>g.type==='brace' && k>=g.from && k<=g.to);
+        if(!inBrace && voxHasLyrics(s, rs[0], rs[1])) fold[rs[1]] = 0; });   /* 声乐层：不折 */
+      if(!fold.some(Boolean)) return null;
+    }
+    const rows=[], of=[];
+    for(let i=0; i<ok.length; i++){ if(fold[i]) rows[rows.length-1].push(i); else rows.push([i]); of[i]=rows.length-1; }
+    return {rows, of};
+  }
+  function collapseLayers(s, mode){
+    const R = layerRows(s, mode); if(!R) return s;
+    const V = {...s};   /* 展开而不是 Object.assign：自有键 __proto__（坏数据）只当普通键拷，不会变成视图的原型 */
+    for(const k of ['voxVoices', 'voxNotations', 'voxDual', 'voxClefOct', 'voxTransp', 'voxShort']) if(Array.isArray(s[k])){ const a=s[k]; V[k] = R.rows.map(rs=>a[rs[0]]); }
+    delete V.voxLayer;
+    if(Array.isArray(s.voxGroups)) V.voxGroups = s.voxGroups
+      .map(g=> g && typeof g==='object'? {...g, from:R.of[g.from], to:R.of[g.to]} : g)
+      .filter(g=> !(g && typeof g==='object') || !(g.from!=null && g.to!=null) || g.to>g.from);   /* 映射后 to≤from 的丢掉；坏组原样交给 groupsOf 过滤 */
+    VIEW.set(V, {src:s, rows:R.rows});
+    return V;
+  }
+  /* 第 a–b 行（声部下标）里有没有真歌词。s 是谱表视图（VIEW 命中）时 a / b 是单元下标：换成源谱行区间再扫（measures 本就是源谱的）；越界的单元＝没有 */
   function voxHasLyrics(s, a, b){
+    const w = VIEW.get(s); if(w){ const ra = w.rows[a], rb = w.rows[b]; if(!ra || !rb) return false; a = ra[0]; b = rb[rb.length-1]; }
     return (s.measures||[]).some(m=>((m&&m.voxes)||[]).some((cols,vi)=> vi>=a && vi<=b && (cols||[]).some(hasLy)));
   }
   /* v64.4 B4e 声部分组：显式 voxGroups 里至少一组合法（类型对、不越界、跨两行以上） */
@@ -433,7 +495,8 @@ const PQ_KIND = (function(){
     return out;
   }
   return {own, isStaffNota, voxHasLyrics, groupsExplicitOk, groupsOf, isChoir, isPianoAccStack, stackOf, INST, instName, kindName, ctxOf, nameOf,
-    docTypeOf, PZ, pzHas, pzName, INST_FAM, INTENTS, intentOf, ikOf, pzOf, fingerKey, facetsOf, pzMatch, pzConv, pzWordsOk, pzFxOk, pzZtOk, pzQuery, pzCats};
+    docTypeOf, PZ, pzHas, pzName, INST_FAM, INTENTS, intentOf, ikOf, pzOf, fingerKey, facetsOf, pzMatch, pzConv, pzWordsOk, pzFxOk, pzZtOk, pzQuery, pzCats,
+    voxLayerLinks, voxLayerOk, layerRows, collapseLayers};
 })();
 /* @pq-kindname end */
 

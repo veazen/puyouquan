@@ -3,7 +3,7 @@
    ① 已知数值字段：数字须有限；字符串须能转成有限数字（旧版本偶有 "90" 这类数字串，放行，编辑器载入时再规范化）；
    ② 已知短码字段（SD_CODE：技法/升降/和弦名…）不得含尖括号（dyn 的楔形 '<'/'>' 例外）；③ 自由文本（曲名/歌词…）不限字符——输出点转义；
    ④ 未知字段与新可选字段一律透传，服务端不因编辑器新增字段而拒收或剥离数据。返回首个违规位置供提示。 */
-const SD_NUM = new Set(['v', 'beats', 'unit', 'tempo', 'capo', 'lyricLines', 'dur', 'deg', 'oct', 's', 'f', 'volta', 'simile', 'tup', 'mi', 'ci', 'vi', 'li', 'si', 'q', 'bpm', 'syl', 'voxTransp', 'voxClefOct', 'rowNames', 'trem2']);   /* v70.4 双音震音杠数 col.trem2（与编辑器 SAN_NUM 同一张表） */
+const SD_NUM = new Set(['v', 'beats', 'unit', 'tempo', 'capo', 'lyricLines', 'dur', 'deg', 'oct', 's', 'f', 'volta', 'simile', 'tup', 'mi', 'ci', 'vi', 'li', 'si', 'q', 'bpm', 'syl', 'voxTransp', 'voxClefOct', 'rowNames', 'trem2', 'voxLayer', 'hid', 'lay']);   /* v70.4 双音震音杠数 col.trem2；v70.5 song.voxLayer、col.hid、mixer['vox:i'].lay（与编辑器 SAN_NUM 同一张表；上传时值是不能转数的字符串或非有限数＝拒收，null / true / 对象 / 数组照收） */
 /* v70.4 D：song.src.sw（导入文件的软件名）是自由文本；song.src.via（mxl / midi / gp / arr）进短码表 */
 const SD_FREE = new Set(['title', 'singer', 'lyricist', 'composer', 'maker', 'lyrics', 'label', 'anno', 'text', 'name', 'tabVoices', 'voxVoices', 'intro', 'desc', 'note', 'tempoTerm', 'author', 'voxShort', 'sw']);
 const SD_KEEP = { dyn: new Set(['<', '>']) };
