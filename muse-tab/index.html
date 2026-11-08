@@ -6225,7 +6225,11 @@ function rowNamesPlan0(s){
     /* v70.5 B 组（规格 §5.2、D-5 第二处例外）组名取名前去掉生效层行（[右手, 右手·2, 左手] → 「钢琴」，不是「右手」）；没有层的谱照旧 */
     if(g && g.type==='brace'){ if(vi!==g.to) return; const L=PQ_KIND.voxLayerOk(s), f=grpRowName(L? vv.slice(g.from, g.to+1).filter((_, k)=>!L[g.from+k]) : vv.slice(g.from, g.to+1)); units.push({vi, from:g.from, to:g.to, type:'brace', f, sh:shOf(g.from, f)}); return; }
     if(LD && LD[vi+1]){ const n2=vv[vi+1];   /* v70.6 叠放的宿主（不在花括号组里）：「女高 / 女低」 */
-      units.push({vi, from:vi, to:vi, type:g? 'bracket' : '', f:String(nm||'')+' / '+String(n2||''), sh:shOf(vi, nm)+' / '+shOf(vi+1, n2)}); return; }
+      /* v70.6 审核修 1：层名为空、等于宿主名、或是默认名（D-13「宿主名·2」：导入 String(宿主名||'')+'·2'、新建第二声部 (宿主名||'旋律N')+'·2'）时只印宿主名，
+         不印「Women / Women·2」；两个名字确实不同才合并「甲 / 乙」。简称同理：全称合并且层的简称非空、与宿主简称不同才合并 */
+      const a=String(nm||''), b=String(n2||''), dflt = !b.trim() || b.trim()===a.trim() || b===a+'·2' || b===(a||('旋律'+(vi+1)))+'·2';
+      const sH=shOf(vi, nm), sL=dflt? '' : shOf(vi+1, n2);
+      units.push({vi, from:vi, to:vi, type:g? 'bracket' : '', f:dflt? a : a+' / '+b, sh:(sL && sL!==sH)? sH+' / '+sL : sH}); return; }
     units.push({vi, from:vi, to:vi, type:g? 'bracket' : '', f:String(nm||''), sh:shOf(vi, nm)});
   });
   /* 左页边距按需加宽：名字占「最长名字宽 + 括号宽（花括号 ≤13、方括号 9）+ 4 + 名字与括号的间距 4」，先用原有左页边距（名字左缘不进纸边 RN_PAD 以内——打印机不可印区），

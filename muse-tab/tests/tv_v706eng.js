@@ -383,7 +383,13 @@ const BASE_SONGS = async pg => { const im = await EV(pg, xs => xs.map(x => JSON.
         const ly = (G, vi, t) => G.items.filter(o => o.g === 'lyr' && o.vi === vi && o.t === t).map(o => o.y);
         const d1 = ly(C1, 1, 'lu')[0] - ly(C1, 0, 'la')[0], d2 = ly(C2, 1, 'lu')[0] - ly(C2, 0, 'la')[0], d22 = ly(C2, 0, 'li')[0] - ly(C2, 0, 'la')[0];
         T(near(d1, 21, 0.5) && near(d2, 42, 0.5) && near(d22, 21, 0.5) && !C3.items.some(o => o.g === 'lyr' && o.vi === 1) && ly(C3, 0, 'le').length === 1 && C1.rown.some(t => t === '女高 / 女低') && C2.rown.some(t => t === '女高 / 女低'),
-          'G7 合唱：层词排在宿主各段之后（单段第 2 行、两段词第 3 行；与宿主同词只印一行）；声部名合并「女高 / 女低」', J({ d1, d2, d22, same: C3.items.filter(o => o.g === 'lyr').map(o => o.vi + o.t), rown: [C1.rown, C2.rown] })); }
+          'G7 合唱：层词排在宿主各段之后（单段第 2 行、两段词第 3 行；与宿主同词只印一行）；声部名合并「女高 / 女低」', J({ d1, d2, d22, same: C3.items.filter(o => o.g === 'lyr').map(o => o.vi + o.t), rown: [C1.rown, C2.rown] }));
+        /* G7b（v70.6 审核修 1）层名是默认名「宿主名·2」（D-13，导入 F06）时只印宿主名「Women」、简称只印宿主的；女高 / 女低确实不同才合并（全称、简称都合并） */
+        const plan = s => EV(P.pg, s => { const S = migrate(JSON.parse(JSON.stringify(s))), p = rowNamesPlan0(S); return p && p.units.map(u => [u.vi, u.f, u.sh]); }, s);
+        const C6 = await geo(P.pg, S06), p6 = await plan(S06), pc = await plan(EFX.choir);
+        const u6 = Array.isArray(p6) && p6.find(u => u[0] === 0), uc = Array.isArray(pc) && pc.find(u => u[0] === 0);
+        T(C6.rown.includes('Women') && !C6.rown.some(t => /·2|\//.test(t)) && !!u6 && u6[1] === 'Women' && !/\/|·2/.test(u6[2]) && !!uc && uc[1] === '女高 / 女低' && uc[2] === '女高 / 女低',
+          'G7b 层名是默认「宿主名·2」时只印宿主名（导入 F06：行名「Women」、简称不带「/」）；女高 / 女低名字不同照旧合并（全称与简称）', J({ rown: C6.rown, p6, pc })); }
       /* G13 竖向 */
       { const Lw = await geo(P.pg, EFX.low), L0 = await geo(P.pg, EFX.low0);
         const tip = of(Lw, 'stem', 1, 0, 0).find(o => o.ln), hd = of(Lw, 'head', 1, 0, 0)[0], lhTop = Lw.sb['2:0'] - 4 * SG;
