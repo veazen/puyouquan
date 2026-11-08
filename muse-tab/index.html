@@ -12756,9 +12756,9 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
   const K3 = (song.voxNotations||[]).some(isStaffNota)? staffKeyInfo() : null;
   const DG = [], VT = [];   /* VT：各声部行带的起点（v69.7 避让判断「上一行不是五线谱行」时用） */   /* 本系统各声部的对照行间隙（dualGapOf(vi, M) 读它） */
   /* v70.6 刻版组 规则 1：叠放的层行不占竖向带——voxYs / VT 同宿主，宿主的加线区按宿主∪层的音域、歌词行数＝宿主段数＋层段数（层词与宿主不同时，按本系统判） */
-  const LX = vlCtx(), smS = (i, nt2)=>{
+  const LX = vlCtx(), smS = (i, nt2, stx)=>{   /* stx：叠放时这一声部符干朝哪边（宿主 +7 朝上、层 −7 朝下，单位谱位）——符干端也算进加线区 */
       let relU=0, relD=0;
-      const kS='smV'+i+':'+nt2, hS=RMEMO && RMEMO.get(kS);
+      const kS='smV'+i+':'+nt2+(stx? ':'+stx : ''), hS=RMEMO && RMEMO.get(kS);
       let S = hS && hS.s===song? hS.v : null;
       if(!S){
       let clefC = nt2; const dd=[];
@@ -12767,8 +12767,9 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
         if(!c.deg) return;
         const SBOT = (CLEF_BOT[clefC]||37)+(clefC!==nt2? (K3m.c8||0) : 0);
         const chk = s2=>{ if(s2>SBOT+11) relU=Math.max(relU, s2-(SBOT+11)); if(s2<SBOT-5) relD=Math.max(relD, (SBOT-5)-s2); if(s2<SBOT-2) dm=Math.max(dm, (SBOT-2)-s2); };
-        chk(K3m.step0+(c.deg-1)+(c.oct||0)*7);
-        (c.adds||[]).forEach(a=>{ if(a&&a.deg) chk(K3m.step0+(a.deg-1)+(a.oct||0)*7); }); }); dd[mi3]=dm; });
+        const chs = s2=>{ chk(s2); if(stx && c.dur>=2) chk(s2+stx); };
+        chs(K3m.step0+(c.deg-1)+(c.oct||0)*7);
+        (c.adds||[]).forEach(a=>{ if(a&&a.deg) chs(K3m.step0+(a.deg-1)+(a.oct||0)*7); }); }); dd[mi3]=dm; });
       S={relU, relD, dd};
       if(RMEMO) RMEMO.set(kS, {s:song, v:S});
       }
@@ -12787,7 +12788,7 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
          本行的 relDd＝本行各小节贡献取大（与原来逐小节 inSys 判定后取大同一个值）；不在 render 里（RMEMO 空）照原样现算 */
       const kS=((LX && LX.hasL(i))? 'smVL' : 'smV')+i+':'+nt2, hS=RMEMO && RMEMO.get(kS);
       let S = hS && hS.s===song? hS.v : null;
-      if(!S && LX && LX.hasL(i)){ const A=smS(i, nt2), B=smS(i+1, (song.voxNotations||[])[i+1]); S={relU:Math.max(A.relU, B.relU), relD:Math.max(A.relD, B.relD), dd:A.dd}; if(RMEMO) RMEMO.set(kS, {s:song, v:S}); }
+      if(!S && LX && LX.hasL(i)){ const A=smS(i, nt2, 7), B=smS(i+1, (song.voxNotations||[])[i+1], -7); S={relU:Math.max(A.relU, B.relU), relD:Math.max(A.relD, B.relD), dd:A.dd}; if(RMEMO) RMEMO.set(kS, {s:song, v:S}); }
       if(!S){
       let clefC = nt2; const dd=[];
       song.measures.forEach((m,mi3)=>{ const K3m=staffKeyInfoV(mi3, i); let dm=0; (m.voxes[i]||[]).forEach(c=>{
@@ -16021,6 +16022,11 @@ function renderCore(){
         const vlMate = vlP? (()=>{ const mc=(mea.voxes||[])[LDX.mate(vi)]||[], u=meaMeter(lm.mi).unit, oM=vlOnsets(mc, u), oS=vlOnsets(cols, u);
           return cols.map((_, ci)=>{ const j=oM.findIndex(t=>Math.abs(t-oS[ci])<1e-6); return j>=0? mc[j] : null; }); })() : null;
         const vlDefer = [];   /* v70.6 规则 8：两声部小节里演奏法 / 延长号放符干一侧——要等符杠几何（beamGeo）定了再画 */
+        /* v70.6 两声部小节的宿主（符干一律朝上）：和弦框整小节抬到最高符干端之上 6.2（框底＋1.5 净空）；其余＝null，照旧 staffT−16 */
+        let VLCY;   /* 懒算（用到时 bots 已定） */
+        const vlChordYf = ()=> VLCY!==undefined? VLCY : (VLCY = (vlP && !vlL && AP && AP.two)? (()=>{ let t=staffT-16;
+          cols.forEach((c, ci)=>{ if(!c.deg || !AP[ci] || !AP[ci].ns) return; const b=bots? bots[ci] : S_BOT, hi=AP[ci].ns[AP[ci].ns.length-1].st;
+            t=Math.min(t, staffB-(hi-b)*(SG/2)-SG*(c.dur>=2? 4.3 : 0.6)-6.2); }); return t; })() : null);
         let VOH = null;   /* v70.6 同谱表另一声部本小节画出的符头中心 {x, y}（符杠净空用；懒算） */
         const vlOthHeads = ()=>{ if(VOH) return VOH; VOH = []; if(!vlP) return VOH;
           const m = LDX.mate(vi), PQ = vlPairPlan(lm.mi, vlH), OP = PQ? (vi===vlH? PQ.b : PQ.a) : null, oc = (mea.voxes||[])[m]||[], oL = lm.L.voxes[m];
@@ -16187,7 +16193,7 @@ function renderCore(){
                 const ringC = (((sys.ring||[])[0]||{}).pieces||[]).some(Pc=> Pc.xR > ax-14 && Pc.xL < ax+38);
                 p.push(`<g data-vchord="${vtag}" style="cursor:pointer">${chordDiagramSVG(ch.chord, ax-10, oy+(ringC?0:2), ringC?0.75:0.95)}<title>${esc(ch.chord)}（点击编辑）</title></g>`);
               }else{
-              const cy2 = (isStaff? staffT-16 : voxY-25-(col.oct>0? Math.min(3,col.oct)*4.2 : 0)-jpAddsH(col))   /* v53.3 和弦框避让和音纵列 */
+              const cy2 = (isStaff? ((vlP && vlChordYf()!=null)? vlChordYf() : staffT-16) : voxY-25-(col.oct>0? Math.min(3,col.oct)*4.2 : 0)-jpAddsH(col))   /* v53.3 和弦框避让和音纵列；v70.6 两声部小节宿主符干朝上——和弦框整小节抬到符干端之上 */
                 - ((col.ferm && !(ch.q>0))? 11 : 0);   /* v64.9 B4c ①（P2-03）延长号在框下方让出位置——此前延长号压进和弦名框 */
               const disp = song.funcNames? ch.chord : chordDegree(ch.chord);
               const alt  = song.funcNames? chordDegree(ch.chord) : ch.chord;
@@ -16961,7 +16967,7 @@ function renderCore(){
                       if(!hit) break; d += (yBot-d) - hit[0][1] + hit[1]; }
                     return d; };
                   /* v70.6 规则 8：两声部小节的声部 2（符干朝下）连音数字 / 括弧放符干一侧（下方） */
-                  const fuT = vlP && AP && AP[s] && AP[s].fu===false;
+                  const fuT = vlL && !!AP && !!AP.two;
                   if(BG && fuT){
                     const fi = BG.notes.filter(i=>i>=s && i<=e), xc = (BG.sxOf(fi[0])+BG.sxOf(fi[fi.length-1]))/2;
                     tupNum = {x:xc, y:Math.max(BG.beamAt(BG.sxOf(fi[0])), BG.beamAt(BG.sxOf(fi[fi.length-1])))+9.5};
@@ -20113,7 +20119,8 @@ function vlPairPlan0(mi, h){
     if(pb.share!=null && rb.length!==accB[j].length) pb.accs=pb.accs.filter(x=>x.st!==n2.st);
     if(ra.length && (rb.length || sh)){
       const ax0=pb.anyL? pb.DX : 0, colsA=[], colX=[0], colW=[];
-      const U=ra.map(x=>({sym:x.sym, st:x.st, v:0})).concat(rb.map(x=>({sym:x.sym, st:x.st, v:1}))).sort((x, y)=>y.st-x.st);
+      const shR = s=> s==='×'? 2 : s==='♯'? 1 : 0;   /* 增一度：同一谱位的两个变音记号，♯ 的那个放外侧 */
+      const U=ra.map(x=>({sym:x.sym, st:x.st, v:0})).concat(rb.map(x=>({sym:x.sym, st:x.st, v:1}))).sort((x, y)=>(y.st-x.st) || (shR(x.sym)-shR(y.sym)));
       U.forEach(x=>{ let c=0; while(colsA[c] && colsA[c].some(st=>Math.abs(st-x.st)<6)) c++;
         (colsA[c]=colsA[c]||[]).push(x.st); colW[c]=Math.max(colW[c]||0, smw(ACC_G[x.sym])*SG); x.c=c; });
       for(let c=1; c<colsA.length; c++) colX[c] = c===1? Math.max(SG*1.3, colW[0]+0.3*SG) : colX[c-1] + Math.max(SG*1.3, colW[c-1]+0.3*SG);
