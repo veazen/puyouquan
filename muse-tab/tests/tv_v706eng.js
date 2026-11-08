@@ -10,12 +10,14 @@
       H1 F07 分层钢琴 [右手, 右手·2, 左手, 左手·2]：新外壳 layerDrawOk＝voxLayerOk＝[0,1,0,1]；layerDrawPair 宿主 / 层两行都给 [宿主, 层]、越界 null；
          voxPairRows(s,'draw') rows [[0,1],[2,3]]、of [0,0,1,1]；缺省＝PQ_KIND.layerRows(s)；'sync' 同 rows
       H2 宿主开了简谱对照（voxDual，D-16 / §16-3）的层对不叠放：只剩左手一对；缺省 / 'sync' 照折（与外壳、voxDual 无关）
+      H2b（v70.6 审核，§12.1）只有层开了简谱对照同样不叠放（此前只看宿主；ed9f09a 上红）
       H3 F06 女高 / 女低同谱表带词（声乐层）：叠放按物理谱表——layerDrawOk [0,1,0]（分类视图里声乐层算独立声部，与叠放无关）
       H4 'sync' 与 voxStaffRows 一致：右手宿主与层一起切简谱后 'sync' 仍折、缺省 / 'draw' 那一对不折（只剩左手一对）
       H5 没有 voxLayer 的谱：layerDrawOk / layerDrawPair / voxPairRows 三种判据全 null；helper 不改入参（JSON 前后相同）
       H6 旧外壳与 ?next=0：layerDrawOk / layerDrawPair / voxPairRows 'draw' 一律 null；缺省 / 'sync' 与新外壳逐项相同
    Z  零差异守卫（G10 后半的可常驻部分）：分层谱（F07 / F06 / F21 / F17）离屏谱面——?shell=classic 与 ?next=0 下＝7af5743；回滚副本新外壳下＝7af5743 新外壳；
-      Z3（G11）没有 voxLayer 的谱（F02 / 4 份预设）新外壳离屏谱面＝7af5743；Z4（G12 后半）简谱行的层（不生效、hid 照画 0）＝7af5743；Z5（G16）宿主开了简谱对照的层对＝7af5743
+      Z3（G11）没有 voxLayer 的谱（F02 / 4 份预设）新外壳离屏谱面＝7af5743；Z4（G12 后半）简谱行的层（不生效、hid 照画 0）＝7af5743；Z5（G16）宿主开了简谱对照的层对＝7af5743；
+      Z5b（v70.6 审核）只有层（或只宿主）开了简谱对照的层对：新外壳离屏谱面＝回滚副本（ed9f09a 上红）
    G  刻版几何（规格 §12.2 规则 0–15，§12.6 口径：线距 SG＝7.5px，谱位 p＝(中线 y − 字形原点 y0)/(SG/2)；新外壳离屏排版 paperW 870、__pyqGeom 标记取元素）
       G1  符干：两声部小节宿主朝上、层朝下（F04 m2–m3、FX.heads）；对方整小节 hid 的小节（F04 m1 / m4）宿主符干方向＝v70.5 同列
       G2a 休止 p 为整数；层 p≤−4、宿主 p≥+4；与对方符头框净距 ≥1.875px（FX.rests m0 / m1）
@@ -28,6 +30,7 @@
       G5  弧向：宿主连音线弧向上、层向下；连音数字在符干端外侧（宿主在符杠上方、层在符杠下方）
       G6  临时记号按谱表进位：宿主 ♯F 后同小节层 F 印 ♮；层先 ♯F、宿主后 ♯F 不重标（方案验收原文；Gould 提示 ♯ 由审核② 核定）
       G7  合唱：层词排在宿主各段之后（单段第 2 行、两段第 3 行；同词只印一行）；声部名合并「女高 / 女低」
+      G7b（v70.6 审核修 1）层名是默认「宿主名·2」（导入 F06）时只印宿主名「Women」、简称同理；女高 / 女低照旧合并（ed9f09a 上红）
       G12 叠放的五线谱行上 hid 列没有 rest 元素（FX.rests m2、F04 层的整小节 hid）
       G13 竖向：层与宿主同 y（谱表底线相同）；宿主加线区覆盖层的最低音（层有低音时两张谱表的间距变大、层符干端不进下一张谱表）
       G14 括线：分层钢琴 [RH, RH·2, LH, LH·2] 只有 1 个花括号、跨 2 张物理谱表；闭合二部合唱 [S, A(层)] 不画方括号
@@ -236,17 +239,21 @@ const BASE_SONGS = async pg => { const im = await EV(pg, xs => xs.map(x => JSON.
       const run = (pg, args) => EV(pg, ({ src, args }) => { const H = eval('(' + src + ')'); return args.map(a => H(a[0], a[1])); }, { src: H.toString(), args });
       /* 夹具变体：F07；F07 宿主右手开对照（右手 / 右手·2 都 true，§1.4 两行同值）；F07 只宿主开；F06；F07 右手一对切简谱；F02（没有 voxLayer） */
       const S07jp = JSON.parse(JSON.stringify(S07)); S07jp.voxNotations = [null, null, 'bass', 'bass'];
-      const ARGS = [[S07], [S07, [true, true, false, false]], [S07, [true, false, false, false]], [S06], [S07jp], [S02]];
+      const ARGS = [[S07], [S07, [true, true, false, false]], [S07, [true, false, false, false]], [S06], [S07jp], [S02], [S07, [false, true, false, false]], [S07, [false, false, false, true]]];
       const R = await run(A.pg, ARGS);
       if (R.err) T(false, 'H 运行', R.err);
       else {
-        const [a, d2, d1, c6, jp, no] = R;
+        const [a, d2, d1, c6, jp, no, dL, dL2] = R;
         T(J(a.vlo) === '[0,1,0,1]' && J(a.ok) === '[0,1,0,1]' && J(a.pair) === J([null, [0, 1], [0, 1], [2, 3], [2, 3], null]) && J(a.draw) === J({ rows: [[0, 1], [2, 3]], of: [0, 0, 1, 1] })
           && J(a.dflt) === J(a.lr) && J(a.dflt.rows) === '[[0,1],[2,3]]' && J(a.sync) === J(a.draw) && a.same,
           'H1 F07 分层钢琴：layerDrawOk＝voxLayerOk＝[0,1,0,1]；layerDrawPair 宿主 / 层都给 [宿主, 层]、越界 null；voxPairRows draw / sync / 缺省（＝PQ_KIND.layerRows）', J(a));
         T(J(d2.ok) === '[0,0,0,1]' && J(d2.pair) === J([null, null, null, [2, 3], [2, 3], null]) && J(d2.draw && d2.draw.rows) === '[[0],[1],[2,3]]' && J(d2.dflt.rows) === '[[0,1],[2,3]]' && J(d2.sync.rows) === '[[0,1],[2,3]]'
           && J(d1.ok) === '[0,0,0,1]' && J(d1.draw && d1.draw.rows) === '[[0],[1],[2,3]]' && d2.same && d1.same,
           'H2 宿主开了简谱对照（voxDual，D-16 / §16-3）的层对不叠放（两行都开、只宿主开都算）；缺省 / sync 照折', J([d2, d1]));
+        /* H2b（v70.6 审核，规格 §12.1）只有层开了简谱对照（旧版本 / 手写数据；编辑器经 voxStaffRows 两行同写）同样不叠放——此前 layerDrawOk 只看宿主 */
+        T(J(dL.ok) === '[0,0,0,1]' && J(dL.draw && dL.draw.rows) === '[[0],[1],[2,3]]' && J(dL.pair) === J([null, null, null, [2, 3], [2, 3], null]) && J(dL.dflt.rows) === '[[0,1],[2,3]]'
+          && J(dL2.ok) === '[0,1,0,0]' && J(dL2.draw && dL2.draw.rows) === '[[0,1],[2],[3]]' && dL.same && dL2.same,
+          'H2b 宿主或层任一开了简谱对照就不叠放：只右手·2 开 → 只剩左手一对；只左手·2 开 → 只剩右手一对；缺省 / sync 照折', J([dL, dL2]));
         T(J(c6.vlo) === '[0,1,0]' && J(c6.ok) === '[0,1,0]' && J(c6.draw && c6.draw.rows) === '[[0,1],[2]]' && J(c6.pair) === J([null, [0, 1], [0, 1], null, null]) && c6.same,
           'H3 F06 女高 / 女低同谱表带词：叠放按物理谱表（layerDrawOk [0,1,0]，声乐层只在分类视图里算独立声部）', J(c6));
         T(J(jp.vlo) === '[0,0,0,1]' && J(jp.ok) === '[0,0,0,1]' && J(jp.draw && jp.draw.rows) === '[[0],[1],[2,3]]' && J(jp.dflt && jp.dflt.rows) === '[[0],[1],[2,3]]' && J(jp.sync && jp.sync.rows) === '[[0,1],[2,3]]'
@@ -300,6 +307,12 @@ const BASE_SONGS = async pg => { const im = await EV(pg, xs => xs.map(x => JSON.
         T(!bad4.length, 'Z4 新外壳：简谱行的层（voxLayerOk 不生效）hid 照画 0，离屏谱面＝' + src + '（G12 后半，D-16）', bad4.join(' | '));
         const bad5 = diff(cF, RH.flow, ['dual']);
         T(!bad5.length, 'Z5 新外壳：宿主开了简谱对照的层对不叠放，离屏谱面＝' + src + '（G16，§16-3）', bad5.join(' | '));
+        /* Z5b（v70.6 审核，规格 §12.1）只有层开了简谱对照：新外壳同样不叠放——离屏谱面＝回滚副本（VOX_LAYER_DRAW = 0，即 v70.5 回落形态，B1 证其＝存档）；只宿主开的一例同比（守卫） */
+        if (rb) { const dL = JSON.parse(JSON.stringify(zDual)); dL.voxDual = [false, true]; const dH = JSON.parse(JSON.stringify(zDual)); dH.voxDual = [true, false];
+          const LL = [['dualL', dL], ['dualH', dH]], cur = await hashRun(URL0, 'x=1', LL), rbh = await hashRun(rb, 'x=1', LL);
+          const bad5b = ['dualL', 'dualH'].filter(k => cur[k] !== rbh[k] || /^ERR/.test(cur[k])).map(k => k + ' ' + cur[k] + ' / ' + rbh[k]);
+          T(!bad5b.length, 'Z5b 新外壳：只有层开了简谱对照（或只宿主开）的层对也不叠放，离屏谱面＝回滚副本（v70.5 回落形态）', bad5b.join(' | ')); }
+        else T(false, 'Z5b 回滚副本建不出来：' + rbErr);
       }
     }
 

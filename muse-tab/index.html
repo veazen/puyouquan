@@ -20016,7 +20016,7 @@ function hidDrop(c){ if(c && c.hid!==undefined) delete c.hid; }
      下一行原文固定（tests/tv_v706eng.js 的回滚副本按这串字替换，同 v70.1 NW_P2B 先例），注释不要写到同一行。
    layerDrawOn()：叠放总判据＝VOX_LAYER_DRAW===1 && FLOW.shellNew() && FLOW.nxOn()——只看外壳选择（新外壳且不是 ?next=0），不看宽度 / 观看页 / 谱架 / 打印 / 离屏；
      不用 flowOn()（?next=0 时它为真，观看页 / 谱架 / ≤820 手机上它为假）。启动早期（FLOW 还没建）一律为假＝回落形态。
-   layerDrawOk(s)：叠放的层对＝PQ_KIND.voxLayerOk(s) 的生效层对（见证＋组边界＋两行同为五线谱＋八度谱号 / 移调相等＋整曲不是 chordOnly / func）里、宿主没开简谱对照（!voxDual[宿主]，D-16）的；
+   layerDrawOk(s)：叠放的层对＝PQ_KIND.voxLayerOk(s) 的生效层对（见证＋组边界＋两行同为五线谱＋八度谱号 / 移调相等＋整曲不是 chordOnly / func）里、宿主与层都没开简谱对照（!voxDual[宿主] && !voxDual[层]，D-16；v70.6 审核对齐规格 §12.1，此前只看宿主）的；
      layerDrawOn() 为假或一对都没有返回 null，否则逐行 0 / 1 数组（与 voxLayerOk 同形：[i]===1＝第 i 行画在第 i−1 行的谱表上）。只读：不写字段、不改入参、单遍线性。
    voxPairRows(s, mode)：按谱表取「宿主 / 层」行（刻版组与录入组共用）——null（这个判据下没有层对）或 {rows:[[宿主] 或 [宿主, 层]…]（谱表顺序）, of:[行→谱表下标]}：
      mode 'draw'＝叠放判据 layerDrawOk（谱面、光标落位用）；'sync'＝一致对 PQ_KIND.voxLayerOk(s,'sync')（谱表级同步；按行取另有 voxStaffRows）；
@@ -20029,7 +20029,7 @@ function layerDrawOk(s){
   const L=PQ_KIND.voxLayerOk(s); if(!L) return null;
   const d=Array.isArray(s.voxDual)? s.voxDual : null;
   let out=null;
-  for(let i=1; i<L.length; i++) if(L[i] && !(d && d[i-1])) (out = out || new Array(L.length).fill(0))[i] = 1;
+  for(let i=1; i<L.length; i++) if(L[i] && !(d && (d[i-1] || d[i]))) (out = out || new Array(L.length).fill(0))[i] = 1;   /* v70.6 审核（§12.1）：宿主或层任一开了简谱对照就不叠放（层上单开只来自旧版本 / 手写数据：编辑器经 voxStaffRows 两行同写） */
   return out;
 }
 function voxPairRows(s, mode){
