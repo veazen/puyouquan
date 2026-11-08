@@ -103,6 +103,11 @@ jobs:
           REF10=c9882a4c1f243470e4bf8f6ce3ff63224b107e75
           git fetch --no-tags --depth=1 origin "$REF10"
           git cat-file -e "$REF10^{commit}"
+          # v70.6：tv_v706eng Z / B / G 与 tv_v706int I3、tv_v706input K6 / L2c（回落形态、回滚常量置 0 时与 v70.5 逐字节）对拍线上 v70.5 7af5743——现场渲染基线；
+          # 仓库内快照的 sha1 是本机字体生成的，CI 字体不同会误报（run 42479291854）——浅克隆补取（拿不到时这一步判红）
+          REF11=7af5743cbb6db2f7ab1c7d459045a086a4bfd7d6
+          git fetch --no-tags --depth=1 origin "$REF11"
+          git cat-file -e "$REF11^{commit}"
       - name: 浏览器回归套件（run_all.js 关键集）
         working-directory: muse-tab/tests
         env:

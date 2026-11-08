@@ -448,22 +448,27 @@ const BASE_SONGS = async pg => { const im = await EV(pg, xs => xs.map(x => JSON.
       else {
         const songs = Object.entries(base.songs), errs = [];
         let rb = null, rbErr = ''; try { rb = rollbackUrl(URL0); } catch (e) { rbErr = e.message; }
+        /* v70.6 CI 修：基线页取得到（本机 / CI 补取 7af5743）时在同一环境现场渲染基线再比——存档 sha1 是本机字体下生成的，CI 字体不同（DejaVu / CJK）坐标会变；
+           取不到时才比存档（样本谱 base.songs 与字体无关，两路共用） */
+        const ruB = refUrl(), BE = ruB ? {} : BE, bErr = [];
+        if (ruB) for (const E of ENVS) BE[E[0]] = await envRun(b, ruB, E, songs, bErr);
+        const bsrc = base.ref + (ruB ? '（现场渲染）' : '（存档）');
         const R0 = {}, R1 = {};
         for (const E of ENVS) { if (rb) R0[E[0]] = await envRun(b, rb, E, songs, errs); R1[E[0]] = await envRun(b, URL0, E, songs, errs); }
         const FF = ['score', 'off', 'print', 'pages', 'geo'];
         const diff = (X, Y) => { const bad = []; Object.keys(Y || {}).forEach(k => FF.forEach(f => { if (!X || !X[k] || X[k][f] !== Y[k][f]) bad.push(k + '.' + f + (X && X[k] && X[k].err ? '（' + X[k].err.slice(0, 60) + '）' : '')); })); return bad; };
-        const b1 = rb ? ENVS.map(E => [E[0], diff(R0[E[0]], base.env[E[0]])]).filter(x => x[1].length) : [['回滚副本', [rbErr]]];
-        T(!b1.length, 'B1 回滚副本（VOX_LAYER_DRAW = 0）：新外壳 / ?shell=classic / ?next=0 / 观看页 / 谱架 / 390px 六种环境 #score、离屏 SVG、打印切片、页数、SYS_GEO＝v70.5 存档（' + base.ref + '）', J(b1));
-        const b2 = ['classic', 'next0'].map(e => [e, diff(R1[e], base.env[e])]).filter(x => x[1].length);
-        T(!b2.length, 'B2 置 1：?shell=classic 与 ?next=0 的五项＝v70.5 存档', J(b2));
+        const b1 = rb ? ENVS.map(E => [E[0], diff(R0[E[0]], BE[E[0]])]).filter(x => x[1].length) : [['回滚副本', [rbErr]]];
+        T(!b1.length, 'B1 回滚副本（VOX_LAYER_DRAW = 0）：新外壳 / ?shell=classic / ?next=0 / 观看页 / 谱架 / 390px 六种环境 #score、离屏 SVG、打印切片、页数、SYS_GEO＝v70.5（' + bsrc + '）', J(b1));
+        const b2 = ['classic', 'next0'].map(e => [e, diff(R1[e], BE[e])]).filter(x => x[1].length);
+        T(!b2.length, 'B2 置 1：?shell=classic 与 ?next=0 的五项＝v70.5（' + bsrc + '）', J(b2));
         const four = ['flow', 'viewer', 'stand', 'm390'];
-        const stacked = four.every(e => songs.every(([k]) => R1[e][k] && base.env[e][k] && R1[e][k].lines < base.env[e][k].lines));
+        const stacked = four.every(e => songs.every(([k]) => R1[e][k] && BE[e][k] && R1[e][k].lines < BE[e][k].lines));
         /* 观看页的 SYS_GEO 另有观看条 / 预览口径（v70.5 存档里同一首也是 4 段），系统数只比谱架；页数三处都比 */
         const same3 = songs.every(([k]) => ['viewer', 'stand'].every(e => R1[e][k].pages === R1.flow[k].pages) && R1.stand[k].nsys === R1.flow[k].nsys
-          && ['flow', 'viewer', 'stand'].every(e => R1[e][k].nsys - base.env[e][k].nsys === R1.flow[k].nsys - base.env.flow[k].nsys));
+          && ['flow', 'viewer', 'stand'].every(e => R1[e][k].nsys - BE[e][k].nsys === R1.flow[k].nsys - BE.flow[k].nsys));
         const samePP = songs.every(([k]) => four.every(e => R1[e][k].pp === R1.flow[k].pp));
         T(stacked && same3 && samePP, 'B3 置 1：新外壳 / 观看页 / 谱架 / 390px 四处都叠放（谱线少于存档）；新外壳 / 观看页 / 谱架页数与系统数相同；四处打印页数相同',
-          J(Object.fromEntries(four.map(e => [e, songs.map(([k]) => [k, R1[e][k] && R1[e][k].lines, base.env[e][k] && base.env[e][k].lines, R1[e][k] && R1[e][k].pages, R1[e][k] && R1[e][k].nsys, R1[e][k] && R1[e][k].pp])]))));
+          J(Object.fromEntries(four.map(e => [e, songs.map(([k]) => [k, R1[e][k] && R1[e][k].lines, BE[e][k] && BE[e][k].lines, R1[e][k] && R1[e][k].pages, R1[e][k] && R1[e][k].nsys, R1[e][k] && R1[e][k].pp])]))));
         const EXP = L => L.map(([k, s]) => { const S = migrate(JSON.parse(JSON.stringify(s))), j0 = JSON.stringify(S), o0 = song; let X, M;
           try { X = exportMusicXML(JSON.parse(j0)); M = Array.from(exportMIDI0(JSON.parse(j0)).bytes).join(','); } finally { song = o0; }
           loadSong(JSON.parse(j0)); const a = JSON.stringify(song); render(); render(); const c = JSON.stringify(song);
