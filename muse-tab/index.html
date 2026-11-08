@@ -42180,7 +42180,11 @@ var NWP = (function(){
     /* 只有六线谱、没有旋律行：不写「简谱 / 歌词」（验收：曾写「0 声部 · 无歌词 · 简谱」） */
     basis.push(['file', nv? partsText+' · '+(ly? '有歌词' : '无歌词')+(pianoOnly? '' : ' · '+(staff? '五线谱' : '简谱'))+(tabs? ' · '+tabs+' 条六线谱' : '') : '只有 '+tabs+' 条六线谱', '按内容']);
     /* v70.5 B 组 同谱表第二声部（层）与跨谱表的音（只在有时写；老文件依据不变） */
-    if(nLay || (r.lossy && r.lossy.xstaff)) basis.push(['file', [nLay? '同谱表第二声部 '+nLay+' 张谱表，暂按单独一行显示' : '', (r.lossy && r.lossy.xstaff)? '跨谱表的音 '+r.lossy.xstaff+' 个' : ''].filter(Boolean).join('；'), '按内容']);
+    /* v70.6 审核修 2：新外壳（layerDrawOn）按实际叠放说——全部叠放「（叠放）」；宿主或层开了简谱对照不叠放（D-16）的仍说单独一行；旧外壳 / ?next=0 原文（逐字节） */
+    const nDraw = nLay && layerDrawOn()? (layerDrawOk(s)||[]).filter(Boolean).length : -1;
+    const layTx = nDraw<0? '同谱表第二声部 '+nLay+' 张谱表，暂按单独一行显示' : nDraw>=nLay? '同谱表第二声部 '+nLay+' 张谱表（叠放）'
+      : !nDraw? '同谱表第二声部 '+nLay+' 张谱表，单独一行显示' : '同谱表第二声部 '+nLay+' 张谱表（'+nDraw+' 张叠放，'+(nLay-nDraw)+' 张单独一行）';
+    if(nLay || (r.lossy && r.lossy.xstaff)) basis.push(['file', [nLay? layTx : '', (r.lossy && r.lossy.xstaff)? '跨谱表的音 '+r.lossy.xstaff+' 个' : ''].filter(Boolean).join('；'), '按内容']);
     if(sw) basis.push([ai? 'ai' : 'file', '来源：'+sw, swAI? '文件里写明由转谱软件导出 → 按 AI 转谱结果处理' : ai? '按文件；你选了「整理 AI 转谱结果」→ 按 AI 转谱结果处理' : '按文件']);
     else if(ai) basis.push(['ai', '来源：AI 转谱', '你选了「整理 AI 转谱结果」']);
     const recommend = ai && melody? 'SJ' : 'orig';
@@ -42290,7 +42294,8 @@ var NWP = (function(){
       const keyTxt = r.keyDet? '；文件未写调号，按内容检测为 1='+hk+'（'+keyModeLabel(r.keyDet)+'）'
         : r.keyDefaulted? '；未读到调号已按 1=C' : '；调号按文件 1='+hk+(s.mode==='minor'? '（小调，记作关系大调）' : '');
       /* v70.5 审核修 3：新外壳短文——导入产物确有生效的同谱表第二声部（物理视图有层）时补半句（此前只有导入面板依据行写了）；旧外壳原文（第 1 参）不动 */
-      const layT = PQ_KIND.layerRows(s)? '，第二声部暂单独一行' : '';
+      /* v70.6 审核修 2：新外壳叠放（layerDrawOn）时按实际叠放判——层对全部叠放不再补半句；有层对因简谱对照不叠放（D-16）补「，第二声部单独一行」；?next=0 原文 */
+      const layT = !PQ_KIND.layerRows(s)? '' : !layerDrawOn()? '，第二声部暂单独一行' : voxLayN(s)>(layerDrawOk(s)||[]).filter(Boolean).length? '，第二声部单独一行' : '';
       if(t==='orig') toastSay('已导入《'+(s.title||'曲谱')+'》'+s.measures.length+' 小节'+skipText(r.skip)+keyTxt+'，点页头 1=X 可改记谱调（音不变）'+(r.warn? '；'+r.warn : '')+barTxt, {t:'已导入 '+s.measures.length+' 小节'+layT, k:'res', act:'close', prev:d0});
       else toastSay('已导入为'+kind+'《'+(s.title||'曲谱')+'》'+s.measures.length+' 小节 · 新窗口打开，原谱保留'+(a.note[t]? '；'+a.note[t] : '')+skipText(r.skip)+keyTxt+(r.warn? '；'+r.warn : '')+barTxt, {t:'已导入 '+s.measures.length+' 小节'+layT, k:'res', act:'close', prev:d0}, NWB.kindOfSong(s).ic);
       if(onBar) flowSbarFlash();   /* v68.7 S1：原提示「；谱面上方的谱型条可换谱类」→ 悬浮条亮一次 */

@@ -217,8 +217,18 @@ const X_TAB = HEAD(['P1'], `<part id="P1"><measure number="1">${TABATT}${TN(1, 0
             return await p2.evaluate(() => [...document.querySelectorAll('#nf-ibasis p')].map(p => p.querySelector('i').textContent + ' ‖ ' + p.querySelector('em').textContent));
           } catch (e) { return ['ERR ' + e.message]; } finally { allErrs.push(...A2.errs); await A2.ctx.close(); } };
         const b7 = await pick(path.join(FXD, 'F07.musicxml')), b3 = await pick(path.join(FXD, 'F03.musicxml')), b0 = await pick(path.join(FXD, 'F15.musicxml'));
-        T(b7.some(x => /同谱表第二声部 2 张谱表，暂按单独一行显示/.test(x)) && b3.some(x => /跨谱表的音 1 个/.test(x)) && !b0.some(x => /同谱表第二声部|跨谱表/.test(x)),
-          'Q3 新建面板「从已有音乐」依据：有第二声部写「同谱表第二声部 N 张谱表，暂按单独一行显示」、有跨谱表音写「跨谱表的音 N 个」；老文件不出这两行', J({ b7, b3, b0 })); }
+        /* v70.6 审核修 2 有意迁移：新外壳叠放后依据行按实际叠放说「（叠放）」（v70.5 原文「，暂按单独一行显示」只留旧外壳 / ?next=0，见 Q3b） */
+        T(b7.some(x => /同谱表第二声部 2 张谱表（叠放）/.test(x)) && !b7.some(x => /单独一行/.test(x)) && b3.some(x => /跨谱表的音 1 个/.test(x)) && !b0.some(x => /同谱表第二声部|跨谱表/.test(x)),
+          'Q3 新建面板「从已有音乐」依据：有第二声部写「同谱表第二声部 N 张谱表（叠放）」（新外壳）、有跨谱表音写「跨谱表的音 N 个」；老文件不出这两行', J({ b7, b3, b0 })); }
+      /* Q3b（v70.6 审核修 2）旧外壳与 ?next=0 不叠放：依据行照 v70.5 原文「，暂按单独一行显示」（逐字）。走顶栏「打开文件」#file-in（两种布局都有） */
+      { const pickF = async (fp, q) => { const A2 = await open(b, URL0, q), p2 = A2.pg;
+          try { await p2.setInputFiles('#file-in', fp);
+            await p2.waitForFunction(() => !!(NWP.state && NWP.state.imp.a) && !!document.querySelector('#nf-ibasis'), null, { timeout: 8000 });
+            return await p2.evaluate(() => [...document.querySelectorAll('#nf-ibasis p')].map(p => p.querySelector('i').textContent));
+          } catch (e) { return ['ERR ' + e.message]; } finally { allErrs.push(...A2.errs); await A2.ctx.close(); } };
+        const c7 = await pickF(path.join(FXD, 'F07.musicxml'), 'shell=classic'), n7 = await pickF(path.join(FXD, 'F07.musicxml'), 'next=0');
+        T([c7, n7].every(B => B.some(x => x === '同谱表第二声部 2 张谱表，暂按单独一行显示') && !B.some(x => /叠放/.test(x))),
+          'Q3b 旧外壳 / ?next=0 依据行照 v70.5 原文「同谱表第二声部 2 张谱表，暂按单独一行显示」（不叠放）', J({ c7, n7 })); }
       /* v70.5 审核修 3：新外壳点「导入」后——提示条短文在导入产物确有第二声部时补「第二声部暂单独一行」，音轨区层行名旁标「第二声部」；老文件（F15）提示条与轨行不变。
          修前（ba1b270）短文只有「已导入 N 小节」、轨行无标注 */
       { const go = async fp => { const A2 = await open(b, URL0, 'x=1'), p2 = A2.pg;
@@ -230,10 +240,24 @@ const X_TAB = HEAD(['P1'], `<part id="P1"><measure number="1">${TABATT}${TN(1, 0
             return await p2.evaluate(() => ({ flow: flowOn(), toast: document.getElementById('toast').textContent, rows: [...document.querySelectorAll('#flw-tlist .flw-trow')].map(r => r.querySelector('.flw-tn').textContent + (r.querySelector('.flw-tlay') ? '〔' + r.querySelector('.flw-tlay').textContent + '〕' : '')) }));
           } catch (e) { return { err: e.message }; } finally { allErrs.push(...A2.errs); await A2.ctx.close(); } };
         const g7 = await go(path.join(FXD, 'F07.musicxml')), g1 = await go(path.join(FXD, 'F01.musicxml')), g0 = await go(path.join(FXD, 'F15.musicxml'));
-        T(g7.flow && /^已导入 2 小节，第二声部暂单独一行/.test(g7.toast) && J(g7.rows) === J(['右手', '右手·2〔第二声部〕', '左手', '左手·2〔第二声部〕'])
-          && /^已导入 1 小节，第二声部暂单独一行/.test(g1.toast) && J(g1.rows) === J(['Violin', 'Violin·2〔第二声部〕'])
+        /* v70.6 审核修 2 有意迁移：新外壳叠放了，提示条不再补「第二声部暂单独一行」（v70.5 半句只留 ?next=0，见 Q4b） */
+        T(g7.flow && /^已导入 2 小节(?!，)/.test(g7.toast) && !/第二声部|单独一行/.test(g7.toast) && J(g7.rows) === J(['右手', '右手·2〔第二声部〕', '左手', '左手·2〔第二声部〕'])
+          && /^已导入 1 小节(?!，)/.test(g1.toast) && !/第二声部|单独一行/.test(g1.toast) && J(g1.rows) === J(['Violin', 'Violin·2〔第二声部〕'])
           && g0.flow && /^已导入 \d+ 小节/.test(g0.toast) && !/第二声部/.test(g0.toast) && !(g0.rows || []).some(x => /〔/.test(x)),
-          'Q4 新外壳导入后提示条补「第二声部暂单独一行」、层行名旁标「第二声部」（F07 钢琴 / F01 小提琴）；老文件 F15 提示条与轨行不变', J({ g7, g1, g0 })); }
+          'Q4 新外壳导入后（叠放）提示条不补「单独一行」、层行名旁标「第二声部」（F07 钢琴 / F01 小提琴）；老文件 F15 提示条与轨行不变', J({ g7, g1, g0 })); }
+      /* Q4b（v70.6 审核修 2）?next=0 不叠放：提示条短文照 v70.5「，第二声部暂单独一行」；新外壳按实际叠放判——F07 做成「对照」（各行开简谱对照，D-16 不叠放）仍补「，第二声部单独一行」 */
+      { const go2 = async (fp, q, tg) => { const A2 = await open(b, URL0, q), p2 = A2.pg;
+          try { await p2.setInputFiles('#file-in', fp);
+            await p2.waitForFunction(() => !!(NWP.state && NWP.state.imp.a) && !!document.querySelector('#nf-impgo:not([aria-disabled="true"])'), null, { timeout: 8000 });
+            const dis = tg ? await p2.evaluate(tg => { NWP.state.imp.target = tg; return NWP.state.imp.a.dis[tg] || ''; }, tg) : '';
+            await p2.click('#nf-impgo');
+            await p2.waitForFunction(() => /已导入/.test((document.getElementById('toast') || {}).textContent || ''), null, { timeout: 8000 });
+            return await p2.evaluate(dis => ({ flow: flowOn(), on: layerDrawOn(), dis, toast: document.getElementById('toast').textContent, ld: layerDrawOk(song), dual: song.voxDual || null }), dis);
+          } catch (e) { return { err: e.message }; } finally { allErrs.push(...A2.errs); await A2.ctx.close(); } };
+        const n7 = await go2(path.join(FXD, 'F07.musicxml'), 'next=0'), s7 = await go2(path.join(FXD, 'F07.musicxml'), 'x=1', 'SJ');
+        T(n7.flow && !n7.on && /^已导入 2 小节，第二声部暂单独一行/.test(n7.toast)
+          && s7.on && !s7.dis && s7.ld === null && /^已导入 2 小节，第二声部单独一行/.test(s7.toast),
+          'Q4b ?next=0 提示条照 v70.5「，第二声部暂单独一行」；新外壳 F07 做成对照（简谱对照不叠放，D-16）补「，第二声部单独一行」', J({ n7, s7 })); }
     }
     /* ================= K：分类接缝（A 组分类入口接谱表视图之后成立；规格 §2.3 金表、§4.7） =================
        导入产物经 PQ_KIND 分类：钢琴带层仍是钢琴独奏谱 / 大谱表 2 行；女高女低同谱表＋男声是合唱谱、3 个声部 */
