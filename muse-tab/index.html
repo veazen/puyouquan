@@ -6161,11 +6161,8 @@ function rowNamesOn(s){
   s=s||song; if(!s || s.rowNames!==1) return false;
   const vv=s.voxVoices||[], vn=s.voxNotations||[]; if(vv.length<2 || !vn.some(isStaffNota)) return false;
   /* v70.6 规则 11：叠放时份数按物理谱表（层并进宿主；花括号按物理谱表数减） */
-  const LD = layerDrawOk(s);
-  if(LD){ const u = i=>{ let k=-1; for(let j=0; j<=i && j<vv.length; j++) if(!LD[j]) k++; return k; };
-    let n2 = vv.length - LD.filter(Boolean).length; try{ PQ_KIND.groupsOf(s).forEach(g=>{ if(g.type==='brace') n2 -= Math.max(0, u(g.to)-u(g.from)); }); }catch(_){}
-    return n2>=2; }
-  let units=vv.length; try{ PQ_KIND.groupsOf(s).forEach(g=>{ if(g.type==='brace') units-=(g.to-g.from); }); }catch(_){}
+  const LD = layerDrawOk(s), u = LD? (i=>{ let k=-1; for(let j=0; j<=i && j<vv.length; j++) if(!LD[j]) k++; return k; }) : (i=>i);
+  let units=vv.length-(LD? LD.filter(Boolean).length : 0); try{ PQ_KIND.groupsOf(s).forEach(g=>{ if(g.type==='brace') units-=Math.max(0, u(g.to)-u(g.from)); }); }catch(_){}
   return units>=2;
 }
 const ROW_ABBR = {'女高音':'女高', '女高':'女高', '女低音':'女低', '男高音':'男高', '男低音':'男低', soprano:'S.', alto:'A.', tenor:'T.', bass:'B.',
@@ -6219,11 +6216,11 @@ function rowNamesPlan0(s){
   vv.forEach((nm, vi)=>{
     if(!isStaffNota(vn[vi])){ jp[vi]={f:String(nm||''), sh:shOf(vi, nm)}; return; }
     if(LD && LD[vi]) return;   /* v70.6 层行：名字并进宿主那一份 */
-    if(LD && LD[vi+1] && !(gOf[vi] && gOf[vi].type==='brace')){ const n2=vv[vi+1], g2=gOf[vi];
-      units.push({vi, from:vi, to:vi, type:g2? 'bracket' : '', f:String(nm||'')+' / '+String(n2||''), sh:shOf(vi, nm)+' / '+shOf(vi+1, n2)}); return; }
     const g=gOf[vi];
     /* v70.5 B 组（规格 §5.2、D-5 第二处例外）组名取名前去掉生效层行（[右手, 右手·2, 左手] → 「钢琴」，不是「右手」）；没有层的谱照旧 */
     if(g && g.type==='brace'){ if(vi!==g.to) return; const L=PQ_KIND.voxLayerOk(s), f=grpRowName(L? vv.slice(g.from, g.to+1).filter((_, k)=>!L[g.from+k]) : vv.slice(g.from, g.to+1)); units.push({vi, from:g.from, to:g.to, type:'brace', f, sh:shOf(g.from, f)}); return; }
+    if(LD && LD[vi+1]){ const n2=vv[vi+1];   /* v70.6 叠放的宿主（不在花括号组里）：「女高 / 女低」 */
+      units.push({vi, from:vi, to:vi, type:g? 'bracket' : '', f:String(nm||'')+' / '+String(n2||''), sh:shOf(vi, nm)+' / '+shOf(vi+1, n2)}); return; }
     units.push({vi, from:vi, to:vi, type:g? 'bracket' : '', f:String(nm||''), sh:shOf(vi, nm)});
   });
   /* 左页边距按需加宽：名字占「最长名字宽 + 括号宽（花括号 ≤13、方括号 9）+ 4 + 名字与括号的间距 4」，先用原有左页边距（名字左缘不进纸边 RN_PAD 以内——打印机不可印区），
@@ -12788,7 +12785,7 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
          本行的 relDd＝本行各小节贡献取大（与原来逐小节 inSys 判定后取大同一个值）；不在 render 里（RMEMO 空）照原样现算 */
       const kS=((LX && LX.hasL(i))? 'smVL' : 'smV')+i+':'+nt2, hS=RMEMO && RMEMO.get(kS);
       let S = hS && hS.s===song? hS.v : null;
-      if(!S && LX && LX.hasL(i)){ const A=smS(i, nt2, 7), B=smS(i+1, (song.voxNotations||[])[i+1], -7); S={relU:Math.max(A.relU, B.relU), relD:Math.max(A.relD, B.relD), dd:A.dd}; if(RMEMO) RMEMO.set(kS, {s:song, v:S}); }
+      if(!S && LX && LX.hasL(i)){ const A=smS(i, nt2, 7), B=smS(i+1, nt2, -7);   /* 生效层对的两行记谱法相同（voxLayerOk） */ S={relU:Math.max(A.relU, B.relU), relD:Math.max(A.relD, B.relD), dd:A.dd}; if(RMEMO) RMEMO.set(kS, {s:song, v:S}); }
       if(!S){
       let clefC = nt2; const dd=[];
       song.measures.forEach((m,mi3)=>{ const K3m=staffKeyInfoV(mi3, i); let dm=0; (m.voxes[i]||[]).forEach(c=>{

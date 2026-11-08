@@ -397,11 +397,13 @@ const X_TAB = HEAD(['P1'], `<part id="P1"><measure number="1">${TABATT}${TN(1, 0
       const ru = refUrl();
       if (songs.err || !ru) T(false, 'V1 取样 / 基线页', songs.err || '基线页取不到');
       else { const bad = [];
-        for (const q of ['shell=classic', 'x=1']) { const A1 = await open(b, URL0, q), R = await open(b, ru, q);
+        /* v70.6 有意迁移：新外壳（x=1）起同谱表叠放（规格 §12.1 / D-6），v70.5 回落形态只在旧外壳与 ?next=0 下保持——新外壳那一条改为 ?next=0；
+           新外壳的回滚副本（VOX_LAYER_DRAW = 0）＝v70.5 由 tv_v706eng Z2 / B1 守 */
+        for (const q of ['shell=classic', 'next=0']) { const A1 = await open(b, URL0, q), R = await open(b, ru, q);
           await EV(A1.pg, OFF); await EV(R.pg, OFF);
           for (let i = 0; i < songs.length; i++) { const a = await EV(A1.pg, s => __off(s), songs[i]), z = await EV(R.pg, s => __off(s), songs[i]); if (typeof a !== 'string' || a !== z) bad.push(q + ' #' + i + (typeof a === 'string' && typeof z === 'string' ? ' 长度 ' + a.length + '/' + z.length : ' ' + J(a).slice(0, 80))); }
           allErrs.push(...A1.errs); await A1.ctx.close(); await R.ctx.close(); }
-        T(!bad.length, 'V1 v70.5 两种外壳下分层谱（F07 / F06 / F21 / F14 / F17 / F23，组跨两张以上物理谱表或声乐层）的离屏谱面＝c9882a4 打开同一 JSON（层按独立谱表、hid 照普通休止，D-5）', bad.join(' | ')); }
+        T(!bad.length, 'V1 ?shell=classic 与 ?next=0 下分层谱（F07 / F06 / F21 / F14 / F17 / F23，组跨两张以上物理谱表或声乐层）的离屏谱面＝c9882a4 打开同一 JSON（层按独立谱表、hid 照普通休止，D-5；v70.6 新外壳叠放见 tv_v706eng）', bad.join(' | ')); }
       /* v70.5 审核修 5（规格 §5.1 例外①）：单谱表乐器带层、源谱没有 part-group（F01 小提琴 / F16）——导入不写显式组；v70.5 分类视图里只有一个单元、不推括线，
          c9882a4（v70.4）打开同一 JSON 看见两行五线谱、按谱面推出方括号 0–1。D-5「谱面＝v70.4」在这一类上不成立，属已知例外，单列断言（不是回归守卫，ba1b270 同样成立） */
       { const one = await EV(pg, xs => xs.map(x => JSON.parse(JSON.stringify(importMusicXML(x).song))), [FX('F01'), FX('F16')]);
