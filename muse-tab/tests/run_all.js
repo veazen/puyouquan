@@ -192,8 +192,10 @@ const CORE = [
      刻版组 tv_v706eng——开关 VOX_LAYER_DRAW / layerDrawOn 真值表 · 叠放判据 helper · G1–G16 几何断言（随刻版组各步加段）· G10 零差异守卫（classic / ?next=0 / 回滚副本＝7af5743）
      录入组 tv_v706input——G9 新外壳全程键盘写一小节两声部 · 撤销重做 · 弱起 / irr / 复拍子新建第二声部等长 · 声部开关与 Ctrl+Alt+1 / 2（快捷键只增）· 音轨树层挂宿主下 ·
        「新建第二声部」「拆成独立一行」· 旧外壳 / ?next=0 / 回滚副本零入口 · §12.4 编辑一致性 · v70.5 遗留四条（孤立 hid · 交叉手 voice ≥5 · 配伴奏单元判 · restBlank 吃 hid）· 措辞闸；
-       基线页 git show 7af5743（CI 浅克隆另取，同 tv_v706eng）；单跑约 1–2 分钟 */
-  'tv_v706eng', 'tv_v706input',
+       基线页 git show 7af5743（本机现场比；CI 浅克隆取不到时读 fixtures/v706_ref_snap.json，deploy.yml 不补取）；单跑约 1–2 分钟
+     集成 tv_v706int——接缝：「新建第二声部」的层在叠放下画对（符干 / 休止 / hid 不画 / 花括号）· 键盘写层 · 撤销重做 · 拆成独立一行回独立谱表 · 列热区上下分开 ·
+       谱号副本接缝（吸收不超拍、按宿主让位）· v70.5 导入的分层夹具新外壳叠放、classic / ?next=0 回落（8 份＝7af5743 或快照）；单跑约 40 秒 */
+  'tv_v706eng', 'tv_v706input', 'tv_v706int',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）

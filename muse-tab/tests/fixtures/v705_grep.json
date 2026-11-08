@@ -1,5 +1,5 @@
 {
-  "_": "v70.5 计数闸（规格 docs/spec-2026-11-v705.md §0.0 / §0.13）：三个主 grep 在 muse-tab/index.html 的命中行数上限。tv_v705data G0 断言实测 ≤ ref；增加了就红——新增的一行先在规格 §0 清单补结论，再把 ref 与 allow 一起改。shared＝@pq-kindname 共享段内的行数（index.html 与 api/kindname.js 两份必须相等）。初版＝A 组第 0 步（基线 a73fecc，代码与 c9882a4 相同：N 66 · B 28 · L 54，共享段 B 6 · L 3）；A 组其余（v705-A）：L 54→57，新增三行都在行空间、记进 allow；v70.5 集成合并后（e4e0917，四个 tag 依次 merge --no-ff）重数：N 66 · B 30 · L 57、共享段 N 0 · B 8 · L 3，与 v705-A 相同（B 组没有新增行）；v70.6 录入组（v706-I）：N 66→69、L 57→61，新增七行（新建第二声部 / 音轨 ⋯ / 孤立 hid / voxLayerDrop 删 hid）都在行空间、记进 allow（规格 §0 清单的结论待集成补）",
+  "_": "v70.5 计数闸（规格 docs/spec-2026-11-v705.md §0.0 / §0.13）：三个主 grep 在 muse-tab/index.html 的命中行数上限。tv_v705data G0 断言实测 ≤ ref；增加了就红——新增的一行先在规格 §0 清单补结论，再把 ref 与 allow 一起改。shared＝@pq-kindname 共享段内的行数（index.html 与 api/kindname.js 两份必须相等）。初版＝A 组第 0 步（基线 a73fecc，代码与 c9882a4 相同：N 66 · B 28 · L 54，共享段 B 6 · L 3）；A 组其余（v705-A）：L 54→57，新增三行都在行空间、记进 allow；v70.5 集成合并后（e4e0917，四个 tag 依次 merge --no-ff）重数：N 66 · B 30 · L 57、共享段 N 0 · B 8 · L 3，与 v705-A 相同（B 组没有新增行）；v70.6 录入组（v706-I）：N 66→69、L 57→61，新增七行（新建第二声部 / 音轨 ⋯ / 孤立 hid / voxLayerDrop 删 hid）都在行空间、记进 allow；v70.6 集成：N 69→70，新增一行 vlLayClef（叠放的层按宿主换谱号让位：本行是不是五线谱，行空间），记进 allow；八行结论已补进规格 §0.13「v70.6 新增行」",
   "commit": "e4e0917",
   "base": "a73fecc",
   "patterns": {
@@ -7,7 +7,7 @@
     "B": "type==='brace'",
     "L": "voxVoices||[]).length"
   },
-  "N": 69,
+  "N": 70,
   "B": 30,
   "L": 61,
   "shared": {
@@ -43,6 +43,11 @@
         "fn": "FLOW.tree layMi",
         "anchor": "if(!isStaffNota((song.voxNotations||[])[i]) || song.chordOnly) return '';",
         "why": "v70.6 音轨 ⋯「新建第二声部」只在五线谱旋律行出（按行判，同 voxLayNewWhy）"
+      },
+      {
+        "fn": "vlLayClef",
+        "anchor": "const X=vlCtx(); if(!X || !X.lay(vi) || !isStaffNota((song.voxNotations||[])[vi])) return null;",
+        "why": "v70.6 集成：叠放的层行按宿主换谱号让位——先判这一行（层）是不是五线谱（按行判，层与宿主同记谱法才叠放，D-2），行空间；不是「一行＝一张谱表」"
       }
     ],
     "L": [

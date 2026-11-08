@@ -10286,7 +10286,7 @@ function staffColPlan(mi, vi, o){
       const nm = col.dur===1?'restWhole': col.dur===2?'restHalf': col.dur===4?'restQuarter': col.dur===8?'rest8th': col.dur===16?'rest16th': col.dur>=64?'rest64th':'rest32nd';
       const hw = smw(nm)*SG/2, nD = dotLevel(col);
       /* 验收 L1 补：休止列上的行内换谱号同样画在列左（nx−14−谱号宽，见 renderCore 小谱号）——此前休止分支漏记，版面压紧时上一列符干压进小谱号（圣母颂第 16 小节） */
-      const cL = (col.clef && CLEF_BOT[col.clef] && ci>0)? 14 + smw(col.clef==='bass'?'fClef': col.clef==='alto'?'cClef':'gClef')*SG*0.75 : 0;
+      const cL = ((o && o.lk)? o.lk[ci] : (col.clef && CLEF_BOT[col.clef] && ci>0))? 14 + smw(((o && o.lk)? o.clefs[ci] : col.clef)==='bass'?'fClef': ((o && o.lk)? o.clefs[ci] : col.clef)==='alto'?'cClef':'gClef')*SG*0.75 : 0;   /* v70.6 集成：叠放的层按宿主换谱号（o.lk / o.clefs） */
       return {L:Math.max(hw, cL), R: hw + (nD? 3.2+1.6+(nD-1)*4.6 : 0), accs:[], accL:0};
     }
     const ns = nsOf(col), stLo = ns[0].st, stHi = ns[ns.length-1].st, sMid = mids[ci];
@@ -10325,7 +10325,7 @@ function staffColPlan(mi, vi, o){
     let L = Math.max(hW/2 + (anyL? DX : 0), col.dur>=2 && !up? 4.75 : 0, accL, ledg? lw+(anyL? DX : 0) : 0);
     let R = Math.max(hW/2 + (anyR? DX : 0), col.dur>=2 && up? 4.75 : 0, ledg? lw+(anyR? DX : 0) : 0);
     if(col.dotted) R = Math.max(R, 8 + (anyR? DX : 0) + 1.6 + (dotLevel(col)-1)*4.6);
-    if(col.clef && CLEF_BOT[col.clef] && ci>0) L = Math.max(L, 14 + smw(col.clef==='bass'?'fClef': col.clef==='alto'?'cClef':'gClef')*SG*0.75);   /* 首列换谱号画在小节线前（上一小节末尾，见 measureLayout clefNx） */
+    if((o && o.lk)? o.lk[ci] : (col.clef && CLEF_BOT[col.clef] && ci>0)){ const cf=(o && o.lk)? o.clefs[ci] : col.clef; L = Math.max(L, 14 + smw(cf==='bass'?'fClef': cf==='alto'?'cClef':'gClef')*SG*0.75); }   /* v70.6 集成：叠放的层按宿主换谱号（o.lk / o.clefs） */   /* 首列换谱号画在小节线前（上一小节末尾，见 measureLayout clefNx） */
     /* v70.4 双音震音一对：两列之间给震音杠留位——有符干时两符干之间去掉两侧各 0.65 线距空隙后杠长 ≥1.3 线距；全音符按两符头之间（各留 0.5 线距）算。
        只给一对里朝里的那一侧加（第一列 R、第二列 L），只增不减 */
     if(T2 && T2[ci]){ const half = col.dur===1? (hW + SG*(2*0.5+1.3))/2 : SG*(2*0.65+1.3)/2;
@@ -11425,6 +11425,7 @@ function measureLayout(mea){
     /* v70.6 刻版组：叠放的层与宿主同一张谱表——音符行记进宿主的 band（两个声部的墨迹在同一条线上互相避让）；隐形休止不登记墨迹、不加附点宽（durW 照算） */
     const vlX = isVox && myIdx>=0? vlCtx() : null, vlR = !!vlX && vlX.mate(+band.slice(1))>=0;
     const bandN = (vlX && vlX.lay(+band.slice(1)))? 'v'+(+band.slice(1)-1) : band;
+    const LK = vlX? vlLayClef(myIdx, +band.slice(1)) : null, cK = (c, ci)=> LK? !!LK[ci] : !!c.clef;   /* v70.6 集成：叠放的层按宿主的换谱号让位（vlLayClef；不叠放＝col.clef 原样） */
     cols.forEach((c, ci)=>{
       const bi=Math.min(beats-1, Math.floor(cum+1e-4));
       if(vlR && vlHid(c)){ wB[bi]+=durW(c.dur); cum+=beatsOf(c,unit); return; }
@@ -11436,7 +11437,7 @@ function measureLayout(mea){
              +(isVox&&c.chord? Math.max(0, vcDispW(c.chord)-durW(c.dur)+4) : 0)
              +(isVox&&c.acc? (c.acc.length>1?20:14) : 0)   /* v60.52 变化音左伸计入拍宽 */
              +(jpV&&jpV[ci]&&jpV[ci].acc? 14 : 0)
-             +(isVox&&c.clef&&!(SP&&ci===0)? 20 : 0)   // v45.6 小节内换谱号：小谱号占位（v69.7 五线谱首列换谱号挪到小节线前，本小节不占）
+             +(isVox&&cK(c, ci)&&!(SP&&ci===0)? 20 : 0)   // v45.6 小节内换谱号：小谱号占位（v69.7 五线谱首列换谱号挪到小节线前，本小节不占）
              +(!isVox&&c.notes&&c.notes.some(nn=>(nn.tech==='b'||nn.tech==='bd')&&!nn.tk)?15:0);   // 旧式合成圆圈推弦预留空间
       /* v60.76 本列在本 band 上的**半宽**（居中绘制，左右各占这么多）。
          音符行：简谱数字半宽 / 和音记号半宽；六线谱：品位数字半宽（舒适档含纸色描边）。 */
@@ -11457,7 +11458,7 @@ function measureLayout(mea){
       if(t2J===1) add += 8;
       if(isVox&&c.graceA) add += 5+6.5*normGrace(c.graceA).notes.length+(SP? graceFlagW(c.graceA) : 0);
       if(!isVox&&c.graceA) add += tabGraceW(normTabGrace(c.graceA));    /* v52.7 TAB 倚音占位；v60.69 共用 */
-      if(isVox&&c.clef&&!(SP&&ci===0))   add += 20;   // v45.6 小节内换谱号：音符右移后仍与下一列保持净距
+      if(isVox&&cK(c, ci)&&!(SP&&ci===0))   add += 20;   // v45.6 小节内换谱号：音符右移后仍与下一列保持净距
       /* v60.52 左伸元素净空（用户报告：简谱音符不避开升降号与双倚音导致重叠）：
          变化音（画在 nx−10.5/−13.5）与**前**倚音组（gxc=nx−10−gW−(acc?9:0)，另含减时线左伸 3.6）
          都长在列的**左**侧，吃的是前一段的空间——交由下方 segs 记到前一段上。 */
@@ -11484,13 +11485,13 @@ function measureLayout(mea){
          都画在主音左边，它们的外缘就是本列左侧真正的占位），右侧＝字形半宽 + 右侧附加占位。
          左伸不是可加可减的余量、而是实打实的墨迹，故硬底档同样计入。 */
       { const tt=Math.max(0,Math.min(1,cum-bi));
-        const pl = SP && SP[ci], kS = (c.clef && ci>0)? 18 : 0;   /* 行内换谱号列的音符右移 18（fit），墨迹换算回布局锚点 */
+        const pl = SP && SP[ci], kS = (cK(c, ci) && ci>0)? 18 : 0;   /* 行内换谱号列的音符右移 18（fit），墨迹换算回布局锚点 */
         /* v69.7 验收 L1：五线谱声部（不带简谱行）每列的「真墨迹底」i2L / i2R——staffColPlan 的 L / R（符头、临时记号栈、加线、附点、错位符头、符干）
            ＋ 不在符杠组的朝上符尾 ＋ 演奏法字形半宽 5.2。硬底 hf 沿用简谱数字半宽 5.4 ＋ 净距 2，比五线谱符头实际要的宽，多出的这截是「弹性空白」：
            只在断行时刚杆之和超出行宽 ≤2% 才压它（MF2，见 layoutSystems），墨迹＋1.5 净距不压穿。带和弦名 / 装饰音 / 延长号 / 倚音 / 滑音 / 换气 / 震音 / 行内换谱号的列
            记 0（＝不给弹性，仍按原硬底），平时版面不变 */
         let i2L = 0, i2R = 0;
-        if(pl && !jpRowV(+band.slice(1)) && !(c.chord || (c.chords&&c.chords.length) || c.orn || c.ferm || c.grace || c.graceA || c.gliss || c.breath || c.trem || c.trem2 || (ci>0 && cols[ci-1] && cols[ci-1].trem2) || (c.clef && ci>0))){   /* v70.4 双音震音一对的两列同震音：不给弹性 */
+        if(pl && !jpRowV(+band.slice(1)) && !(c.chord || (c.chords&&c.chords.length) || c.orn || c.ferm || c.grace || c.graceA || c.gliss || c.breath || c.trem || c.trem2 || (ci>0 && cols[ci-1] && cols[ci-1].trem2) || (cK(c, ci) && ci>0))){   /* v70.4 双音震音一对的两列同震音：不给弹性 */
           const ar = c.artic? 5.2 : 0;
           const fR = (c.deg && c.dur>=8 && pl.up && !pl.bm)? 4.2-0.55+smw('flag'+(c.dur>=64?'64th':c.dur>=32?'32nd':c.dur>=16?'16th':'8th')+'Up')*7.5 : 0;
           i2L = Math.max(pl.L, ar); i2R = Math.max(pl.R, fR, ar);
@@ -11776,7 +11777,9 @@ function measureLayout(mea){
   /* v69.7（复核 E8）下一小节五线谱声部首列换谱号：按 Gould 画成小号谱号放在本小节的小节线前（换行时就是上一行行末的提示谱号）——
      这里给它留出字宽 + 两侧净距（此前画在下一小节首音前、并让音符右移 18；行首换谱号还画成行内小号谱号，行首仍是旧谱号） */
   const clefNx = (()=>{ const nm=myIdx>=0? song.measures[myIdx+1] : null; let w=0;
+    const X=myIdx>=0? vlCtx() : null;   /* v70.6 集成：叠放的层不画换谱号（规则 13），它在下一小节首列的副本不留位 */
     if(nm) (nm.voxes||[]).forEach((cs, vi2)=>{ const c0=(cs||[])[0];
+      if(X && X.lay(vi2)) return;
       if(c0 && c0.clef && CLEF_BOT[c0.clef] && isStaffNota((song.voxNotations||[])[vi2]) && c0.clef!==staffClefStart(myIdx+1, vi2))   /* 与当时谱号相同（多写的）不画、不留 */
         w=Math.max(w, smw(c0.clef==='bass'?'fClef': c0.clef==='alto'?'cClef':'gClef')*7.5*0.75+5); });
     return w; })();
@@ -11825,14 +11828,15 @@ function measureLayout(mea){
     const bi=Math.min(beats-1, Math.max(0, Math.ceil(c2-1e-4)-1));
     return beatStart[bi]+warpX(bi, Math.max(0,Math.min(1, c2-bi)));
   };
-  const fit = (cols, st)=>{   /* st：五线谱声部（首列换谱号不在本小节占位，见 clefNx） */
+  const fit = (cols, st, vi)=>{   /* st：五线谱声部（首列换谱号不在本小节占位，见 clefNx）；vi：声部下标（v70.6 集成：叠放的层按宿主换谱号让位，vlLayClef） */
     let cum=0; const xs=[], ws=[], ls=[], qxs=[];
+    const LK = (vi!=null && myIdx>=0)? vlLayClef(myIdx, vi) : null;
     cols.forEach((c, ci)=>{
       const b=beatsOf(c,unit);
       const left=pos(cum);
       const w=Math.max(14, posEnd(cum+b)-left);  // 跨拍长音按真实起止跨度（不再溢出到邻小节）
       ls.push(left); ws.push(w);
-      xs.push(left+NOTE_OFF+((c.clef && !(st===true && ci===0))?18:0));   // v45.6 小节内换谱号：音符右移让位小谱号（TAB 列无 clef 字段不受影响）
+      xs.push(left+NOTE_OFF+(((LK? LK[ci] : c.clef) && !(st===true && ci===0))?18:0));   // v45.6 小节内换谱号：音符右移让位小谱号（TAB 列无 clef 字段不受影响）
       /* v53.9 简谱增时线拍点：该列后续每个四分拍位的 x（走同一张 时值→x 映射 pos()，
          与吉他谱/五线谱同拍的音符列严格同 x）；列不足一个后续四分拍位则为空数组 */
       const qb=unit/4, qx=[];
@@ -11898,14 +11902,14 @@ function measureLayout(mea){
     mkStart();
     L.w = inner+fixedOf(padL,padR,bGap);
     L.weight = inner;
-    L.tabs = mea.tabs.map(c=>fit(c)); L.voxes = mea.voxes.map((c, vi2)=>fit(c, isStaffNota((song.voxNotations||[])[vi2])));
+    L.tabs = mea.tabs.map(c=>fit(c)); L.voxes = mea.voxes.map((c, vi2)=>fit(c, isStaffNota((song.voxNotations||[])[vi2]), vi2));
   };
   /* v69.7 验收 L1：rigid2＝压到真墨迹底（MF2）时的宽——只有五线谱声部（无简谱行）的弹性空白比 rigid 少，其余谱面 rigid2≡rigid */
   const flr2Inner = warps.reduce((a,w,i)=>a + (w&&w.MF2? w.MF2.reduce((x,v)=>x+v,0) : Math.min(beatW[i], beatFloor)), 0);
   const L = {w:inner+fixedOf(padL,padR,bGap), weight:inner, resize, tsLead,
              rigid:Math.min(inner, flrInner)+fixedOf(padLFlr,padRFlr,GAP_FLR),
              rigid2:Math.min(inner, flrInner, flr2Inner)+fixedOf(padLFlr,padRFlr,GAP_FLR),
-             tabs:mea.tabs.map(c=>fit(c)), voxes:mea.voxes.map((c, vi2)=>fit(c, isStaffNota((song.voxNotations||[])[vi2])))};
+             tabs:mea.tabs.map(c=>fit(c)), voxes:mea.voxes.map((c, vi2)=>fit(c, isStaffNota((song.voxNotations||[])[vi2]), vi2))};
   return L;
 }
 function layoutSystems(){
@@ -18385,13 +18389,15 @@ function staffEntryOct(d){
 /* v69.6 H4（复核 F6）重打数字：覆盖已有音（改前有音）时清掉变化音——此前保留 acc，♯5 上打 3 得 ♯3（♭B 调的 D♯）；
    空列（休止）上先按的 ♯ / ♭ 是简谱的「前置升降号」录入（toggleAcc 允许写在休止列上），保留；五线谱行（升降号只能加在已有音上）一律清。
    主音与某个和音同音高（soundMidi 同口径）时删掉那个和音并提示——此前《圣母颂》m1 右手 D+F 上打 5 成了 F+F 同度、D 丢失却没有任何提示 */
-function setDeg(d){
+/* vis（v70.6 集成，规格 §12.4）：键盘 / 数字键盘明写「0」＝在这里写一个休止——落在隐形休止（第二声部空处）上时它变成可见休止（同 MuseScore 在声部 2 空处录入休止）；
+   退格清音（Backspace 也走 setDeg(0)）不传，隐形休止照旧隐形 */
+function setDeg(d, vis){
   if(sel.row!=='vox') return;
   let dup=0;
   mutate(()=>{ const c=curCol(), was=c.deg; const o=(!was && d)? staffEntryOct(d) : null;
     if(!was && d) entryDurApply('vox', sel.vi, sel.mi, sel.ci);   /* v69.8 D 录入时值沿用：往空格落音 */
     c.deg=d;
-    if(!d){ c.acc=''; c.oct=0; return; }
+    if(!d){ c.acc=''; c.oct=0; if(vis) hidDrop(c); return; }
     if(o!=null) c.oct=o;
     if(was || isStaffNota((song.voxNotations||[])[sel.vi])) c.acc='';
     if(c.adds && c.adds.length){ const m0=soundMidi(c, sel.mi), n0=c.adds.length;
@@ -20057,6 +20063,17 @@ function vlClefCols(mi, h, cols){
   hc.forEach((c, i)=>{ if(c.clef && CLEF_BOT[c.clef]) chg.push([ho[i], c.clef]); });
   return oo.map(t=>{ let k=c0; for(const [t2, cf] of chg) if(t2<=t+1e-6) k=cf; return k; });
 }
+/* v70.6 集成（接缝：录入组的层 × 刻版组的列距）：叠放时层列的「行内换谱号让位」（measureLayout 的 +20 占位 / 音符右移 18）按宿主——
+   层第 j 列起拍恰有宿主的行内换谱号列（宿主列下标 >0）＝true，层自己的 col.clef 副本不算（它只给旧外壳回落用：「新建第二声部」按起拍落列、
+   层上写音吸收隐形休止、从层改谱号的同步都可能让副本不落在宿主换谱号的起拍上，照副本让位会让层的列与宿主同拍错开 18px）。
+   不叠放（vlCtx 为 null）、不是层行、不是五线谱 → null（照原样看 col.clef，谱面零差异）；副本与宿主起拍一致时（导入 / 拍位上的「新建第二声部」）结果与按副本相同 */
+function vlLayClef(mi, vi){
+  const X=vlCtx(); if(!X || !X.lay(vi) || !isStaffNota((song.voxNotations||[])[vi])) return null;
+  const M=song.measures[mi]; if(!M) return null;
+  const u=meaMeter(mi).unit, h=X.hostOf(vi), hc=((M.voxes||[])[h])||[], lc=((M.voxes||[])[vi])||[], ho=vlOnsets(hc, u), lo=vlOnsets(lc, u);
+  const qs=[]; hc.forEach((c, i)=>{ if(i>0 && c && c.clef && CLEF_BOT[c.clef]) qs.push(ho[i]); });
+  return lo.map((t, j)=> j>0 && qs.some(q=>Math.abs(q-t)<1e-6));
+}
 /* 层歌词在这些小节里要不要另起行（规则 10，按系统判）：层有词、且有一个词与宿主同起拍同段的词不同＝印在宿主各段之后；全部相同（或层没词）＝只印一行 */
 function vlLyrShow(h, mis){
   const nL=song.lyricLines||0; if(!nL) return false;
@@ -20109,7 +20126,7 @@ function vlPairPlan0(mi, h){
     });
   });
   const a=staffColPlan(mi, h, {up: two? true : null, acc:accA, hid:1});
-  const b=staffColPlan(mi, l, {up: two? false : null, acc:accB, hid:1, clefs:vlClefCols(mi, h, cB)});
+  const b=staffColPlan(mi, l, {up: two? false : null, acc:accB, hid:1, clefs:vlClefCols(mi, h, cB), lk:vlLayClef(mi, l)});   /* lk：v70.6 集成，层的换谱号让位按宿主（vlLayClef） */
   if(!a || !b) return null;
   /* 规则 5 / 6 / 7：同起拍两个声部都有音 */
   const hwOf = c=> smw(c.dur===1? 'noteheadWhole' : c.dur===2? 'noteheadHalf' : 'noteheadBlack')*SG;
@@ -21444,10 +21461,15 @@ function absorbRestsAfter(cols, ci, mi, row, vi){
   let over=cols.reduce((a,c)=>a+beatsOf(c,unit),0)-cap;
   if(!(over>1e-4)) return;
   let tg=colRefTargets(mi, row, vi);
+  /* v70.6 集成（接缝）：生效层对的层行上，只带谱号副本的隐形休止也算空——层的 col.clef 只是宿主换谱号的回落副本（§1.4 / 规则 2：刻版只认宿主），
+     「新建第二声部」按起拍把它落在隐形休止上；不吃它，在层上写长音会停在这一格、整小节超拍。整格吃掉时副本挪到其后第一列（同 R-clef「该拍没有起拍落在其后第一列」，
+     本小节没有了就不留，同 staffColAt＝-1）；部分吃掉时这一格起拍后移，副本留在它上面（同一口径） */
+  let lay=false; if(row==='vox'){ try{ const L=PQ_KIND.voxLayerOk(song); lay=!!(L && L[vi]); }catch(_){} }
+  const blank = c=> restBlank(c, row) || (lay && c && c.hid===1 && c.clef && restBlank(Object.assign({}, c, {clef:''}), row));
   let i=ci+1;
-  while(over>1e-4 && i<cols.length && restBlank(cols[i], row) && !cols[i].tup && !tg.has(i)){
+  while(over>1e-4 && i<cols.length && blank(cols[i]) && !cols[i].tup && !tg.has(i)){
     const b=beatsOf(cols[i],unit);
-    if(b<=over+1e-4){ cols.splice(i,1); colRefShift(mi, row, vi, i+1, -1); tg=new Set([...tg].map(x=>x>i? x-1 : x)); over-=b; continue; }
+    if(b<=over+1e-4){ const cf=cols[i].clef; cols.splice(i,1); if(cf && cols[i] && !cols[i].clef) cols[i].clef=cf; colRefShift(mi, row, vi, i+1, -1); tg=new Set([...tg].map(x=>x>i? x-1 : x)); over-=b; continue; }
     const hit=fitDurTo(b-over, true, unit);
     if(hit && Math.abs(beatsOf(hit,unit)-(b-over))<1e-4){ cols[i].dur=hit.dur; cols[i].dotted=hit.dotted; over=0; }
     break;
@@ -21555,7 +21577,7 @@ function inputDigit_(k){
       pending=keepP;   /* moveCol 会清 pending.digits；恢复它，两位品位的 700ms 窗口才不被前进打断 */
     }else lastEnt=null;
   }else{
-    if(k<=7){ setDeg(k); markEntered(curCol()); }
+    if(k<=7){ setDeg(k, true); markEntered(curCol()); }
   }
 }
 window.addEventListener('keyup', ()=>{ KEY_REPEAT=false; });   /* v65.6 B6a ① */
