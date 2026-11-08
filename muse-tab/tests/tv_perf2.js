@@ -17,7 +17,7 @@
       排版模式 150 小节和弦谱点「此处换行 / 并入上一行」到预览更新 开 ≤ 关×0.8。打印中位数 / IQR 与绝对值。
    P6c v70.5 B 组（规格 §10.3「tv_perf2 P6c」）同谱表双声部预算门：120 小节钢琴 [右手, 右手·2, 左手, 左手·2]（花括号 0–3、左手·2 一半是隐形休止 hid），
       真实按键每笔帧时间，本版与 v70.2（7ec1273，git show 落临时目录；env PERF_REF702 可指定）交替成块测：中位数 ≤ v70.2 ×1.15＋20ms；
-      另测《侏儒》（曲库源谱 3 154 个音级）MusicXML 导入耗时：本版中位数 ≤ v70.4（c9882a4，env PERF_REF704）×1.2（交替各 5 次）。随 P6 一起跑（run_all SOLO「tv_perf2:P6」）
+      另测《侏儒》（曲库源谱 3 154 个音级）MusicXML 导入耗时：本版中位数 ≤ v70.4（c9882a4，env PERF_REF704）×1.2（各预热 2 次后交替各 9 次）。随 P6 一起跑（run_all SOLO「tv_perf2:P6」）
    P7「我的曲谱」只读快照 libLoadRO（剖析 B6 大库）：新外壳 / 旧外壳各一遍——存入、落盘后本机内容＝当前谱；外部直接改库后页签 / 保存胶囊立刻认；
       本机写不进（配额满）时快照不留就地改过的那份；libSave 之后快照跟上。
    P8 v68.4 收尾：预览页只放与本页相交的谱行段（PERF-3 / PERF-7）——逐页「页内容＝PV.cks 的按序子序列」+ 几何等价（整份谱面落在本页可见区的顶层元素一个不缺）；
@@ -536,7 +536,9 @@ function judge(tag, { res, errs }, needInc) {
           const X = fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'library', it.file), 'utf8');
           const A = await openPage(b, false), Z = await openPage(b, false, undefined, R704);
           const t1 = P => P.pg.evaluate(x => { const t0 = performance.now(); const r = importMusicXML(x); return r && r.song ? performance.now() - t0 : NaN; }, X);
-          const ta = [], tz = []; for (let r = 0; r < 5; r++) { tz.push(await t1(Z)); ta.push(await t1(A)); }
+          /* v70.5 CI 修（测量降噪）：先各预热 2 次（JIT / 首次解析），再交替各取 9 次取中位数——此前交替各 5 次、不预热，首轮编译 / GC 抖动直接进 5 个样本的中位数 */
+          for (let r = 0; r < 2; r++) { await t1(Z); await t1(A); }
+          const ta = [], tz = []; for (let r = 0; r < 9; r++) { tz.push(await t1(Z)); ta.push(await t1(A)); }
           const a = q(ta), z = q(tz);
           T(a.med <= z.med * 1.2, 'P6c《侏儒》MusicXML 导入耗时：本版 ≤ v70.4 ×1.2', '本版 ' + a.med + 'ms [' + a.q1 + '–' + a.q3 + '] · v70.4 ' + z.med + 'ms [' + z.q1 + '–' + z.q3 + '] · 比 ' + (a.med / z.med).toFixed(2));
           await A.ctx.close(); await Z.ctx.close(); }
