@@ -188,6 +188,12 @@ const CORE = [
      B 组 tv_perf2 P6c——分层钢琴 120 小节每笔帧时间 ≤ v70.2 ×1.15＋20ms、《侏儒》导入 ≤ v70.4 ×1.2：写在 P6 段里，随上面 SOLO 的「tv_perf2:P6」一起跑（集成删掉了只跑空段的「tv_perf2:P6c」一项）
      集成 tv_v705int——跨组接缝：30 份导入夹具的产物经 A 组分类 / 谱名（编辑器＝服务端）、分谱、改声部 / 配伴奏 / 换谱类路径后 voxLayerOk 与见证、导出再导入相等；两种外壳，单跑约 25 秒 */
   'tv_v705data', 'tv_v705layer', 'tv_v705int',
+  /* v70.6 同谱表双声部 b（规格 docs/spec-2026-11-v705.md §12）：
+     刻版组 tv_v706eng——开关 VOX_LAYER_DRAW / layerDrawOn 真值表 · 叠放判据 helper · G1–G16 几何断言（随刻版组各步加段）· G10 零差异守卫（classic / ?next=0 / 回滚副本＝7af5743）
+     录入组 tv_v706input——G9 新外壳全程键盘写一小节两声部 · 撤销重做 · 弱起 / irr / 复拍子新建第二声部等长 · 声部开关与 Ctrl+Alt+1 / 2（快捷键只增）· 音轨树层挂宿主下 ·
+       「新建第二声部」「拆成独立一行」· 旧外壳 / ?next=0 / 回滚副本零入口 · §12.4 编辑一致性 · v70.5 遗留四条（孤立 hid · 交叉手 voice ≥5 · 配伴奏单元判 · restBlank 吃 hid）· 措辞闸；
+       基线页 git show 7af5743（CI 浅克隆另取，同 tv_v706eng）；单跑约 1–2 分钟 */
+  'tv_v706eng', 'tv_v706input',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）

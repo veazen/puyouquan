@@ -1,5 +1,5 @@
 {
-  "_": "v70.5 计数闸（规格 docs/spec-2026-11-v705.md §0.0 / §0.13）：三个主 grep 在 muse-tab/index.html 的命中行数上限。tv_v705data G0 断言实测 ≤ ref；增加了就红——新增的一行先在规格 §0 清单补结论，再把 ref 与 allow 一起改。shared＝@pq-kindname 共享段内的行数（index.html 与 api/kindname.js 两份必须相等）。初版＝A 组第 0 步（基线 a73fecc，代码与 c9882a4 相同：N 66 · B 28 · L 54，共享段 B 6 · L 3）；A 组其余（v705-A）：L 54→57，新增三行都在行空间、记进 allow；v70.5 集成合并后（e4e0917，四个 tag 依次 merge --no-ff）重数：N 66 · B 30 · L 57、共享段 N 0 · B 8 · L 3，与 v705-A 相同（B 组没有新增行）",
+  "_": "v70.5 计数闸（规格 docs/spec-2026-11-v705.md §0.0 / §0.13）：三个主 grep 在 muse-tab/index.html 的命中行数上限。tv_v705data G0 断言实测 ≤ ref；增加了就红——新增的一行先在规格 §0 清单补结论，再把 ref 与 allow 一起改。shared＝@pq-kindname 共享段内的行数（index.html 与 api/kindname.js 两份必须相等）。初版＝A 组第 0 步（基线 a73fecc，代码与 c9882a4 相同：N 66 · B 28 · L 54，共享段 B 6 · L 3）；A 组其余（v705-A）：L 54→57，新增三行都在行空间、记进 allow；v70.5 集成合并后（e4e0917，四个 tag 依次 merge --no-ff）重数：N 66 · B 30 · L 57、共享段 N 0 · B 8 · L 3，与 v705-A 相同（B 组没有新增行）；v70.6 录入组（v706-I）：N 66→69、L 57→61，新增七行（新建第二声部 / 音轨 ⋯ / 孤立 hid / voxLayerDrop 删 hid）都在行空间、记进 allow（规格 §0 清单的结论待集成补）",
   "commit": "e4e0917",
   "base": "a73fecc",
   "patterns": {
@@ -7,9 +7,9 @@
     "B": "type==='brace'",
     "L": "voxVoices||[]).length"
   },
-  "N": 66,
+  "N": 69,
   "B": 30,
-  "L": 57,
+  "L": 61,
   "shared": {
     "N": 0,
     "B": 8,
@@ -28,7 +28,23 @@
         "why": "分类视图的声乐层判定（§2.3）：gs 来自物理谱表视图 groupsOf(collapseLayers(s))，k 是单元下标，已是谱表空间"
       }
     ],
-    "N": [],
+    "N": [
+      {
+        "fn": "voxLayNewWhy",
+        "anchor": "if(!isStaffNota((song.voxNotations||[])[vi])) return '先切到五线谱';",
+        "why": "v70.6 录入组「新建第二声部」的前提：宿主这一行是五线谱（按行判，层要跟宿主同记谱法才生效，D-2）；不是「一行＝一张谱表」"
+      },
+      {
+        "fn": "voxLayerNew",
+        "anchor": "voxMetaSplice(song, at, 0, 1, (song.voxNotations||[])[host], {layerOf:host});",
+        "why": "v70.6 新建层：插入的层行抄宿主行的记谱法（§1.4 谱表级属性层上存副本），行空间"
+      },
+      {
+        "fn": "FLOW.tree layMi",
+        "anchor": "if(!isStaffNota((song.voxNotations||[])[i]) || song.chordOnly) return '';",
+        "why": "v70.6 音轨 ⋯「新建第二声部」只在五线谱旋律行出（按行判，同 voxLayNewWhy）"
+      }
+    ],
     "L": [
       {
         "fn": "migrate",
@@ -44,6 +60,26 @@
         "fn": "lbApplyDirect →G",
         "anchor": "s.voxGroups=[{type:'brace', from:0, to:Math.max(1, (s.voxVoices||[]).length-1)}];",
         "why": "§0.6 :43094 →G 花括号 to＝最后一行（行空间，覆盖层；老谱恒两行＝{0,1}）"
+      },
+      {
+        "fn": "voxLayerDrop",
+        "anchor": "if(Array.isArray(a) && a.length===(s.voxVoices||[]).length)",
+        "why": "v70.6 整组重写行前删成对行的 hid：voxLayer 长度＝旋律行数才可信（同 migrate D-3 的形状校验），行空间"
+      },
+      {
+        "fn": "hidOrphRows",
+        "anchor": "const a=s.voxLayer, mx=s.mixer, n=(s.voxVoices||[]).length;",
+        "why": "v70.6 孤立隐形休止的行：n＝旋律行数（逐行标记、行空间）"
+      },
+      {
+        "fn": "voxLayNewWhy",
+        "anchor": "if(!song || !(vi>=0 && vi<(song.voxVoices||[]).length)) return '先选中旋律轨';",
+        "why": "v70.6 下标越界检查（行空间）"
+      },
+      {
+        "fn": "voxLayNewWhy 上限",
+        "anchor": "if((song.voxVoices||[]).length+(song.tabVoices||[]).length>=MAX_TRACKS) return '音轨最多 '+MAX_TRACKS+' 条';",
+        "why": "§3.5 / D-7 总轨数含层（每行一个 MIDI 通道）：本来就数全部行，不是谱表数"
       }
     ]
   }

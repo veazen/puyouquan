@@ -14,6 +14,7 @@
       T2 本轨 ⋯：五线谱宿主没有层＝「新建第二声部」可用；简谱轨不出；有层后宿主 / 层两行都是「拆成独立一行」、不再有「新建第二声部」；菜单项 ≤6 字；从菜单点「新建第二声部」建出层
       T3 拆成独立一行：voxLayer 删键、见证删、两行 hid 全删、行数不变；一步撤销 JSON 复原
       T4 命令面板：新外壳搜「xjdesb」首条＝新建第二声部；?next=0 两条隐藏
+      T5 新建第二声部的附带写法：宿主是组末行时组撑到层；八度谱号 / 移调 / 简谱对照复制到层；曲中谱号 / 八度线按起拍落到层列；层混音＝宿主拷贝＋lay:1；总轨数满 15 不建
    O  旧外壳 / ?next=0 / 回滚副本（VOX_LAYER_DRAW = 0）零入口（§12.5）：voxInOn 假；Ctrl+Alt+2 不动光标；没有声部开关；音轨树不缩进；⋯ 菜单没有两项；快捷键菜单没有那一行
    E  编辑一致性（§12.4）：结果与「剥掉层标记的同一份谱（各行独立）」逐行相同——E1 整小节复制粘贴 · E2 插小节 / 删小节 · E3 移调 · E4 时值检查；
       E5 从层行改谱号两行一起改、一步撤销；E6 hid 列光标能落、写音后成普通列、空格改时值后成普通列且补出的余量是可见休止
@@ -26,7 +27,8 @@
       L4 ④ restBlank 把 hid 当空白：空格改长吸收后面的隐形休止（不超拍）、被部分吸收的那一列仍是 hid；录入时值沿用改长同样吸收
    W  文案：node deploy/check-wording.js 字数预算各项新增 0、禁止词 0
    E0 页面脚本错误 0
-   修前红：MUSETAB_URL 指 git show 7af5743:muse-tab/index.html 的副本——K / T / L1 / L2 首条 / L3 / L4 红（没有入口与修改）；O、E1–E5、L2 末条（与自己比）绿。
+   修前红：MUSETAB_URL 指 git show 7af5743:muse-tab/index.html 的副本——K1 K2a K3–K6 T1–T5 L1a–c L2a L3 L4 红（没有入口与修改）；
+   K2b、O1、E1–E6、L2b、L2c（与自己比）、W1（跑工作区的闸）是守卫，基线同绿。CI 浅克隆没有 7af5743 时 K6 的基线对照与 L2c 跳过（其余照判）。
    env：MUSETAB_URL 被测页（缺省 ../index.html）· V706_REF 基线页（缺省 git show 7af5743）· ONLY=K,T,O,E,L,W 只跑部分段 */
 const { chromium } = require('playwright');
 const fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto');
@@ -255,6 +257,27 @@ const toBody = pg => pg.evaluate(() => { const ae = document.activeElement; if (
       let t4n = null; { const N = await open(b, URL0, 'next=0'); t4n = await EV(N.pg, () => (FLOW.cmd.list() || []).filter(x => /^trk:(layer|split)$/.test(x.id)).map(x => [x.id, !!(x.hide && x.hide())])); allErrs.push(...N.errs); await N.ctx.close(); }
       T(!t4.err && t4.first === 'trk:layer' && /新建第二声部/.test(t4.txt || '') && J(t4n) === J([['trk:layer', true], ['trk:split', true]]),
         'T4 命令面板：新外壳搜「xjdesb」首条＝新建第二声部；?next=0 两条隐藏', J({ t4, t4n }));
+      /* T5 新建第二声部的附带写法：组撑到层 · 谱表级属性复制 · 曲中谱号 / 八度线按起拍落到层 · 混音条目＝宿主拷贝＋见证 · 上限 */
+      const t5 = await EV(P, () => { const C = window.__C, o = {};
+        const pn = window.__LV(['右手', '左手'], ['staff', 'bass'], undefined, { voxGroups: [{ type: 'brace', from: 0, to: 1 }], instKey: 'piano' });
+        window.__ld(pn); voxLayerNew(1); o.lh = { g: song.voxGroups, ok: PQ_KIND.voxLayerOk(song), vv: song.voxVoices };
+        window.__ld(pn); voxLayerNew(0); o.rh = { g: song.voxGroups, ok: PQ_KIND.voxLayerOk(song) };
+        const s = window.__LV(['单簧管'], ['staff'], undefined, { inst0: 'flute', voxTransp: [-2], voxClefOct: [-1], voxDual: [true] });
+        s.measures[0].voxes[0][2].clef = 'bass';
+        s.measures[1].voxes[0][0].ott = '8va'; s.measures[1].voxes[0][0].ottTo = { mi: 1, ci: 1 }; s.measures[1].voxes[0][1].ott = '8va';
+        window.__ld(s); voxLayerNew(0);
+        const L = song.measures.map(m => m.voxes[1]);
+        o.copy = { tr: song.voxTransp, co: song.voxClefOct, du: song.voxDual, ok: PQ_KIND.voxLayerOk(song), clef: L[0].map(c => c.clef || ''), ott: L[1].map(c => (c.ott || '') + (c.ottTo ? '>' + c.ottTo.mi + ':' + c.ottTo.ci : '')),
+          mx: song.mixer['vox:1'], mx0: song.mixer['vox:0'] };
+        const big = window.__LV(Array.from({ length: 15 }, (_, i) => 'V' + i), Array.from({ length: 15 }, () => 'staff'), undefined, { nMea: 1 });
+        window.__ld(big); o.cap = voxLayNewWhy(0); const n0 = song.voxVoices.length; voxLayerNew(0); o.capN = song.voxVoices.length === n0;
+        return o; });
+      T(!t5.err && J(t5.lh.g) === J([{ type: 'brace', from: 0, to: 2 }]) && J(t5.lh.ok) === '[0,0,1]' && J(t5.lh.vv) === J(['右手', '左手', '左手·2'])
+        && J(t5.rh.g) === J([{ type: 'brace', from: 0, to: 2 }]) && J(t5.rh.ok) === '[0,1,0]'
+        && J(t5.copy.tr) === '[-2,-2]' && J(t5.copy.co) === '[-1,-1]' && J(t5.copy.du) === '[true,true]' && J(t5.copy.ok) === '[0,1]'
+        && J(t5.copy.clef) === J(['', '', 'bass', '']) && J(t5.copy.ott) === J(['8va>1:1', '8va', '', '']) && t5.copy.mx.lay === 1 && t5.copy.mx.inst === t5.copy.mx0.inst
+        && /音轨最多 15 条/.test(t5.cap) && t5.capN,
+        'T5 新建第二声部：宿主是组末行时组撑到层（左手）、组内宿主随插入撑大（右手）；八度谱号 / 移调 / 简谱对照复制到层且层对生效；曲中谱号与八度线按起拍落到层列；层的混音条目＝宿主拷贝＋lay:1；总轨数满 15 不建（原因 ≤16 字）', J(t5));
     }
 
     /* ================= O：旧外壳 / ?next=0 / 回滚副本零入口 ================= */
