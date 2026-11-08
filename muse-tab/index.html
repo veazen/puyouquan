@@ -19837,6 +19837,35 @@ function hidSweep(s){
 }
 /* 改时值的命令（setDur / durOnBlank / durBatch / toggleDotCore / dotLink / extendBeat）对所改的列删 hid：用户改过时值的休止回到可见（§1.3）；补出 / 拆出的休止列本就不带 hid */
 function hidDrop(c){ if(c && c.hid!==undefined) delete c.hid; }
+/* v70.6 同谱表叠放 · 第 0 步（规格 docs/spec-2026-11-v705.md §12.1、D-6 / D-16、§16-2 / §16-3）：下面只声明、不接入渲染——本提交谱面零变化。
+   VOX_LAYER_DRAW：回滚常量。1＝新外壳把生效层对画在宿主的谱表上（叠放，刻版组接线后生效）；0＝谱面一律照 v70.5 回落形态（层按独立谱表、hid 照普通休止）。
+     下一行原文固定（tests/tv_v706eng.js 的回滚副本按这串字替换，同 v70.1 NW_P2B 先例），注释不要写到同一行。
+   layerDrawOn()：叠放总判据＝VOX_LAYER_DRAW===1 && FLOW.shellNew() && FLOW.nxOn()——只看外壳选择（新外壳且不是 ?next=0），不看宽度 / 观看页 / 谱架 / 打印 / 离屏；
+     不用 flowOn()（?next=0 时它为真，观看页 / 谱架 / ≤820 手机上它为假）。启动早期（FLOW 还没建）一律为假＝回落形态。
+   layerDrawOk(s)：叠放的层对＝PQ_KIND.voxLayerOk(s) 的生效层对（见证＋组边界＋两行同为五线谱＋八度谱号 / 移调相等＋整曲不是 chordOnly / func）里、宿主没开简谱对照（!voxDual[宿主]，D-16）的；
+     layerDrawOn() 为假或一对都没有返回 null，否则逐行 0 / 1 数组（与 voxLayerOk 同形：[i]===1＝第 i 行画在第 i−1 行的谱表上）。只读：不写字段、不改入参、单遍线性。
+   voxPairRows(s, mode)：按谱表取「宿主 / 层」行（刻版组与录入组共用）——null（这个判据下没有层对）或 {rows:[[宿主] 或 [宿主, 层]…]（谱表顺序）, of:[行→谱表下标]}：
+     mode 'draw'＝叠放判据 layerDrawOk（谱面、光标落位用）；'sync'＝一致对 PQ_KIND.voxLayerOk(s,'sync')（谱表级同步；按行取另有 voxStaffRows）；
+     缺省＝生效层对，直接是 PQ_KIND.layerRows(s)（物理谱表视图，不看外壳）。一次渲染算一次，别在逐列循环里调。
+   layerDrawPair(s, vi)：第 vi 行所在的叠放层对 [宿主, 层]（vi 是宿主或层都行）；不叠放＝null。 */
+const VOX_LAYER_DRAW = 1;
+function layerDrawOn(){ try{ return VOX_LAYER_DRAW===1 && typeof FLOW!=='undefined' && !!FLOW && typeof FLOW.shellNew==='function' && !!FLOW.shellNew() && !!FLOW.nxOn(); }catch(_){ return false; } }
+function layerDrawOk(s){
+  if(!layerDrawOn()) return null;
+  const L=PQ_KIND.voxLayerOk(s); if(!L) return null;
+  const d=Array.isArray(s.voxDual)? s.voxDual : null;
+  let out=null;
+  for(let i=1; i<L.length; i++) if(L[i] && !(d && d[i-1])) (out = out || new Array(L.length).fill(0))[i] = 1;
+  return out;
+}
+function voxPairRows(s, mode){
+  if(mode!=='draw' && mode!=='sync') return PQ_KIND.layerRows(s);
+  const L = mode==='draw'? layerDrawOk(s) : PQ_KIND.voxLayerOk(s, 'sync'); if(!L) return null;
+  const rows=[], of=[];
+  for(let i=0; i<L.length; i++){ if(L[i]) rows[rows.length-1].push(i); else rows.push([i]); of[i]=rows.length-1; }
+  return {rows, of};
+}
+function layerDrawPair(s, vi){ const R=voxPairRows(s, 'draw'), r=R && R.rows[R.of[vi]]; return r && r.length>1? r.slice() : null; }
 /* v70.5 §1.4 谱表级属性同步：曲中换谱号（R-clef）/ 八度线（R-ott）在同谱表另一行按小节内起拍对齐取列。
    colOnsetQ＝第 mi 小节第 vi 行第 ci 列的起拍（拍）；staffColAt＝第 vj 行起拍恰为 q 的列，该拍正好没有起拍取同小节其后第一列，没有＝-1 */
 function colOnsetQ(mi, vi, ci){ const cols=(((song.measures[mi]||{}).voxes)||[])[vi]||[], u=meaMeter(mi).unit; let t=0; for(let j=0;j<ci && j<cols.length;j++) t+=beatsOf(cols[j], u); return t; }
@@ -29536,6 +29565,9 @@ var FLOW = (function(){
      F.nxOn() 为真＝新形态（主按钮 / 停留预览 / 织体条 / 「智能 ▾」画廊 / 右栏两页）；挂 flow 时 body.flw-nx0 标出回退态，新形态的 CSS 一律写 body.flow:not(.flw-nx0) */
   const NX_OFF = (()=>{ try{ return /[?&]next=0(?:&|#|$)/.test(location.search||''); }catch(_){ return false; } })();
   F.nxOn = ()=>!NX_OFF;
+  /* v70.6（规格 docs/spec-2026-11-v705.md §12.1 / D-6 / §16-2）：外壳选择是不是新外壳＝html.flow-pre（<head> 开关脚本按 ?shell= 与本机键 musetab-flow 定）且 uiShell。
+     不看宽度 / 观看页 / 谱架（与 F.want / flowOn() 不同：那两处在观看页、谱架、≤820 手机上为假，这里仍为真）；?next=0 不在这里管——同谱表叠放的判据 layerDrawOn() 另与 F.nxOn() 合取 */
+  F.shellNew = ()=>{ if(!F.pre()) return false; let shell=true; try{ shell=!!uiShell; }catch(_){} return shell; };
   /* 子块顺序＝钩子调用顺序 */
   F.PARTS = ['r1','r2','st','rd','tree','pal','sbar','nx','hd','fix','mode','cmd','mob','r2k','nar','prog','rdp','spd','tour'];   /* v69.1 A：hd 页头就地改 · fix 红点就地修；C：spd 启动台（rdp 后，规格 §2.5） */   /* v68.1 轨 C：r2k 行 2 换键 · nar 窄档 · prog 状态栏小节格（cmd 已在表里）；rdp＝右栏书写页（轨 B）：排在最后——页容器（rd）先建好；v68.2 tour＝首次 3 步导览（读各块建好的锚点，放最后）；v68.3 sbar（谱面上方悬浮条）顶替 start（行 2 起步组 / 右栏「下一步」卡）的位置 */
   F.each = (hook, a, b)=>{ const lzh=!!LZ_HOOK[hook], lz=lzh && F.lzNow();
