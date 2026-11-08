@@ -45865,49 +45865,57 @@ function importMusicXML(xmlStr){
   partsSrc.forEach(part=>{
     const at=part.querySelector(':scope > measure > attributes'); const nSt=at? +(txt(at,'staves')||1) : 1;   /* 同 splitStaves */
     const N=[];
-    [...part.querySelectorAll(':scope > measure')].forEach((m, mi)=>{ let tcur=0, lastV=null; const pendG=[];
-      [...m.children].forEach(el=>{ const tg=el.tagName;
+    /* v70.5 CI 修（导入耗时）：兄弟指针遍历（firstElementChild / nextElementSibling），不展开 children——此前每个音一个 HTMLCollection 加逐项取下标，侏儒预扫 ~13ms、GC 翻倍；
+       小节按 localName 认（＝原 querySelectorAll(':scope > measure') 的类型选择器），子元素顺序、末个 voice / staff / duration 胜出、首个 notations 查品，口径不变 */
+    let mi=-1;
+    for(let m=part.firstElementChild; m; m=m.nextElementSibling){ if(m.localName!=='measure') continue; mi++;
+      let tcur=0, lastV=null; const pendG=[];
+      for(let el=m.firstElementChild; el; el=el.nextElementSibling){ const tg=el.tagName;
         if(tg==='backup' || tg==='forward'){ const dd=(+(txt(el,'duration')||0))||0;
-          if(tg==='forward'){ const fv=txt(el,'voice'); if(fv!=null) N.push({el, v:fv, raw:fv, st:+(txt(el,'staff')||1)||1, fw:1, mi, t0:tcur, t1:tcur+dd}); }
-          tcur = tg==='backup'? Math.max(0, tcur-dd) : tcur+dd; return; }
-        if(tg!=='note') return;
+          if(tg==='forward'){ const fv=txt(el,'voice'); if(fv!=null) N.push({el, v:fv, raw:fv, st:+(txt(el,'staff')||1)||1, ch:false, gr:false, pit:false, fw:1, mi, t0:tcur, t1:tcur+dd, k:null}); }
+          tcur = tg==='backup'? Math.max(0, tcur-dd) : tcur+dd; continue; }
+        if(tg!=='note') continue;
         /* 一遍子元素取齐（长谱导入耗时：此前每项各一次 querySelector） */
         let gr=false, ch=false, vx=null, st=1, du=0, pit=false, ntE=null;
-        for(const c of el.children){ const t=c.tagName;
+        for(let c=el.firstElementChild; c; c=c.nextElementSibling){ const t=c.tagName;
           if(t==='grace') gr=true; else if(t==='chord') ch=true; else if(t==='pitch') pit=true; else if(t==='notations') ntE=ntE||c;
           else if(t==='voice') vx=c.textContent.trim(); else if(t==='staff') st=+c.textContent.trim()||1; else if(t==='duration') du=(+c.textContent.trim())||0; }
         if(!pit && ntE && ntE.querySelector(':scope > technical > fret')) pit=true;
-        const r={el, v:vx, raw:vx, st, ch, gr, pit, mi, t0:tcur, t1:tcur};
+        const r={el, v:vx, raw:vx, st, ch, gr, pit, fw:0, mi, t0:tcur, t1:tcur, k:null};
         if(!gr && !ch){ r.t1=tcur+du; tcur+=du; }
         if(vx==null){ if(ch) r.v = lastV!=null? lastV : ''; else if(gr) pendG.push(r); else r.v=''; }
-        if(!gr && !ch){ lastV=r.v; pendG.forEach(g=>{ g.v=r.v; }); pendG.length=0; }
-        N.push(r); });
-      pendG.forEach(g=>{ g.v = lastV!=null? lastV : ''; }); });
+        if(!gr && !ch){ lastV=r.v; for(let i=0; i<pendG.length; i++) pendG[i].v=r.v; pendG.length=0; }
+        N.push(r); }
+      for(let i=0; i<pendG.length; i++) pendG[i].v = lastV!=null? lastV : ''; }
     let perSt=false;
     if(nSt>=2){ const byMV=new Map();
-      N.forEach(r=>{ if(r.fw || r.ch || r.gr || !(r.t1>r.t0)) return; const k=r.mi+'\u0001'+r.v; if(!byMV.has(k)) byMV.set(k, []); byMV.get(k).push(r); });
+      for(const r of N){ if(r.fw || r.ch || r.gr || !(r.t1>r.t0)) continue; const k=r.mi+'\u0001'+r.v; const L=byMV.get(k); if(L) L.push(r); else byMV.set(k, [r]); }
       for(const L of byMV.values()){ for(let i=0; i<L.length && !perSt; i++) for(let j=i+1; j<L.length; j++){ const a=L[i], b=L[j];
           if(a.st!==b.st && a.t0<b.t1-1e-6 && b.t0<a.t1-1e-6){ perSt=true; break; } }
         if(perSt) break; } }
-    const vOfK=new Map(), cnt=new Map();
-    N.forEach(r=>{ r.k = perSt? r.v+'@'+r.st : r.v; vOfK.set(r.k, r.v); if(r.k!==(r.raw==null? '' : r.raw)) r.el.setAttribute('data-pyq-k', r.k);
-      if(!r.fw && !r.ch && !r.gr){ if(!cnt.has(r.k)) cnt.set(r.k, new Map()); const c=cnt.get(r.k); c.set(r.st, (c.get(r.st)||0)+1); } });
+    /* 一遍定键：键 → 声部文本 / 首次出现的谱表、有音高 / 有音的键；归属谱表的计数只在多谱表且不按谱表编号时要（首次出现顺序＝原 new Set(N.map) 的顺序） */
+    const vOfK=new Map(), st0=new Map(), cnt=new Map(), pitK=new Set(), noteK=new Set(), needCnt = nSt>=2 && !perSt;
+    for(const r of N){ const k = perSt? r.v+'@'+r.st : r.v; r.k=k;
+      if(!vOfK.has(k)){ vOfK.set(k, r.v); st0.set(k, r.st); }
+      if(k!==(r.raw==null? '' : r.raw)) r.el.setAttribute('data-pyq-k', k);
+      if(r.fw) continue;
+      noteK.add(k); if(r.pit) pitK.add(k);
+      if(needCnt && !r.ch && !r.gr){ let c=cnt.get(k); if(!c) cnt.set(k, c=new Map()); c.set(r.st, (c.get(r.st)||0)+1); } }
     const homeOf=new Map();
-    N.forEach(r=>{ if(homeOf.has(r.k)) return;
-      if(nSt<2){ homeOf.set(r.k, 1); return; }
-      if(perSt){ homeOf.set(r.k, r.st); return; }
-      const c=cnt.get(r.k); if(!c){ homeOf.set(r.k, r.st); return; }
+    for(const k of vOfK.keys()){
+      if(nSt<2){ homeOf.set(k, 1); continue; }
+      if(perSt){ homeOf.set(k, st0.get(k)); continue; }
+      const c=cnt.get(k); if(!c){ homeOf.set(k, st0.get(k)); continue; }
       let best=null; for(const [st, n] of c) if(best==null || n>c.get(best) || (n===c.get(best) && st<best)) best=st;
-      homeOf.set(r.k, best); });
-    const pitK=new Set(), noteK=new Set(); N.forEach(r=>{ if(r.fw) return; noteK.add(r.k); if(r.pit) pitK.add(r.k); });
-    const allK=[...new Set(N.map(r=>r.k))], staves=[];
+      homeOf.set(k, best); }
+    const allK=[...vOfK.keys()], staves=[];
     for(let k=1; k<=Math.max(1, nSt); k++){
       const mine=allK.filter(x=>homeOf.get(x)===k).sort((a, b)=>vCmp(vOfK.get(a), vOfK.get(b))), rk=mine.filter(x=>pitK.has(x));
       staves.push({host: rk.length? rk[0] : (mine.find(x=>noteK.has(x)) ?? null), layer: rk[1] ?? null, drop: rk.slice(2), all: mine, vOf: vOfK}); }
     const xs = nSt>=2 && !perSt && N.some(r=>!r.fw && homeOf.get(r.k)!==r.st);
     PRE.set(part, {nSt, perSt, xs, homeOf, staves}); });
-  const fwKey = el=>{ const k=el.getAttribute('data-pyq-k'); if(k!=null) return k; for(const c of el.children) if(c.tagName==='voice') return c.textContent.trim(); return null; };   /* forward 的声部键（不带 voice＝null，只推游标） */
-  const vKey = el=>{ const k=el.getAttribute('data-pyq-k'); if(k!=null) return k; for(const c of el.children) if(c.tagName==='voice') return c.textContent.trim(); return ''; };   /* 声部键（预扫没打标记的＝自己的 <voice> 文本） */
+  const fwKey = el=>{ const k=el.getAttribute('data-pyq-k'); if(k!=null) return k; for(let c=el.firstElementChild; c; c=c.nextElementSibling) if(c.tagName==='voice') return c.textContent.trim(); return null; };   /* forward 的声部键（不带 voice＝null，只推游标） */
+  const vKey = el=>{ const k=el.getAttribute('data-pyq-k'); if(k!=null) return k; for(let c=el.firstElementChild; c; c=c.nextElementSibling) if(c.tagName==='voice') return c.textContent.trim(); return ''; };   /* 声部键（预扫没打标记的＝自己的 <voice> 文本） */
   function preHome(part, el, st){ const P=PRE.get(part); if(!P || !P.xs) return st; const h=P.homeOf.get(vKey(el)); return h!=null? h : st; }
   const VPI = new Map();   /* 虚拟 part → {key 本行声部键, drop 丢弃并计 skip.voices 的键（只在宿主行上计）} */
   const partsAll=[]; const pairMark=new Map();   // 大谱表拆出的 上行→下行
