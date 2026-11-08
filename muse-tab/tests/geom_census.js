@@ -43,7 +43,7 @@ const INK_PAIRS = {
 /* ---------------- 页面侧（page.evaluate(GC_PAGE) 注入 window.__gcRun） ---------------- */
 function GC_PAGE(CFG) {
   const NS = 'http://www.w3.org/2000/svg';
-  const MARK = new Set(CFG.MARK), INK = new Set(CFG.INK), INK_PAIRS = CFG.INK_PAIRS, AVM = new Set(CFG.AVM);
+  const MARK = new Set(CFG.MARK), INK = new Set(CFG.INK), INK_PAIRS = CFG.INK_PAIRS, AVM = new Set(CFG.AVM), XV = new Set(CFG.XV || []);
   const ORDER = CFG.MARK.concat(CFG.INK);
   const oi = c => { const i = ORDER.indexOf(c); return i < 0 ? 999 : i; };
   let cv = null;
@@ -66,7 +66,9 @@ function GC_PAGE(CFG) {
       const cs = getComputedStyle(el);
       if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) return;
       const M = rootInv.multiply(el.getScreenCTM());
-      const it = { el, cls, key, vi, mi, ci, tag };
+      /* v70.6 同谱表叠放：data-gst="宿主:小节:起拍"（谱表级标记；不叠放的谱没有这个属性） */
+      const gst = el.getAttribute('data-gst') || '';
+      const it = { el, cls, key, vi, mi, ci, tag, gst, st: gst ? gst.split(':')[0] : null };
       if (tag === 'text') {
         const anchor = cs.textAnchor, txt = el.textContent || '';
         if (!txt.trim()) return;
@@ -114,7 +116,15 @@ function GC_PAGE(CFG) {
     return { n, area: n * sx * sy };
   };
   function rule(a, b) {
-    const A = a.cls, B = b.cls, mA = MARK.has(A), mB = MARK.has(B), same = a.key === b.key;
+    const r = rule0(a, b);
+    /* v70.6 同谱表不同声部（data-gst 谱表相同、声部不同）：跨声部类别对另记 /v（C21 起）；
+       同一谱表同小节同起拍（data-gst 相同）的「设计上就相接」对按同列豁免——共用符头的另一声部符干（head × stem）、穿过另一声部符头的加线（head × ledger）；
+       二度相贴的两个符头是 any 类（同列也计，与和弦二度同口径：错开量＝和弦 DX，墨迹相嵌面积 <0.2 不计） */
+    if (r && a.st != null && a.st === b.st && a.vi !== b.vi && XV.has(r)) return r + '/v';
+    return r;
+  }
+  function rule0(a, b) {
+    const A = a.cls, B = b.cls, mA = MARK.has(A), mB = MARK.has(B), same = a.key === b.key || (!!a.gst && a.gst === b.gst && a.vi !== b.vi && (A === 'head' || B === 'head') && (A === 'stem' || B === 'stem' || A === 'ledger' || B === 'ledger'));   /* 同起拍另一声部的符干（共用符头）/ 加线（同列音穿过另一声部加线）按同列 */
     if (A === B) {
       if (same && A !== 'head' && A !== 'acc') return null;   /* 同一列同一记号的几个部件（Ped. 文字 / 线 / *、和弦框 / 字……） */
       if (!mA && !['head', 'acc', 'rest', 'flag', 'dot', 'tie', 'grace'].includes(A)) return null;
@@ -396,7 +406,9 @@ const allSamples = (only) => {
 /* ---------------- Node 侧：跑与汇总 ---------------- */
 /* 谱表上下方向避让的记号（index.html avPlace 放的那几类）：与和弦名框也量贴近（B1） */
 const AVM = ['ped', 'dyn', 'hairpin', 'dtext', 'tempo', 'expr', 'anno', 'ott'];
-const CFG = { MARK, INK, INK_PAIRS, AVM };
+/* v70.6 同谱表叠放的跨声部类别对（规格 §12.2-12；编号 C21 起）：类别名带 /v 后缀 */
+const XV = ['head×head', 'head×rest', 'rest×rest', 'head×dot', 'acc×head'];
+const CFG = { MARK, INK, INK_PAIRS, AVM, XV };
 async function inject(page) { return page.evaluate(GC_PAGE, CFG); }
 /* samples：[{name, song}]；presets=true 时追加页面里的 16 个预设 */
 async function census(page, samples, opt) {
@@ -440,6 +452,12 @@ const GROUPS = [
   { id: 'C18', what: '连音线 / 圆滑线终点压到下一音的临时记号', grp: 'B', test: (a, b) => a === 'acc' && b === 'tie' },
   { id: 'C20', what: '双音震音杠与音符墨迹相撞（符头 / 符干 / 加线 / 临时记号 / 附点 / 连音线…；v70.4 基石方案 §3.2「震音 × 墨迹」）', grp: 'B', test: (a, b) => (a === 'trem2' || b === 'trem2') && INKSET.has(a) && INKSET.has(b) },
   { id: 'C17', what: '圆滑线（按连音线导入的长弧）穿过中间音的符干 / 符头 / 符尾', grp: 'later', test: (a, b) => (a === 'tie' || b === 'tie') && INKSET.has(a) && INKSET.has(b) },
+  /* v70.6 同谱表叠放的跨声部类别（同谱表不同声部；data-gst，规格 §12.2-12） */
+  { id: 'C21', what: '同谱表两个声部的符头相嵌（二度 / 交叉没错开）', grp: 'B', test: (a, b) => a === 'head' && b === 'head/v' },
+  { id: 'C22', what: '同谱表一个声部的休止压另一声部的符头（休止没偏开）', grp: 'B', test: (a, b) => a === 'head' && b === 'rest/v' },
+  { id: 'C23', what: '同谱表两个声部的休止相撞（没合并 / 没分上下）', grp: 'B', test: (a, b) => a === 'rest' && b === 'rest/v' },
+  { id: 'C24', what: '同谱表一个声部的附点压另一声部的符头', grp: 'B', test: (a, b) => a === 'head' && b === 'dot/v' },
+  { id: 'C25', what: '同谱表一个声部的临时记号压另一声部的符头（临时记号栈没合成一列）', grp: 'B', test: (a, b) => a === 'acc' && b === 'head/v' },
   { id: 'C11', what: '和弦内临时记号互相重叠（重升号 / 密集升降号错列不够）', grp: 'B', test: (a, b) => a === 'acc' && b === 'acc' },
   { id: 'C12', what: '符头与符头相嵌（二度和音错位量不足 / 列太挤）', grp: 'B', test: (a, b) => a === 'head' && b === 'head' },
   { id: 'C13', what: '符尾 / 符杠压符头（符干偏短）', grp: 'B', test: (a, b) => (a === 'flag' && b === 'head') || (a === 'head' && b === 'flag') || (a === 'beam' && b === 'head') || (a === 'head' && b === 'beam') },
@@ -510,7 +528,7 @@ async function shot(page, sample, o) {
   await page.evaluate(() => { const L = window.__gcLast; if (L && L.host) L.host.remove(); window.__gcLast = null; });
   return r;
 }
-module.exports = { MARK, INK, INK_PAIRS, AVM, GROUPS, METRICS, GC_PAGE, CFG, inject, census, summarize, groupCounts, printReport, libSamples, stressSamples, allSamples, shot };
+module.exports = { MARK, INK, INK_PAIRS, AVM, XV, GROUPS, METRICS, GC_PAGE, CFG, inject, census, summarize, groupCounts, printReport, libSamples, stressSamples, allSamples, shot };
 
 /* ---------------- 命令行 ---------------- */
 if (require.main === module) {

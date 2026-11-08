@@ -552,8 +552,11 @@ async function writeBase(b) {
     if (on('R')) await guard('R', async () => {
       const keys = ['pno', 'pno4', 'satb', 'vnfl', 'accMel'];
       const r = await EV(pg, ({ A, B }) => A.map((s, i) => { __ld(B[i]); const st = JSON.parse(JSON.stringify(song)); return {
-        rows: st.voxVoices.length, hid: st.measures.some(m => m.voxes.some(cols => cols.some(c => 'hid' in c))), restAt: st.measures[0].voxes[1].map(c => c.deg),
-        offA: __off(s), offB: __off(B[i]) }; }), { A: keys.map(k => FX[k]()), B: keys.map(k => STRIP705(FX[k]())) });
+        rows: st.voxVoices.length, hid: st.measures.some(m => m.voxes.some(cols => cols.some(c => 'hid' in c))), restAt: st.measures[0].voxes[1].map(c => c.deg) }; }), { A: keys.map(k => FX[k]()), B: keys.map(k => STRIP705(FX[k]())) });
+      /* v70.6 有意迁移：新外壳起同谱表叠放（规格 §12.1 / D-6），「分层谱的谱面＝剥字段后的谱面」只在旧外壳（与 ?next=0）下保持——离屏对比改在 ?shell=classic 页上做；新外壳的叠放由 tv_v706eng 守 */
+      { const pc = await openEditor(b, ED, '?shell=classic');
+        const offs = await EV(pc, ({ A, B }) => A.map((s, i) => ({ offA: __off(s), offB: __off(B[i]) })), { A: keys.map(k => FX[k]()), B: keys.map(k => STRIP705(FX[k]())) });
+        await pc._ctx.close(); offs.forEach((o, i) => Object.assign(r[i], o)); }
       const bad = [];
       r.forEach((x, i) => { const s = FX[keys[i]](); if (x.rows !== s.voxVoices.length || x.hid) bad.push(keys[i] + ' 行数 / hid');
         if (s.voxLayer[1] === 1 && J(x.restAt) !== J([5, 0, 6, 0])) bad.push(keys[i] + ' 层行音符 / 休止 ' + J(x.restAt));
