@@ -40,7 +40,8 @@
    E  页面脚本错误 0
    修前红：MUSETAB_URL 指 git show 7af5743:muse-tab/index.html 的副本复跑——S1 S2 S3 H1–H6 红（没有常量 / FLOW.shellNew / helper）；Z 的 classic / ?next=0 / Z3–Z5 是零差异守卫（基线与自己比，绿），
    Z 的回滚条红（基线没有那串字，回滚副本建不出来）；G 段几何断言在基线上红（层按独立谱表画）；C 段跨声部类别在基线上没有 data-gst（0 处，守卫）；B1 红（回滚副本建不出来）、B3 红（不叠放）。
-   env：MUSETAB_URL 被测页（缺省 ../index.html）· V706_REF 基线页（缺省 git show 7af5743，v70.5 行为）· ONLY=S,H,Z,G,C,B 只跑部分段 · --write-base 用基线页重写存档 */
+   env：MUSETAB_URL 被测页（缺省 ../index.html）· V706_REF 基线页（缺省 git show 7af5743，v70.5 行为）· ONLY=S,H,Z,G,C,B 只跑部分段 · --write-base 用基线页重写存档 ·
+   --write-snap 用基线页重写对拍快照 fixtures/v706_ref_snap.json 的 eng 段（Z 段离屏 sha1 ＋ G1 / G2b / G15 的基线几何子集；CI 浅克隆取不到 7af5743 时 Z / G 读它，v70.6 集成） */
 const { chromium } = require('playwright');
 const fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto');
 const { execFileSync } = require('child_process');
@@ -48,7 +49,7 @@ const toUrl = u => /^file:/.test(u) ? u : 'file://' + path.resolve(u);
 const URL0 = process.env.MUSETAB_URL ? toUrl(process.env.MUSETAB_URL) : 'file://' + path.resolve(__dirname, '../index.html');
 const withQ = (u, q) => u + (u.includes('?') ? '&' : '?') + q;
 const ONLY = (process.env.ONLY || '').split(',').map(s => s.trim()).filter(Boolean);
-const want = k => !ONLY.length || ONLY.includes(k);
+const want = k => !process.argv.includes('--write-snap') && (!ONLY.length || ONLY.includes(k));
 const REF_COMMIT = '7af5743';
 let pass = 0, total = 0; const fails = [];
 const T = (ok, name, d) => { total++; if (ok) pass++; else fails.push(name.split(' ')[0]); console.log((ok ? '✅' : '❌') + ' ' + name + (d != null && !ok ? '：' + String(d).slice(0, 1600) : '')); };
@@ -61,7 +62,13 @@ const H1 = s => crypto.createHash('sha1').update(String(s)).digest('hex');
 const SG = 7.5;
 const fileOf = u => { const m = /^file:\/\/([^?#]*)/.exec(u); return m ? decodeURIComponent(m[1]) : null; };
 const NEEDLE = 'const VOX_LAYER_DRAW = 1;';
+/* 对拍快照（v706_snap.js）：--write-snap 用基线页重写 eng 段；平时取不到基线页时读它 */
+const SNAPM = require('./v706_snap.js');
+const WSNAP = process.argv.includes('--write-snap');
+const SNAP = WSNAP ? null : SNAPM.section('eng');
+const SNAPW = {};
 const refUrl = () => {
+  if (process.env.V706_NOREF) return null;   /* 模拟 CI 浅克隆（取不到基线提交）：走快照 */
   if (process.env.V706_REF) return toUrl(process.env.V706_REF);
   try { const t = path.join(os.tmpdir(), 'v706_ref_' + REF_COMMIT + '.html');
     if (!fs.existsSync(t) || fs.statSync(t).size < 1e5) { const x = t + '.' + process.pid; fs.writeFileSync(x, execFileSync('git', ['-C', path.resolve(__dirname, '..', '..'), 'show', REF_COMMIT + ':muse-tab/index.html'], { maxBuffer: 1 << 28 })); fs.renameSync(x, t); }
@@ -255,57 +262,69 @@ const BASE_SONGS = async pg => { const im = await EV(pg, xs => xs.map(x => JSON.
       }
     }
 
-    /* ================= Z：零差异守卫（G10 可常驻部分） ================= */
-    if (want('Z')) {
+    /* ================= Z：零差异守卫（G10 可常驻部分） =================
+       基线页取得到（本机 / V706_REF）时现场比；取不到（CI 浅克隆没有 7af5743）时比 fixtures/v706_ref_snap.json 的 eng.Z（基线页输出的 sha1，样本谱一并存）——deploy.yml 不必补取 */
+    if (want('Z') || WSNAP) {
       const OFF = () => { window.__off = s => { const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); document.body.appendChild(svg); let h = null;
         try { renderOffscreen({ song: migrate(JSON.parse(JSON.stringify(s))), target: svg, paperW: 870, crop: true }); h = svg.innerHTML; } finally { svg.remove(); } return h; }; };
-      const ru = refUrl(), smp = SONGS.slice(0, 4);
-      const cmp = async (ua, ub, q) => { const P = await open(b, ua, q), Q = await open(b, ub, q), bad = [];
-        await EV(P.pg, OFF); await EV(Q.pg, OFF);
-        for (let i = 0; i < smp.length; i++) { const x = await EV(P.pg, s => __off(s), smp[i]), y = await EV(Q.pg, s => __off(s), smp[i]);
-          if (typeof x !== 'string' || x !== y) bad.push(q + ' #' + i + (typeof x === 'string' && typeof y === 'string' ? ' 长度 ' + x.length + '/' + y.length : ' ' + J(x).slice(0, 80) + ' / ' + J(y).slice(0, 80))); }
-        allErrs.push(...P.errs, ...Q.errs); await P.ctx.close(); await Q.ctx.close(); return bad; };
-      if (!ru) T(false, 'Z 基线页取不到（git show ' + REF_COMMIT + '）');
+      const ru = refUrl(), ZS = SNAP && SNAP.Z;
+      const PRE = ZS ? ZS.songs.pre : await EV(A.pg, () => [0, 3, 7, 12].map(i => PRESETS[i] && JSON.parse(JSON.stringify(PRESETS[i].make()))).filter(Boolean));
+      const smp = ZS ? ZS.songs.smp : SONGS.slice(0, 4).map((s, i) => [['F07', 'F06', 'F21', 'F17'][i], s]);
+      const zF02 = ZS ? ZS.songs.F02 : S02, zJp = ZS ? ZS.songs.jpLay : EFX.jpLay, zDual = ZS ? ZS.songs.dual : EFX.dual;
+      const flowL = smp.concat([['F02', zF02]], (Array.isArray(PRE) ? PRE : []).map((s, i) => ['预设' + i, s]), [['jpLay', zJp], ['dual', zDual]]);
+      const SETS = { classic: ['shell=classic', smp], next0: ['next=0', smp], flow: ['x=1', flowL] };
+      const hashRun = async (url, q, list) => { const P = await open(b, url, q); await EV(P.pg, OFF); const o = {};
+        for (const [k, s] of list) { const x = await EV(P.pg, s => __off(s), s); o[k] = typeof x === 'string' ? H1(x) + ':' + x.length : 'ERR ' + J(x).slice(0, 80); }
+        allErrs.push(...P.errs); await P.ctx.close(); return o; };
+      let RH = null, src = '';
+      if (ru) { RH = {}; for (const [n, [q, l]] of Object.entries(SETS)) RH[n] = await hashRun(ru, q, l); src = REF_COMMIT; }
+      else if (ZS) { RH = ZS.h; src = REF_COMMIT + '（快照）'; }
+      if (WSNAP) SNAPW.Z = { songs: { smp, F02: zF02, pre: PRE, jpLay: zJp, dual: zDual }, h: RH };
+      const diff = (cur, ref, keys) => keys.filter(k => !cur[k] || cur[k] !== (ref || {})[k]).map(k => k + ' ' + String(cur[k]).split(':')[1] + '/' + String((ref || {})[k]).split(':')[1]);
+      if (WSNAP) {}
+      else if (!RH) T(false, 'Z 基线页取不到（git show ' + REF_COMMIT + '），也没有快照 fixtures/v706_ref_snap.json 的 eng.Z');
       else {
-        const bad = [...await cmp(URL0, ru, 'shell=classic'), ...await cmp(URL0, ru, 'next=0')];
-        T(!bad.length, 'Z1 置 1 时 ?shell=classic 与 ?next=0：分层谱（F07 / F06 / F21 / F17）离屏谱面＝' + REF_COMMIT + '（G10）', bad.join(' | '));
+        const K4 = smp.map(x => x[0]);
+        const cC = await hashRun(URL0, 'shell=classic', smp), cN = await hashRun(URL0, 'next=0', smp);
+        const bad = diff(cC, RH.classic, K4).map(x => 'classic ' + x).concat(diff(cN, RH.next0, K4).map(x => 'next=0 ' + x));
+        T(!bad.length, 'Z1 置 1 时 ?shell=classic 与 ?next=0：分层谱（F07 / F06 / F21 / F17）离屏谱面＝' + src + '（G10）', bad.join(' | '));
         let rb = null, rbErr = ''; try { rb = rollbackUrl(URL0); } catch (e) { rbErr = e.message; }
-        const bad2 = rb ? await cmp(rb, ru, 'x=1') : ['回滚副本：' + rbErr];
-        T(!bad2.length, 'Z2 回滚副本（VOX_LAYER_DRAW = 0）新外壳：分层谱离屏谱面＝' + REF_COMMIT + ' 新外壳（G10）', bad2.join(' | '));
+        const bad2 = rb ? diff(await hashRun(rb, 'x=1', smp), RH.flow, K4) : ['回滚副本：' + rbErr];
+        T(!bad2.length, 'Z2 回滚副本（VOX_LAYER_DRAW = 0）新外壳：分层谱离屏谱面＝' + src + ' 新外壳（G10）', bad2.join(' | '));
         /* Z3–Z5：新外壳、置 1，下面这些谱不叠放——离屏谱面＝v70.5 */
-        const cmpS = async (list, q) => { const P = await open(b, URL0, q), Q = await open(b, ru, q), bad = [];
-          await EV(P.pg, OFF); await EV(Q.pg, OFF);
-          for (const [k, s] of list) { const x = await EV(P.pg, s => __off(s), s), y = await EV(Q.pg, s => __off(s), s);
-            if (typeof x !== 'string' || x !== y) bad.push(k + (typeof x === 'string' && typeof y === 'string' ? ' 长度 ' + x.length + '/' + y.length : ' ' + J(x).slice(0, 80))); }
-          allErrs.push(...P.errs, ...Q.errs); await P.ctx.close(); await Q.ctx.close(); return bad; };
-        const PRE = await EV(A.pg, () => [0, 3, 7, 12].map(i => PRESETS[i] && JSON.parse(JSON.stringify(PRESETS[i].make()))).filter(Boolean));
-        const bad3 = await cmpS([['F02', S02]].concat((Array.isArray(PRE) ? PRE : []).map((s, i) => ['预设' + i, s])), 'x=1');
-        T(!bad3.length && Array.isArray(PRE) && PRE.length === 4, 'Z3 新外壳：没有 voxLayer 的谱（F02 / 4 份预设）离屏谱面＝' + REF_COMMIT + '（G11）', bad3.join(' | ') || J(PRE).slice(0, 120));
-        const bad4 = await cmpS([['jpLay', EFX.jpLay]], 'x=1');
-        T(!bad4.length, 'Z4 新外壳：简谱行的层（voxLayerOk 不生效）hid 照画 0，离屏谱面＝' + REF_COMMIT + '（G12 后半，D-16）', bad4.join(' | '));
-        const bad5 = await cmpS([['dual', EFX.dual]], 'x=1');
-        T(!bad5.length, 'Z5 新外壳：宿主开了简谱对照的层对不叠放，离屏谱面＝' + REF_COMMIT + '（G16，§16-3）', bad5.join(' | '));
+        const cF = await hashRun(URL0, 'x=1', flowL.slice(4));
+        const K3 = ['F02'].concat((Array.isArray(PRE) ? PRE : []).map((_, i) => '预设' + i));
+        const bad3 = diff(cF, RH.flow, K3);
+        T(!bad3.length && Array.isArray(PRE) && PRE.length === 4, 'Z3 新外壳：没有 voxLayer 的谱（F02 / 4 份预设）离屏谱面＝' + src + '（G11）', bad3.join(' | ') || J(PRE).slice(0, 120));
+        const bad4 = diff(cF, RH.flow, ['jpLay']);
+        T(!bad4.length, 'Z4 新外壳：简谱行的层（voxLayerOk 不生效）hid 照画 0，离屏谱面＝' + src + '（G12 后半，D-16）', bad4.join(' | '));
+        const bad5 = diff(cF, RH.flow, ['dual']);
+        T(!bad5.length, 'Z5 新外壳：宿主开了简谱对照的层对不叠放，离屏谱面＝' + src + '（G16，§16-3）', bad5.join(' | '));
       }
     }
 
     /* ================= G：刻版几何（§12.6 口径） ================= */
-    if (want('G')) {
+    if (want('G') || WSNAP) {
       const P = keep(await open(b, URL0, 'x=1')); await EV(P.pg, GEO_DEF);
       const ru = refUrl(); let Q = null; if (ru) { Q = keep(await open(b, ru, 'x=1')); await EV(Q.pg, GEO_DEF); }
+      /* 与 v70.5 同列比的三处（G1 / G2b / G15）：基线页取不到时读快照 eng.G（基线页几何的子集：stem / rest / dyn 与谱表底线） */
+      const GS = SNAP && SNAP.G;
+      const red = G => G && ({ items: G.items.filter(o => o.g === 'stem' || o.g === 'rest' || o.g === 'dyn').map(o => ({ g: o.g, vi: o.vi, mi: o.mi, ci: o.ci, tag: o.tag, ln: o.ln, tr: o.tr, y: o.y, box: o.box })), sb: G.sb });
       const geo = async (pg, s) => { const r = await EV(pg, s => __geo(s), s); if (!r || r.err) throw new Error('排版失败：' + (r && r.err)); return r; };
       const cx = o => (o.box[0] + o.box[2]) / 2, cy = o => (o.box[1] + o.box[3]) / 2, near = (a, c, t) => Math.abs(a - c) <= t;
       const of = (G, g, vi, mi, ci) => G.items.filter(o => o.g === g && o.vi === vi && o.mi === mi && (ci === undefined || o.ci === ci));
       const stems = (G, vi, mi) => of(G, 'stem', vi, mi).filter(o => o.ln).map(o => ({ ci: o.ci, up: o.ln[3] < o.ln[1] }));
-      const F04 = await EV(A.pg, x => JSON.parse(JSON.stringify(importMusicXML(x).song)), FX('F04'));
+      const F04 = GS ? GS.F04song : await EV(A.pg, x => JSON.parse(JSON.stringify(importMusicXML(x).song)), FX('F04'));
+      const gref = async (k, s) => { if (Q) { const r = await geo(Q.pg, s); if (WSNAP) (SNAPW.G = SNAPW.G || { F04song: F04 })[k] = red(r); return r; } return GS ? GS[k] || null : null; };
       /* G1 */
-      { const g = await geo(P.pg, F04), r = Q ? await geo(Q.pg, F04) : null, Hd = await geo(P.pg, EFX.heads);
+      { const g = await geo(P.pg, F04), r = await gref('F04', F04), Hd = await geo(P.pg, EFX.heads);
         const two = [1, 2].every(mi => stems(g, 0, mi).length && stems(g, 0, mi).every(x => x.up) && stems(g, 1, mi).length && stems(g, 1, mi).every(x => !x.up));
         const twoH = [0, 1, 2, 3].every(mi => stems(Hd, 0, mi).every(x => x.up) && stems(Hd, 1, mi).every(x => !x.up)) && stems(Hd, 1, 1).length > 0;
         const one = !!r && stems(g, 0, 0).length > 0 && [0, 3].every(mi => J(stems(g, 0, mi)) === J(stems(r, 0, mi)));   /* m4 是全音符（没有符干），两边都空 */
         T(two && twoH && one, 'G1 符干：两声部小节宿主朝上、层朝下（F04 m2–m3、FX.heads 全部小节）；对方整小节 hid 的小节（F04 m1 / m4）宿主符干方向＝v70.5 同列',
           J({ two: [1, 2].map(mi => [stems(g, 0, mi), stems(g, 1, mi)]), one: [0, 3].map(mi => [stems(g, 0, mi), r && stems(r, 0, mi)]) })); }
       /* G2 休止 + G12 */
-      { const R = await geo(P.pg, EFX.rests), Rr = Q ? await geo(Q.pg, EFX.rests) : null;
+      { const R = await geo(P.pg, EFX.rests), Rr = await gref('rests', EFX.rests);
         const rests = (G, vi, mi) => of(G, 'rest', vi, mi).filter(o => o.tr);
         const pOf = (G, o) => (((G.sb['0:' + o.mi]) - 2 * SG) - o.tr[1]) / (SG / 2);
         const clr = (G, o, ov) => { const hs = of(G, 'head', ov, o.mi).filter(h => h.box[0] < o.box[2] + 4 && h.box[2] > o.box[0] - 4);
@@ -372,7 +391,7 @@ const BASE_SONGS = async pg => { const im = await EV(pg, xs => xs.map(x => JSON.
           'G13 竖向：层与宿主同 y（谱表底线相同）；宿主加线区覆盖层的最低音（层有 G3 时两张谱表间距变大、层符头与朝下的符干端不进下一张谱表）',
           J({ sb: Lw.sb, sb0: L0.sb, tip: tip && tip.ln, hd: hd && hd.box, lhTop })); }
       /* G14 括线 / G15 力度 */
-      { const Dn = await geo(P.pg, EFX.dyn), Du = await geo(P.pg, EFX.duo), Dr = Q ? await geo(Q.pg, EFX.dyn) : null;
+      { const Dn = await geo(P.pg, EFX.dyn), Du = await geo(P.pg, EFX.duo), Dr = await gref('dyn', EFX.dyn);
         const br = Dn.items.find(o => o.g === 'brace'), span = Dn.sb['2:0'] - (Dn.sb['0:0'] - 4 * SG);
         T(Dn.braces === 1 && !!br && near(br.box[3] - br.box[1], span, 3) && Du.brackets === 0 && !Du.items.some(o => o.g === 'bracket'),
           'G14 括线：分层钢琴 [RH, RH·2, LH, LH·2] 只有 1 个花括号、跨 2 张物理谱表；闭合二部合唱 [S, A(层)] 不画方括号', J({ braces: Dn.braces, h: br && br.box[3] - br.box[1], span, brackets: Du.brackets }));
@@ -436,6 +455,10 @@ const BASE_SONGS = async pg => { const im = await EV(pg, xs => xs.map(x => JSON.
         T(b4, 'B4 0 / 1 两种取值下 JSON、MusicXML、MIDI 字节相同；排版不改 song', J(Array.isArray(e1) ? e1.map((r, i) => [r.k, r.same, e0 && e0[i] && [r.j === e0[i].j, r.x === e0[i].x, r.m === e0[i].m]]) : e1));
         allErrs.push(...errs);
       }
+    }
+    if (WSNAP) {
+      if (!SNAPW.Z || !SNAPW.Z.h || !SNAPW.G || !SNAPW.G.F04 || !SNAPW.G.rests || !SNAPW.G.dyn) throw new Error('--write-snap：基线页取不到（git show ' + REF_COMMIT + ' 或 V706_REF）');
+      SNAPM.save('eng', SNAPW); console.log('→ ' + SNAPM.FILE + '（eng 段）');
     }
   } catch (e) { console.log('❌ 运行异常 ' + (e.stack || e)); total++; fails.push('异常'); }
   for (const P of pages) { allErrs.push(...P.errs); await P.ctx.close(); }

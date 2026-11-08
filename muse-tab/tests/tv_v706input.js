@@ -28,7 +28,7 @@
    W  文案：node deploy/check-wording.js 字数预算各项新增 0、禁止词 0
    E0 页面脚本错误 0
    修前红：MUSETAB_URL 指 git show 7af5743:muse-tab/index.html 的副本——K1 K2a K3–K6 T1–T5 L1a–c L2a L3 L4 红（没有入口与修改）；
-   K2b、O1、E1–E6、L2b、L2c（与自己比）、W1（跑工作区的闸）是守卫，基线同绿。CI 浅克隆没有 7af5743 时 K6 的基线对照与 L2c 跳过（其余照判）。
+   K2b、O1、E1–E6、L2b、L2c（与自己比）、W1（跑工作区的闸）是守卫，基线同绿。CI 浅克隆没有 7af5743 时 K6 的基线对照与 L2c 改比对拍快照 fixtures/v706_ref_snap.json 的 input 段（v70.6 集成；node tv_v706input.js --write-snap 用基线页重写，只写 K6 文本与 L2c 的 sha1）。
    env：MUSETAB_URL 被测页（缺省 ../index.html）· V706_REF 基线页（缺省 git show 7af5743）· ONLY=K,T,O,E,L,W 只跑部分段 */
 const { chromium } = require('playwright');
 const fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto');
@@ -47,7 +47,12 @@ const fileOf = u => { const m = /^file:\/\/([^?#]*)/.exec(u); return m ? decodeU
 const FX5 = fs.readdirSync(path.join(__dirname, 'fixtures', 'v705')).filter(f => /\.musicxml$/.test(f)).sort();
 const XH = fs.readFileSync(path.join(__dirname, 'fixtures', 'v706', 'xhand.musicxml'), 'utf8');
 const NEEDLE = 'const VOX_LAYER_DRAW = 1;';
+const SNAPM = require('./v706_snap.js');
+const WSNAP = process.argv.includes('--write-snap');
+const SNAP = WSNAP ? null : SNAPM.section('input');
+const SNAPW = {};
 const refUrl = () => {
+  if (process.env.V706_NOREF) return null;   /* 模拟 CI 浅克隆（取不到基线提交）：走快照 */
   if (process.env.V706_REF) return toUrl(process.env.V706_REF);
   try { const t = path.join(os.tmpdir(), 'v706_ref_' + REF_COMMIT + '.html');
     if (!fs.existsSync(t) || fs.statSync(t).size < 1e5) { const x = t + '.' + process.pid; fs.writeFileSync(x, execFileSync('git', ['-C', ROOT, 'show', REF_COMMIT + ':muse-tab/index.html'], { maxBuffer: 1 << 28 })); fs.renameSync(x, t); }
@@ -206,12 +211,14 @@ const toBody = pg => pg.evaluate(() => { const ae = document.activeElement; if (
       await P.keyboard.press('Control+Alt+Digit2'); await wait(P, 80);
       k6.no = await EV(P, jb => { const t = document.getElementById('toast'); return { same: JSON.stringify(song) === jb, sel: [sel.row, sel.vi], k: t && t.dataset ? t.dataset.k || '' : '', t: t ? t.textContent : '' }; }, jb);
       k6.helpNo = await helpOf(P, sNo); k6.helpLay = await helpOf(P, sLay);
-      if (REF) { const R = await open(b, REF, 'x=1'); k6.refTab = await tabRun(R.pg); k6.refHelp = await helpOf(R.pg, sNo); allErrs.push(...R.errs); await R.ctx.close(); }
+      if (REF) { const R = await open(b, REF, 'x=1'); k6.refTab = await tabRun(R.pg); k6.refHelp = await helpOf(R.pg, sNo); allErrs.push(...R.errs); await R.ctx.close(); if (WSNAP) SNAPW.k6 = { refTab: k6.refTab, refHelp: k6.refHelp }; }
+      else if (SNAP && SNAP.k6) { k6.refTab = SNAP.k6.refTab; k6.refHelp = SNAP.k6.refHelp; }
+      const HASREF = !!(REF || (SNAP && SNAP.k6));
       const extra = (k6.helpLay || []).filter(x => !(k6.helpNo || []).includes(x));
-      T(k6.tab && k6.tab.lhF === '1' && (!REF || (k6.refTab && k6.refTab.lhF === '1')) && J(k6.alt) === J(['vox', 1])
+      T(k6.tab && k6.tab.lhF === '1' && (!HASREF || (k6.refTab && k6.refTab.lhF === '1')) && J(k6.alt) === J(['vox', 1])
         && k6.no.same && J(k6.no.sel) === J(['vox', 0]) && k6.no.k === 'limit' && /没有第二声部/.test(k6.no.t),
         'K6a 快捷键只增不改：六线谱行 Ctrl+Alt+1 仍写左手指法 1（同 7af5743）；Alt+↓ 仍走 moveVoice；没有第二声部的旋律行 Ctrl+Alt+2 不改谱、光标不动、提示「没有第二声部」', J({ tab: k6.tab, refTab: k6.refTab, alt: k6.alt, no: k6.no }));
-      T(Array.isArray(k6.helpNo) && (!REF || J(k6.helpNo) === J(k6.refHelp)) && Array.isArray(k6.helpLay) && k6.helpLay.length === k6.helpNo.length + 1 && extra.length === 1 && /声部 1 \/ 2/.test(extra[0]) && /Ctrl\+Alt\+1 \/ 2/.test(extra[0]),
+      T(Array.isArray(k6.helpNo) && (!HASREF || J(k6.helpNo) === J(k6.refHelp)) && Array.isArray(k6.helpLay) && k6.helpLay.length === k6.helpNo.length + 1 && extra.length === 1 && /声部 1 \/ 2/.test(extra[0]) && /Ctrl\+Alt\+1 \/ 2/.test(extra[0]),
         'K6b 快捷键菜单：没有第二声部的谱与 7af5743 逐字相同；有第二声部时恰多一行「声部 1 / 2 · Ctrl+Alt+1 / 2」', J({ no: k6.helpNo, ref: k6.refHelp, extra }));
     }
 
@@ -391,7 +398,13 @@ const toBody = pg => pg.evaluate(() => { const ae = document.activeElement; if (
         const run = pg => EV(pg, xs => xs.map(x => { const r = importMusicXML(x); return JSON.stringify([r.song, r.skip, r.lossy || null]); }), xs);
         const a = await run(P), r = await run(R.pg); allErrs.push(...R.errs); await R.ctx.close();
         const diff = Array.isArray(a) && Array.isArray(r) ? FX5.filter((f, i) => a[i] !== r[i]) : ['运行失败'];
+        if (WSNAP && Array.isArray(r)) SNAPW.l2c = Object.fromEntries(FX5.map((f, i) => [f, SNAPM.H1(r[i])]));
         T(diff.length === 0, 'L2c ② v70.5 的 ' + FX5.length + ' 份导入夹具（F01–F27）导入结果（song / skip / lossy）与 7af5743 逐字节相同', diff.join(' '));
+      } else if (SNAP && SNAP.l2c) {   /* CI 浅克隆：比快照里的基线 sha1 */
+        const xs = FX5.map(f => fs.readFileSync(path.join(__dirname, 'fixtures', 'v705', f), 'utf8'));
+        const a = await EV(P, xs => xs.map(x => { const r = importMusicXML(x); return JSON.stringify([r.song, r.skip, r.lossy || null]); }), xs);
+        const diff = Array.isArray(a) ? FX5.filter((f, i) => SNAPM.H1(a[i]) !== SNAP.l2c[f]) : ['运行失败'];
+        T(diff.length === 0 && Object.keys(SNAP.l2c).length === FX5.length, 'L2c ② v70.5 的 ' + FX5.length + ' 份导入夹具（F01–F27）导入结果（song / skip / lossy）与 7af5743（快照）逐字节相同', diff.join(' '));
       }
 
       /* L3 ③ 单件小提琴带第二声部：配伴奏入口 */
@@ -427,6 +440,7 @@ const toBody = pg => pg.evaluate(() => { const ae = document.activeElement; if (
       const adds = (out.match(/新增 (\d+)/g) || []).map(x => +x.replace(/\D/g, ''));
       T(code === 0 && adds.length >= 5 && adds.every(n => n === 0), 'W1 措辞闸：禁止词 0、字数预算各项新增 0（按钮 ≤4 字、菜单项 ≤6 字、悬停 ≤12 字）', out.split('\n').filter(l => /新增|❌/.test(l)).join(' | '));
     }
+    if (WSNAP) { if (!SNAPW.k6 || !SNAPW.l2c) throw new Error('--write-snap：基线页取不到（git show ' + REF_COMMIT + ' 或 V706_REF），或没跑 K / L 段'); SNAPM.save('input', SNAPW); console.log('→ ' + SNAPM.FILE + '（input 段）'); }
   } catch (e) { T(false, 'RUN 运行异常', String(e && e.stack || e).slice(0, 800)); }
   allErrs.push(...A.errs);
   const real = allErrs.filter(e => !/ResizeObserver|AudioContext|autoplay/i.test(e));
