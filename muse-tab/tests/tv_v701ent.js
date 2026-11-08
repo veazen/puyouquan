@@ -301,13 +301,18 @@ async function qmInfo(pg, real) {
         if (!/^[a-z][a-z0-9]*(:[a-z0-9:-]+)*$/.test(c.id) || norm[i] !== 'cmd:go:' + c.id) e.push('id 格式');
         return e.length ? c.id + ' ' + e.join(',') : null; }).filter(Boolean);
       T('C1', !bad.length, '19 条：关键词＝规格表、无 2 字母整词、不含导入 / midi / 编辑 / 模式 / 播放 / 练习 / 四步 / 和弦图 / 写法 / 联排 / 配伴奏 / 织体；图标＝NWP.PZ_IC / SC[].ic；sp:1；cmd:go:<id> 过 FLOW.track 格式', bad.join(' | '));
-      const ht = head.map(c => c.id + '|' + c.t);
+      /* v70.6 有意新增（集成，规格 §12.3）：新外壳命令表多两条「新建第二声部」「拆成独立一行」（trk:layer / trk:split，排在 trk:rename 之后）；
+         比 v70.1 fixture 时先剔掉这两条，其余逐条照旧；?next=0 两条不进命令表（下面 n0 不剔、逐字节） */
+      const V706 = /^trk:(layer|split)\|/;
+      const ht = head.map(c => c.id + '|' + c.t).filter(x => !V706.test(x));
+      T('C1', head.filter(c => /^trk:(layer|split)$/.test(c.id)).map(c => c.id + '|' + c.t).join(' ') === 'trk:layer|新建第二声部 trk:split|拆成独立一行', 'v70.6 新外壳命令表恰多两条 trk:layer「新建第二声部」/ trk:split「拆成独立一行」（只增）',
+        J(head.filter(c => /^trk:/.test(c.id)).map(c => c.id)));
       T('C1', J(ht) === J(FX.nx.cmdTxt) && NFP.sha(ht.join('\n')) === FX.nx.cmd, '既有 ' + head.length + ' 条命令（id＋标题）与 fixture nx.cmdTxt 逐条相同（只在表尾追加）',
         J(ht.map((x, i) => x === FX.nx.cmdTxt[i] ? null : [i, x, FX.nx.cmdTxt[i]]).filter(Boolean).slice(0, 4)));
       const n0 = await NFP.snapShell(b, withQ(URL0, 'next=0'), ['cmd'], { errs: pageErrs, tag: 'C1 next=0' });
       const rb = await NFP.snapShell(b, RB, ['cmd'], { errs: pageErrs, tag: 'C1 回滚' });
       T('C1', n0.cmdTxt && !n0.cmdTxt.some(x => /^nf:/.test(x)) && NFP.sha(n0.cmdTxt.join('\n')) === FX.n0.cmd, '?next=0：0 条 nf:*，命令表 id＋标题序列与 fixture n0.cmd 逐字节相同', n0.cmdTxt && n0.cmdTxt.length);
-      T('C1', rb.cmdTxt && !rb.cmdTxt.some(x => /^nf:/.test(x)) && NFP.sha(rb.cmdTxt.join('\n')) === FX.nx.cmd, '回滚副本（NW_P2B＝0）：0 条 nf:*，命令表与 fixture nx.cmd 逐字节相同', rb.cmdTxt && rb.cmdTxt.length);
+      T('C1', rb.cmdTxt && !rb.cmdTxt.some(x => /^nf:/.test(x)) && NFP.sha(rb.cmdTxt.filter(x => !/^trk:(layer|split)\|/.test(x)).join('\n')) === FX.nx.cmd, '回滚副本（NW_P2B＝0）：0 条 nf:*，命令表与 fixture nx.cmd 逐字节相同', rb.cmdTxt && rb.cmdTxt.length);
     };
 
     /* ===== C2 命令执行 ===== */

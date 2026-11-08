@@ -33449,11 +33449,14 @@ FLOW.cmd = (function(){
       C('trk:mute', '静音当前轨', 'jydqg jy mute 静音', '左栏音轨行', W(fa('tree:mute', cur)), {ic:'trk-mute'}),
       C('trk:solo', '独奏当前轨', 'dzdqg dz solo 独奏', '左栏音轨行', W(fa('tree:solo', cur)), {ic:'trk-solo'}),
       C('trk:rename', '改轨名', 'ggm gm rename 改名 轨名 声部名', '左栏音轨（双击轨名）', W(fa('tree:rename', cur))),
-      /* v70.6 录入组（规格 §12.3）：同谱表第二声部——与音轨 ⋯「新建第二声部」「拆成独立一行」同一调用、同一判据；只新外壳（voxInOn 为假时整条隐藏，?next=0 不出） */
+      /* v70.6 录入组（规格 §12.3）：同谱表第二声部——与音轨 ⋯「新建第二声部」「拆成独立一行」同一调用、同一判据；只新外壳（voxInOn 为假时整条隐藏，?next=0 不出）。
+         v70.6 集成：叠放判据 layerDrawOn() 为假的页面（?next=0、回滚常量 0）两条不进命令表——命令表 id＋标题序列与 v70.5 逐字节相同（tv_v701ent C1 n0）；判据只看外壳选择，开机即定，LIST 缓存不受影响 */
+      ...(layerDrawOn()? [
       C('trk:layer', '新建第二声部', 'xjdesb desb dsb 第二声部 声部二 声部2 双声部 两个声部 同谱表 voice2 layer 新建声部', '左栏音轨行 ⋯', W(()=>voxLayerNew(sel.vi|0)),
         {ok:()=>vox() || voxLayNewWhy(sel.vi|0), hide:()=>!voxInOn(), ic:'act-add'}),
       C('trk:split', '拆成独立一行', 'ccdlyh cfsb 拆开 拆分声部 独立一行 第二声部 单独一行', '左栏音轨行 ⋯', W(()=>voxLayerSplit(sel.vi|0)),
         {ok:()=>vox() || voxLaySplitWhy(sel.vi|0), hide:()=>!voxInOn()}),
+      ] : []),
       C('trk:allj', '全部旋律轨改为简谱', 'qbgwjp qbg gwjp jianpu 全部简谱 改为简谱', '左栏音轨 · ⋯', W(fa('tree:mel', {dataset:{v:'J'}})), {ok:melOk, ic:'nota-jianpu'}),
       C('trk:alls', '全部旋律轨改为五线谱', 'qbgwwxp qbg gwwxp wxp staff 全部五线谱 改为五线谱', '左栏音轨 · ⋯', W(fa('tree:mel', {dataset:{v:'S'}})), {ok:melOk, ic:'nota-staff'}),
       C('trk:alld', '全部旋律轨改为五线谱＋简谱对照', 'qbgwdz dz dual 对照 教学对照 五线谱加简谱 改为对照', '左栏音轨 · ⋯ / 悬浮条「对照」', W(fa('tree:mel', {dataset:{v:'D'}})), {ok:melOk, ic:'nota-dual'}),

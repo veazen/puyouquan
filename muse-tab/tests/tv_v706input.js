@@ -13,7 +13,7 @@
       T1 层挂在宿主下：层行 aria-level＝宿主＋1、带 .flw-tnest，子行不出记谱法层（data-layer jp / st）
       T2 本轨 ⋯：五线谱宿主没有层＝「新建第二声部」可用；简谱轨不出；有层后宿主 / 层两行都是「拆成独立一行」、不再有「新建第二声部」；菜单项 ≤6 字；从菜单点「新建第二声部」建出层
       T3 拆成独立一行：voxLayer 删键、见证删、两行 hid 全删、行数不变；一步撤销 JSON 复原
-      T4 命令面板：新外壳搜「xjdesb」首条＝新建第二声部；?next=0 两条隐藏
+      T4 命令面板：新外壳搜「xjdesb」首条＝新建第二声部；?next=0 两条不进命令表
       T5 新建第二声部的附带写法：宿主是组末行时组撑到层；八度谱号 / 移调 / 简谱对照复制到层；曲中谱号 / 八度线按起拍落到层列；层混音＝宿主拷贝＋lay:1；总轨数满 15 不建
    O  旧外壳 / ?next=0 / 回滚副本（VOX_LAYER_DRAW = 0）零入口（§12.5）：voxInOn 假；Ctrl+Alt+2 不动光标；没有声部开关；音轨树不缩进；⋯ 菜单没有两项；快捷键菜单没有那一行
    E  编辑一致性（§12.4）：结果与「剥掉层标记的同一份谱（各行独立）」逐行相同——E1 整小节复制粘贴 · E2 插小节 / 删小节 · E3 移调 · E4 时值检查；
@@ -262,8 +262,8 @@ const toBody = pg => pg.evaluate(() => { const ae = document.activeElement; if (
       await P.keyboard.press('Control+Slash'); await wait(P, 250); await P.keyboard.type('xjdesb'); await wait(P, 250);
       const t4 = await EV(P, () => { const f = document.querySelector('#flw-cmdl [data-fa="cmd:go"]'); const o = { first: f && f.dataset.v, txt: f && f.textContent }; try { FLOW.menu.close(); } catch (_) {} return o; });
       let t4n = null; { const N = await open(b, URL0, 'next=0'); t4n = await EV(N.pg, () => (FLOW.cmd.list() || []).filter(x => /^trk:(layer|split)$/.test(x.id)).map(x => [x.id, !!(x.hide && x.hide())])); allErrs.push(...N.errs); await N.ctx.close(); }
-      T(!t4.err && t4.first === 'trk:layer' && /新建第二声部/.test(t4.txt || '') && J(t4n) === J([['trk:layer', true], ['trk:split', true]]),
-        'T4 命令面板：新外壳搜「xjdesb」首条＝新建第二声部；?next=0 两条隐藏', J({ t4, t4n }));
+      T(!t4.err && t4.first === 'trk:layer' && /新建第二声部/.test(t4.txt || '') && J(t4n) === '[]',
+        'T4 命令面板：新外壳搜「xjdesb」首条＝新建第二声部；?next=0 两条不进命令表（命令表与 v70.5 逐字节，tv_v701ent C1）', J({ t4, t4n }));
       /* T5 新建第二声部的附带写法：组撑到层 · 谱表级属性复制 · 曲中谱号 / 八度线按起拍落到层 · 混音条目＝宿主拷贝＋见证 · 上限 */
       const t5 = await EV(P, () => { const C = window.__C, o = {};
         const pn = window.__LV(['右手', '左手'], ['staff', 'bass'], undefined, { voxGroups: [{ type: 'brace', from: 0, to: 1 }], instKey: 'piano' });
